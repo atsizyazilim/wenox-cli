@@ -2,6 +2,7 @@ import chalk from "chalk";
 import wrapAnsi from "wrap-ansi";
 import stringWidth from "string-width";
 import { renderMarkdownBlocks } from "../markdown.js";
+import { plain } from "../utils.js";
 import { theme } from "./theme.js";
 import { t } from "../i18n/index.js";
 
@@ -14,6 +15,31 @@ const TOOL_ICONS = {
   run_command: "⚡",
   code_intel: "🧭",
 };
+
+// Komut bloğu: `$ komut` başlığı ve çıktısı, solda renkli şerit + arka plan ile.
+function commandBar(text, width, colorName) {
+  const bar = chalk[colorName]("│");
+  const bg = chalk.bgHex(theme.inputBg);
+  const used = 2 + stringWidth(plain(text));
+  const pad = " ".repeat(Math.max(0, width - used));
+  return bg(`${bar} ${text}${pad}`);
+}
+
+function commandOutput(result, width) {
+  const inner = Math.max(10, width - 4);
+  const out = String(result.stdout ?? "").replace(/\n+$/, "");
+  const err = String(result.stderr ?? "").replace(/\n+$/, "");
+  const code = result.returncode ?? 0;
+  const color = code === 0 ? theme.ok : theme.err;
+
+  const body = [];
+  if (out) body.push(...wrapLines(out, inner));
+  if (err) body.push(...wrapLines(err, inner).map((line) => chalk.red(line)));
+  if (body.length === 0) body.push(chalk.dim(t("tool.noOutput")));
+  if (code !== 0) body.push(chalk[color](t("tool.exitCode", { code })));
+
+  return [...body.map((line) => commandBar(line, width, color)), commandBar("", width, color)];
+}
 
 function wrapLines(text, width) {
   return String(text)
@@ -103,6 +129,12 @@ function itemLines(item, width) {
       if (item.name === "ask_user") {
         return [chalk.hex(theme.menuDesc)(t("view.questionAsked")), ""];
       }
+      if (item.name === "run_command") {
+        return [
+          commandBar(chalk.bold(`$ ${item.args?.command ?? ""}`), width, theme.accent),
+          commandBar("", width, theme.accent),
+        ];
+      }
       return [
         `${chalk.cyan(`${TOOL_ICONS[item.name] ?? "⚙️"} ${item.name}`)}  ${chalk.dim(detailOf(item.name, item.args))}`,
       ];
@@ -115,6 +147,9 @@ function itemLines(item, width) {
       }
       if (!result.success) {
         return [chalk.red(`  ↳ ${result.error ?? t("tool.error")}`), ""];
+      }
+      if (item.name === "run_command") {
+        return [...commandOutput(result, width), ""];
       }
       const lines = [chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name, result)}`)];
       if (result.diff) {

@@ -208,6 +208,7 @@ Shortcuts
     items: "{count} items",
     matches: "{count} matches",
     exitCode: "exit code {code}",
+    noOutput: "(no output)",
     results: "{count} results",
     done: "done",
     error: "error",

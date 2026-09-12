@@ -208,6 +208,7 @@ Kısayollar
     items: "{count} öğe",
     matches: "{count} eşleşme",
     exitCode: "çıkış kodu {code}",
+    noOutput: "(çıktı yok)",
     results: "{count} sonuç",
     done: "tamamlandı",
     error: "hata",
