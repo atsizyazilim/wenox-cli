@@ -2,7 +2,7 @@ import { html } from "htm/react";
 import { Box, Text } from "ink";
 import { sliceByWidth, textWidth } from "../../utils.js";
 import { theme } from "../theme.js";
-import { ToastRow } from "./toast.js";
+import { toastRows } from "./toast.js";
 
 function rangeFor(selection, lineIndex, width) {
   if (!selection) return null;
@@ -31,14 +31,15 @@ function renderLine(line, range, key) {
   `;
 }
 
-export function Transcript({ lines, offset, height, selection, toast, contentWidth }) {
+export function Transcript({ lines, offset, height, selection, toast }) {
   const visible = lines.slice(offset, offset + height);
+  const card = toast ? toastRows(toast) : null;
 
   return html`
     <${Box} flexDirection="column" height=${height} overflow="hidden">
       ${visible.map((line, i) => {
-        if (toast && i === 0) {
-          return html`<${Box} key="toast"><${ToastRow} text=${toast} width=${contentWidth} /><//>`;
+        if (card && i < card.length) {
+          return html`<${Box} key=${`toast${i}`} justifyContent="flex-end">${card[i]}<//>`;
         }
         const lineIndex = offset + i;
         return renderLine(line, rangeFor(selection, lineIndex, textWidth(line)), lineIndex);
