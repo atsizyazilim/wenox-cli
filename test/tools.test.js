@@ -74,6 +74,22 @@ test("run_command çıktı ve çıkış kodu döner", async () => {
   assert.match(r.stdout, /v\d+\./);
 });
 
+test("iptal edilince çalışan komut durdurulur", async () => {
+  const { requestCancel, resetCancel } = await import("../src/cancel.js");
+  const script = path.join(dir, "uzun-sure.js");
+  fs.writeFileSync(script, "setTimeout(() => {}, 60000);", "utf8");
+
+  resetCancel();
+  const pending = tools.runCommand(`node "${script}"`);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  requestCancel();
+
+  const result = await pending;
+  resetCancel();
+  assert.equal(result.success, false);
+  assert.match(result.error, /cancel/i);
+});
+
 test("executeTool bilinmeyen araçta hata döner", async () => {
   const r = await tools.executeTool("boyle_bir_arac_yok");
   assert.equal(r.success, false);

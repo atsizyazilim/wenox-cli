@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { createPatch } from "diff";
 import { resolvePath } from "./utils.js";
 import { codeIntel } from "./lsp.js";
+import { setAbortHandler, clearAbortHandler } from "./cancel.js";
 
 const IGNORED_DIRS = new Set([
   ".git", ".svn", "__pycache__", "node_modules", "venv", ".venv", ".idea",
@@ -385,6 +386,23 @@ function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Alt süreçleriyle birlikte öldür (Windows'ta taskkill /T, POSIX'te SIGTERM)
+function killProcessTree(child) {
+  if (!child || child.exitCode !== null || child.pid == null) return;
+  try {
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } else {
+      child.kill("SIGTERM");
+    }
+  } catch {
+    // yoksay
+  }
+}
+
 export function runCommand(command) {
   return new Promise((resolve) => {
     if (!command || !String(command).trim()) {
@@ -407,16 +425,25 @@ export function runCommand(command) {
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let cancelled = false;
 
-    const timer = setTimeout(() => {
+    const finish = (result) => {
       if (settled) return;
       settled = true;
-      try {
-        child.kill();
-      } catch {
-        // ignore
-      }
-      resolve({ success: false, error: "Command timed out (120 seconds)." });
+      clearTimeout(timer);
+      clearAbortHandler();
+      resolve(result);
+    };
+
+    // ESC / Ctrl+C çalışan komutu da durdurur (ör. açık kalan bir dev server)
+    setAbortHandler(() => {
+      cancelled = true;
+      killProcessTree(child);
+    });
+
+    const timer = setTimeout(() => {
+      killProcessTree(child);
+      finish({ success: false, error: "Command timed out (120 seconds)." });
     }, COMMAND_TIMEOUT_MS);
 
     child.stdout?.on("data", (chunk) => {
@@ -427,17 +454,21 @@ export function runCommand(command) {
     });
 
     child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ success: false, error: `Could not run command: ${error.message}` });
+      finish({ success: false, error: `Could not run command: ${error.message}` });
     });
 
     child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ success: true, returncode: code ?? 0, stdout, stderr });
+      if (cancelled) {
+        finish({
+          success: false,
+          error: "Command cancelled by the user.",
+          returncode: code ?? 0,
+          stdout,
+          stderr,
+        });
+        return;
+      }
+      finish({ success: true, returncode: code ?? 0, stdout, stderr });
     });
   });
 }

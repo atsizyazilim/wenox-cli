@@ -81,7 +81,7 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 | `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
 | `Ctrl+O` | Komut çıktılarını tam/kısa göster |
 | `Ctrl+P` | Komut paleti |
-| `Esc` | Açık menüyü kapat / akan yanıtı iptal et |
+| `Esc` | Açık menüyü kapat · akan yanıtı ve **çalışan komutu** iptal et |
 | `Ctrl+C` | Her durumda kaçış: açık paneli kapatır, akan işi iptal eder, boştaysa çıkar |
 | `↑` / `↓` | Girdi geçmişi (slash menüsü açıkken menüde gezinir) |
 | `PgUp` / `PgDn` | Konuşmayı kaydır |
@@ -96,7 +96,8 @@ yapabilirsiniz (seçim açık gri zeminle işaretlenir ve kalıcıdır). Kopyala
 > Not: Uygulama fare takibini açtığı için terminalin kendi seçimi yerine bu seçim
 > kullanılır. Gerekirse **Shift + sürükle** ile terminal seçimine de geçebilirsiniz.
 
-`run_command` çalıştırılmadan önce onay istenir. Onay kutusunda `←/→` (veya `Tab`) ile
+`run_command` çalıştırılmadan önce onay istenir. Çalışırken `Esc` (veya `Ctrl+C`) o
+komutu **alt süreçleriyle birlikte** durdurur (ör. açık kalan bir dev server). Onay kutusunda `←/→` (veya `Tab`) ile
 **Allow / Disallow** seçin, `Enter` ile onaylayın; `Esc` reddeder. Kısayollar:
 `a` / `e` / `y` izin verir, `d` / `h` / `n` reddeder. `-y` ile oto-onay açılır.
 
