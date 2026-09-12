@@ -159,7 +159,13 @@ export function Onboarding({ onComplete }) {
           ? html`
               <${Text} key="need" color=${theme.muted}>${t("onboarding.needKey")}<//>
               <${Box} key="input" marginTop=${1} width=${boxWidth}>
-                <${InputBar} view=${inputView} disabled=${step === "verifying"} blinkOn=${blink} />
+                <${InputBar}
+                  view=${inputView}
+                  disabled=${step === "verifying"}
+                  blinkOn=${blink}
+                  width=${boxWidth}
+                  boxed=${true}
+                />
               <//>
               <${Box} key="link" marginTop=${1}>
                 <${Text} color=${theme.menuDesc}>${t("onboarding.getKeyHere", { url: API_KEY_URL })}<//>

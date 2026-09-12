@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 import { PromptLine } from "./prompt-line.js";
 import { theme } from "../theme.js";
 
-export function InputBar({ view, prefix, disabled, blinkOn }) {
+export function InputBar({ view, prefix, disabled, blinkOn, width, boxed = false }) {
   const markerColor = disabled ? theme.muted : theme.accentBright;
   const barColor = disabled ? theme.muted : theme.userAccent;
 
@@ -12,11 +12,12 @@ export function InputBar({ view, prefix, disabled, blinkOn }) {
       borderStyle="bold"
       borderTop=${false}
       borderBottom=${false}
-      borderRight=${false}
+      borderRight=${boxed}
       borderColor=${barColor}
       paddingX=${2}
       paddingY=${1}
       backgroundColor=${theme.inputBg}
+      width=${width}
     >
       <${Text} color=${markerColor}>${"❯ "}<//>
       ${prefix ? html`<${Text} color=${theme.warn}>${`${prefix}   `}<//>` : null}
