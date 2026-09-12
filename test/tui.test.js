@@ -129,6 +129,23 @@ test("onay paneli Allow/Disallow içerir", async () => {
   ui.unmount();
 });
 
+test("güvensiz dizinde (ev dizini) uyarı gösterilir", async () => {
+  setLocale("tr");
+  const original = process.cwd();
+  process.chdir(os.homedir());
+  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  try {
+    await d(250);
+    assert.ok(
+      plain(ui.lastFrame()).includes("proje dizininde değilsin"),
+      "proje dizini uyarısı görünür",
+    );
+  } finally {
+    ui.unmount();
+    process.chdir(original);
+  }
+});
+
 test("/exit oturum içeriğini senkronlar (komutla çıkışta id verilir)", async () => {
   setLocale("tr");
   const session = {

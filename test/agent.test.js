@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-agent-"));
-const { WenOXAgent } = await import("../src/agent.js");
+const { WenOXAgent, getSystemPrompt } = await import("../src/agent.js");
 
 function streamOf(chunks) {
   return (async function* () {
@@ -135,6 +135,47 @@ test("plan modunda yazma/komut engellenir", async () => {
   assert.equal(results[0].success, false);
   assert.match(results[0].error, /plan mode/i);
   assert.equal(fs.existsSync(target), false, "dosya yazılmamalıydı");
+});
+
+test("güvensiz kökte list_dir bile izin ister (yol belirtilmese de)", async () => {
+  const agent = makeAgent(toolCallChunk("list_dir", {}));
+  agent.projectRoot = os.homedir();
+  agent.unsafeRoot = true;
+  let asked = 0;
+  await agent.chatStep("t", {
+    askPermission: async () => {
+      asked += 1;
+      return "reject";
+    },
+    toolResult: () => {},
+  });
+  assert.equal(asked, 1, "list_dir için izin istenmeli");
+});
+
+test("güvenli kökte list_dir proje içi sorulmaz", async () => {
+  const agent = makeAgent(toolCallChunk("list_dir", { path: "." }));
+  agent.projectRoot = process.cwd();
+  agent.unsafeRoot = false;
+  let asked = 0;
+  await agent.chatStep("t", {
+    askPermission: async () => {
+      asked += 1;
+      return "reject";
+    },
+    toolResult: () => {},
+  });
+  assert.equal(asked, 0);
+});
+
+test("güvensiz dizinde system prompt uyarı içerir", () => {
+  const original = process.cwd();
+  try {
+    process.chdir(os.homedir());
+    assert.match(getSystemPrompt("build"), /does not look like a project directory/);
+  } finally {
+    process.chdir(original);
+  }
+  assert.doesNotMatch(getSystemPrompt("build"), /does not look like a project directory/);
 });
 
 test("boş anahtarla ajan kurulabilir (istemci tembel kurulur)", () => {

@@ -17,6 +17,7 @@ import { runRepl } from "./repl.js";
 import { changeDirectory } from "./tools.js";
 import { createSession, loadSession, saveSession } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
+import { isUnsafeWorkspace } from "./workspace.js";
 import { t, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
 
@@ -222,6 +223,9 @@ async function main() {
 
   await ui.showBootScreen(modelInfo.name, API_BASE_URL);
   ui.printBanner({ modelName: getModelInfo(agent.modelId).name, apiUrl: API_BASE_URL });
+  if (isUnsafeWorkspace(process.cwd())) {
+    ui.printWarning(t("notices.unsafeDir", { cwd: process.cwd() }));
+  }
   await runRepl({ agent });
   session.messages = agent.messages.slice(1);
   printSessionFooter(session);

@@ -187,6 +187,8 @@ Kısayollar
     modelSelected: "Model: {name}",
     modeChanged: "Mod: {mode}",
     copied: "Panoya kopyalandı",
+    unsafeDir:
+      "⚠️  Şu an bir proje dizininde değilsin gibi görünüyor: {cwd}\nDikkatli ol — ajan buradaki dosyaları okuyabilir ve dokunduğu her yol için izin ister. Bir proje klasörüne geçmen önerilir.",
     errorPrefix: "Hata: {message}",
   },
 

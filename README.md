@@ -104,6 +104,12 @@ içindeki yollar sorulmadan geçer. `Allow always` izinleri projeye göre
 `~/.wenox/permissions.json` dosyasında saklanır — bir projede verdiğiniz izin
 başka projeye taşınmaz.
 
+**Güvensiz çalışma dizini:** CLI'ı ev dizini (`C:\Users\<ad>`), sürücü kökü
+(`C:\`) veya `Windows`, `Program Files`, `/etc` gibi bir konumda başlatırsanız
+ekranın üstünde **uyarı** çıkar ve o dizinde **hiçbir yol güvenilir sayılmaz** —
+`list_dir` dahil bütün yol araçları izin ister. Ajanın system prompt'una da
+"burası proje dizini değil, dikkatli ol" notu eklenir.
+
 ## Modlar
 
 Durum çubuğunda aktif mod görünür; **`Tab`** ile değiştirilir:

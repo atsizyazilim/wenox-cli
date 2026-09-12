@@ -8,6 +8,7 @@ import { listSessions, saveSession } from "../session.js";
 import { fetchAccount, formatAccount, verifyApiKey } from "../account.js";
 import { copyToClipboard } from "../clipboard.js";
 import { plain, sliceByWidth } from "../utils.js";
+import { isUnsafeWorkspace } from "../workspace.js";
 import { t, setLocale, getLocale, localeTag, LANGUAGES } from "../i18n/index.js";
 import { requestCancel } from "../cancel.js";
 import { useBlink } from "./hooks.js";
@@ -203,6 +204,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
   }, [agent]);
 
+  const [unsafeWorkspace, setUnsafeWorkspace] = useState(() => isUnsafeWorkspace(process.cwd()));
+  const refreshUnsafeWorkspace = useCallback(() => {
+    setUnsafeWorkspace(isUnsafeWorkspace(process.cwd()));
+  }, []);
+
   const refreshAccount = useCallback(async () => {
     const info = await fetchAccount(agent.apiKey);
     if (!info) return;
@@ -288,6 +294,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       setStarted(true);
       setFollow(true);
       push({ role: "info", text: t("session.loaded", { name: loaded.title || loaded.id }) });
+      refreshUnsafeWorkspace();
     },
     [agent, push, session],
   );
@@ -674,6 +681,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   if (slashOpen) extraRows += Math.min(slashItems.length, 9) + 3;
   if (approval) extraRows += 5;
   if (permission) extraRows += 10;
+  if (unsafeWorkspace) extraRows += 3;
   if (question) extraRows += (question.options.length + 1) * 2 + 4;
 
   const viewportHeight = Math.max(4, rows - 7 - inputView.lines.length - extraRows);
@@ -1094,6 +1102,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   return html`
     <${Box} flexDirection="column" height=${rows} width=${columns}>
       <${Box} flexGrow=${1} flexDirection="column" paddingX=${2} paddingTop=${1}>
+        ${unsafeWorkspace
+          ? html`<${Box} marginBottom=${1}>
+              <${Text} color=${theme.warn}>${t("notices.unsafeDir", { cwd: process.cwd() })}<//>
+            <//>`
+          : null}
         ${started
           ? html`<${Transcript}
               lines=${lines}

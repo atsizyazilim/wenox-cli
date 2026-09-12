@@ -52,6 +52,10 @@ export function printDim(message) {
   console.log(chalk.dim(message));
 }
 
+export function printWarning(message) {
+  console.log(chalk.yellow(message));
+}
+
 export function welcomeMessage(account) {
   const name = typeof account?.name === "string" ? account.name.trim() : "";
   const lines = [name ? t("onboarding.welcomeNamed", { name }) : t("onboarding.welcomeAnon")];

@@ -187,6 +187,8 @@ Shortcuts
     modelSelected: "Model: {name}",
     modeChanged: "Mode: {mode}",
     copied: "Copied to clipboard",
+    unsafeDir:
+      "⚠️  You don't appear to be in a project directory: {cwd}\nBe careful — the agent can read files here, and every path it touches asks for permission. Consider moving to a project folder.",
     errorPrefix: "Error: {message}",
   },
 

@@ -5,6 +5,7 @@ import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import { sanitizeOutput } from "./utils.js";
 import { t } from "./i18n/index.js";
 import { loadGrants, addGrant } from "./permissions.js";
+import { isUnsafeWorkspace } from "./workspace.js";
 import {
   isCancelled,
   resetCancel,
@@ -34,12 +35,15 @@ export function getSystemPrompt(mode = "build") {
     mode === "plan"
       ? "MODE: PLAN (read-only). Do NOT modify files and do NOT run commands — write_file, edit_file and run_command are disabled. Inspect the codebase and propose a clear, step-by-step plan. If the user asks you to make changes, describe exactly what you would change and tell them to press the Tab key to switch to Build mode, because only then can you apply the change."
       : "MODE: BUILD. You may inspect the codebase, modify files and run commands to complete the task. Pressing the Tab key switches to Plan mode (read-only).";
+  const workspaceNote = isUnsafeWorkspace(cwd)
+    ? "\nWARNING: The working directory does not look like a project directory (it is a user or system location). Be extra careful here: never delete or overwrite anything unless the user explicitly asks, prefer read-only inspection, and suggest that the user switch to a project folder.\n"
+    : "";
   return `You are WenOX AI. You are an advanced AI Coding Assistant developed by WenOX.
 If asked who you are, your answer is always: "I am WenOX AI, developed by WenOX." Never state any other name.
 You have direct access to the local file system and can use the tools below to inspect projects, read files, edit files, and run commands.
 
 ${modeLine}
-
+${workspaceNote}
 Environment:
 - Operating System: ${process.platform === "win32" ? "Windows" : process.platform}
 - Working / Project Directory: ${cwd}
@@ -84,6 +88,7 @@ export class WenOXAgent {
     this.mode = "build";
     this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
     this.projectRoot = process.cwd();
+    this.unsafeRoot = isUnsafeWorkspace(this.projectRoot);
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
@@ -131,6 +136,7 @@ export class WenOXAgent {
   updateCwd() {
     this.#refreshSystem();
     this.projectRoot = process.cwd();
+    this.unsafeRoot = isUnsafeWorkspace(this.projectRoot);
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
@@ -146,11 +152,14 @@ export class WenOXAgent {
   }
 
   async #ensurePathAccess(toolName, args, sink) {
-    if (!PATH_TOOLS.has(toolName) || !args?.path) return true;
+    if (!PATH_TOOLS.has(toolName)) return true;
+    const targetPath = args?.path ?? ".";
     const root = this.projectRoot;
-    if (withinProject(args.path, root)) return true;
+    // Güvenli olmayan bir kökte (ev dizini, sürücü kökü…) hiçbir yol güvenilir
+    // sayılmaz: list_dir gibi araçlar bile izin ister.
+    if (!this.unsafeRoot && withinProject(targetPath, root)) return true;
 
-    const abs = path.resolve(root, String(args.path));
+    const abs = path.resolve(root, String(targetPath));
     if (this.#isExternalAllowed(abs)) return true;
 
     const isDirTool = toolName === "list_dir" || toolName === "search_code";
