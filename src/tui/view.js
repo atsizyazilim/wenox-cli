@@ -165,7 +165,7 @@ function itemLines(item, width, options = {}) {
         return [chalk.red(`  ↳ ${result.error ?? t("tool.error")}`), ""];
       }
       if (item.name === "run_command") {
-        return [...commandOutput(result, width, options.expanded), ""];
+        return [...commandOutput(result, width, Boolean(item.expanded)), ""];
       }
       const lines = [chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name, result)}`)];
       if (result.diff) {
@@ -192,12 +192,18 @@ function itemLines(item, width, options = {}) {
   }
 }
 
+// `owners`: her satırın hangi öğeye ait olduğu (tıklayınca aç/kapa için)
 export function buildTranscript(items, width, options = {}) {
   const lines = [];
+  const owners = [];
   items.forEach((item, index) => {
-    lines.push(...itemLines(item, width, { ...options, isLast: index === items.length - 1 }));
+    const block = itemLines(item, width, { ...options, isLast: index === items.length - 1 });
+    for (const line of block) {
+      lines.push(line);
+      owners.push(item.id);
+    }
   });
-  return lines;
+  return { lines, owners };
 }
 
 export function formatTokens(value) {

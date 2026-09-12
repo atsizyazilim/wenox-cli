@@ -154,6 +154,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const [tokens, setTokens] = useState(session?.tokens ?? 0);
   const selectionRef = useRef(null);
   const draggingRef = useRef(false);
+  const ownersRef = useRef([]);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [follow, setFollow] = useState(true);
   const offsetRef = useRef(0);
@@ -208,8 +209,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const refreshUnsafeWorkspace = useCallback(() => {
     setUnsafeWorkspace(isUnsafeWorkspace(process.cwd()));
   }, []);
-
-  const [expanded, setExpanded] = useState(false);
 
   const refreshAccount = useCallback(async () => {
     const info = await fetchAccount(agent.apiKey);
@@ -609,6 +608,29 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     resolve?.(decision);
   };
 
+  // Komut kartına tıklayınca aç/kapa (opencode'daki "click to expand")
+  const toggleCardAt = useCallback((lineIndex) => {
+    const id = ownersRef.current[lineIndex];
+    if (id == null) return;
+    const items = itemsRef.current;
+    const clicked = items.find((entry) => entry.id === id);
+    if (!clicked) return;
+
+    let target = clicked;
+    if (clicked.role === "tool-call" && clicked.name === "run_command") {
+      const index = items.indexOf(clicked);
+      target = items
+        .slice(index)
+        .find((entry) => entry.role === "tool-result" && entry.name === "run_command");
+    }
+    if (!target || target.role !== "tool-result" || target.name !== "run_command") return;
+
+    itemsRef.current = items.map((entry) =>
+      entry.id === target.id ? { ...entry, expanded: !entry.expanded } : entry,
+    );
+    setItems(itemsRef.current);
+  }, []);
+
   // İptal: çalışan isteği durdur + kuyruktaki bekleyen mesajları da bırak
   const cancelWork = useCallback(() => {
     requestCancel();
@@ -664,10 +686,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     return list;
   }, [items, liveText, modelId]);
 
-  const lines = useMemo(
-    () => buildTranscript(displayItems, width, { expanded }),
-    [displayItems, width, lang, expanded],
-  );
+  const lines = useMemo(() => {
+    const transcript = buildTranscript(displayItems, width);
+    ownersRef.current = transcript.owners;
+    return transcript.lines;
+  }, [displayItems, width, lang]);
 
   const commands = useMemo(() => commandItems(), [lang]);
 
@@ -894,7 +917,17 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         return;
       }
       if (mouse.type === "release") {
+        const sel = selectionRef.current;
+        const clicked =
+          draggingRef.current &&
+          sel &&
+          sel.startLine === sel.endLine &&
+          sel.startCol === sel.endCol;
         draggingRef.current = false;
+        if (clicked) {
+          toggleCardAt(sel.startLine);
+          setSel(null);
+        }
         return;
       }
       return;
@@ -1097,10 +1130,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
     if (key.ctrl && char === "d") {
       scrollBy(Math.floor(viewportHeight / 2));
-      return;
-    }
-    if (key.ctrl && char === "o") {
-      setExpanded((value) => !value);
       return;
     }
     if (key.ctrl && char === "p") {

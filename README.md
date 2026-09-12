@@ -44,8 +44,8 @@ token sayacı bulunur. Konuşma kendi kaydırılabilir görünümünde akar; her
 altında `▣ Build · <model> · <süre>` meta satırı yer alır.
 
 Komutlar kart olarak çizilir: `$ komut` başlığı ve altında çıktısı. Uzun çıktılar
-varsayılan olarak **6 satırda kısaltılır** (`… +N satır daha · ctrl+o ile aç`);
-`Ctrl+O` ile tamamı görünür/kısalır.
+varsayılan olarak **6 satırda kısaltılır** (`… +N satır daha · genişletmek için
+tıkla`); **karta tıklayarak** tamamını görebilir, tekrar tıklayarak daraltabilirsiniz.
 
 Model yanıt üretirken giriş kilitlenmez: yazıp gönderdiğiniz mesajlar **kuyruğa**
 alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak için
@@ -79,7 +79,6 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 | `Enter` | Gönder |
 | `/` | Komut menüsü (yazdıkça filtreler, `↑/↓` + `Enter`) |
 | `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
-| `Ctrl+O` | Komut çıktılarını tam/kısa göster |
 | `Ctrl+P` | Komut paleti |
 | `Esc` | Açık menüyü kapat · akan yanıtı ve **çalışan komutu** iptal et |
 | `Ctrl+C` | Her durumda kaçış: açık paneli kapatır, akan işi iptal eder, boştaysa çıkar |
