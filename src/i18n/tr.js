@@ -209,6 +209,8 @@ Kısayollar
     matches: "{count} eşleşme",
     exitCode: "çıkış kodu {code}",
     noOutput: "(çıktı yok)",
+    expandHint: "… +{count} satır daha  ·  ctrl+o ile aç",
+    collapseHint: "… ctrl+o ile küçült",
     results: "{count} sonuç",
     done: "tamamlandı",
     error: "hata",

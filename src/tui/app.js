@@ -209,6 +209,8 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     setUnsafeWorkspace(isUnsafeWorkspace(process.cwd()));
   }, []);
 
+  const [expanded, setExpanded] = useState(false);
+
   const refreshAccount = useCallback(async () => {
     const info = await fetchAccount(agent.apiKey);
     if (!info) return;
@@ -661,7 +663,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     return list;
   }, [items, liveText, modelId]);
 
-  const lines = useMemo(() => buildTranscript(displayItems, width), [displayItems, width, lang]);
+  const lines = useMemo(
+    () => buildTranscript(displayItems, width, { expanded }),
+    [displayItems, width, lang, expanded],
+  );
 
   const commands = useMemo(() => commandItems(), [lang]);
 
@@ -1088,6 +1093,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
     if (key.ctrl && char === "d") {
       scrollBy(Math.floor(viewportHeight / 2));
+      return;
+    }
+    if (key.ctrl && char === "o") {
+      setExpanded((value) => !value);
       return;
     }
     if (key.ctrl && char === "p") {

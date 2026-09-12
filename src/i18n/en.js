@@ -209,6 +209,8 @@ Shortcuts
     matches: "{count} matches",
     exitCode: "exit code {code}",
     noOutput: "(no output)",
+    expandHint: "… +{count} more lines  ·  ctrl+o to expand",
+    collapseHint: "… ctrl+o to collapse",
     results: "{count} results",
     done: "done",
     error: "error",

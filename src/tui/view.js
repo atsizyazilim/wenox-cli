@@ -25,7 +25,9 @@ function commandBar(text, width, colorName) {
   return bg(`${bar} ${text}${pad}`);
 }
 
-function commandOutput(result, width) {
+const MAX_COMMAND_LINES = 6;
+
+function commandOutput(result, width, expanded) {
   const inner = Math.max(10, width - 4);
   const out = String(result.stdout ?? "").replace(/\n+$/, "");
   const err = String(result.stderr ?? "").replace(/\n+$/, "");
@@ -38,7 +40,17 @@ function commandOutput(result, width) {
   if (body.length === 0) body.push(chalk.dim(t("tool.noOutput")));
   if (code !== 0) body.push(chalk[color](t("tool.exitCode", { code })));
 
-  return [...body.map((line) => commandBar(line, width, color)), commandBar("", width, color)];
+  // Uzun çıktıyı varsayılan olarak kısalt; Ctrl+O ile tamamı görülebilir
+  const hidden = Math.max(0, body.length - MAX_COMMAND_LINES);
+  const visible = hidden > 0 && !expanded ? body.slice(0, MAX_COMMAND_LINES) : body;
+
+  const rows = visible.map((line) => commandBar(line, width, color));
+  if (hidden > 0) {
+    const hint = expanded ? t("tool.collapseHint") : t("tool.expandHint", { count: hidden });
+    rows.push(commandBar(chalk.dim(hint), width, color));
+  }
+  rows.push(commandBar("", width, color));
+  return rows;
 }
 
 function wrapLines(text, width) {
@@ -89,7 +101,7 @@ function summaryOf(name, result) {
   }
 }
 
-function itemLines(item, width) {
+function itemLines(item, width, options = {}) {
   switch (item.role) {
     case "user": {
       const inner = wrapLines(item.text, Math.max(10, width - 4));
@@ -131,6 +143,7 @@ function itemLines(item, width) {
       }
       if (item.name === "run_command") {
         return [
+          commandBar("", width, theme.accent),
           commandBar(chalk.bold(`$ ${item.args?.command ?? ""}`), width, theme.accent),
           commandBar("", width, theme.accent),
         ];
@@ -149,7 +162,7 @@ function itemLines(item, width) {
         return [chalk.red(`  ↳ ${result.error ?? t("tool.error")}`), ""];
       }
       if (item.name === "run_command") {
-        return [...commandOutput(result, width), ""];
+        return [...commandOutput(result, width, options.expanded), ""];
       }
       const lines = [chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name, result)}`)];
       if (result.diff) {
@@ -176,10 +189,10 @@ function itemLines(item, width) {
   }
 }
 
-export function buildTranscript(items, width) {
+export function buildTranscript(items, width, options = {}) {
   const lines = [];
   for (const item of items) {
-    lines.push(...itemLines(item, width));
+    lines.push(...itemLines(item, width, options));
   }
   return lines;
 }

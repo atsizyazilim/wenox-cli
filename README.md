@@ -43,6 +43,10 @@ ortasında logo ve blok giriş çubuğu, altta model/durum satırı, en altta di
 token sayacı bulunur. Konuşma kendi kaydırılabilir görünümünde akar; her yanıtın
 altında `▣ Build · <model> · <süre>` meta satırı yer alır.
 
+Komutlar kart olarak çizilir: `$ komut` başlığı ve altında çıktısı. Uzun çıktılar
+varsayılan olarak **6 satırda kısaltılır** (`… +N satır daha · ctrl+o ile aç`);
+`Ctrl+O` ile tamamı görünür/kısalır.
+
 Model yanıt üretirken giriş kilitlenmez: yazıp gönderdiğiniz mesajlar **kuyruğa**
 alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak için
 **tek istemde onlarca araç çağrısını kendi kendine** yapar (dosya oku/yaz, komut
@@ -75,6 +79,7 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 | `Enter` | Gönder |
 | `/` | Komut menüsü (yazdıkça filtreler, `↑/↓` + `Enter`) |
 | `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
+| `Ctrl+O` | Komut çıktılarını tam/kısa göster |
 | `Ctrl+P` | Komut paleti |
 | `Esc` | Açık menüyü kapat / akan yanıtı iptal et |
 | `Ctrl+C` | Her durumda kaçış: açık paneli kapatır, akan işi iptal eder, boştaysa çıkar |

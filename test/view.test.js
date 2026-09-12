@@ -42,6 +42,29 @@ test("başarısız komutta stderr ve çıkış kodu görünür", () => {
   assert.match(text, /çıkış kodu 1/);
 });
 
+test("uzun komut çıktısı kısaltılır, Ctrl+O ile açılır", () => {
+  setLocale("tr");
+  const out = Array.from({ length: 20 }, (_, i) => `satir ${i + 1}`).join("\n");
+  const items = [
+    { id: 1, role: "tool-call", name: "run_command", args: { command: "x" } },
+    {
+      id: 2,
+      role: "tool-result",
+      name: "run_command",
+      result: { success: true, returncode: 0, stdout: out, stderr: "" },
+    },
+  ];
+
+  const collapsed = buildTranscript(items, 60).map(plain).join("\n");
+  assert.match(collapsed, /satir 6/);
+  assert.doesNotMatch(collapsed, /satir 7/);
+  assert.match(collapsed, /ctrl\+o ile aç/);
+
+  const expanded = buildTranscript(items, 60, { expanded: true }).map(plain).join("\n");
+  assert.match(expanded, /satir 20/);
+  assert.match(expanded, /ctrl\+o ile küçült/);
+});
+
 test("çıktısız komutta '(çıktı yok)' gösterilir", () => {
   setLocale("tr");
   const items = [
