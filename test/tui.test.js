@@ -129,6 +129,32 @@ test("onay paneli Allow/Disallow içerir", async () => {
   ui.unmount();
 });
 
+test("/exit oturum içeriğini senkronlar (komutla çıkışta id verilir)", async () => {
+  setLocale("tr");
+  const session = {
+    id: "ses_exit",
+    title: "",
+    cwd: process.cwd(),
+    model: "grok-4.6",
+    tokens: 0,
+    messages: [],
+    items: [],
+  };
+  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" session=${session} />`);
+  await d(150);
+  ui.stdin.write("/help");
+  await d(60);
+  ui.stdin.write("\r");
+  await d(200);
+  ui.stdin.write("/exit");
+  await d(60);
+  ui.stdin.write("\r");
+  await d(250);
+  ui.unmount();
+  await d(50);
+  assert.ok(session.items.length > 0, "çıkışta oturum içeriği yazılmalı (aksi halde id gösterilmez)");
+});
+
 test("/key anahtarı doğrulayarak günceller", async () => {
   setLocale("en");
   globalThis.fetch = async () => ({

@@ -210,15 +210,22 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     if (typeof info.credits_remaining === "number") setCredits(info.credits_remaining);
   }, [agent]);
 
-  const syncSession = useCallback(() => {
-    if (!session) return;
-    session.messages = agent.messages.slice(1);
-    session.items = itemsRef.current;
-    session.tokens = tokensRef.current;
-    session.model = agent.modelId;
-    session.cwd = process.cwd();
-    saveSession(session);
-  }, [agent, session]);
+  const syncSession = useCallback(
+    (persist = true) => {
+      if (!session) return;
+      session.messages = agent.messages.slice(1);
+      session.items = itemsRef.current;
+      session.tokens = tokensRef.current;
+      session.model = agent.modelId;
+      session.cwd = process.cwd();
+      if (persist) saveSession(session);
+    },
+    [agent, session],
+  );
+
+  // Çıkışta (özellikle /exit ile) oturumun güncel içeriğini yaz: sohbet olmadan
+  // yalnızca komut kullanıldıysa senkron hiç çalışmamış olur ve oturum boş kalır.
+  useEffect(() => () => syncSession(false), [syncSession]);
 
   const maybeTitle = useCallback(async () => {
     if (!session || session.title) return;
