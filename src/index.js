@@ -6,7 +6,6 @@ import chalk from "chalk";
 import boxen from "boxen";
 import {
   API_BASE_URL,
-  API_KEY_URL,
   AVAILABLE_MODELS,
   DEFAULT_MODEL_ID,
   getModelInfo,
@@ -18,9 +17,7 @@ import { runRepl } from "./repl.js";
 import { changeDirectory } from "./tools.js";
 import { createSession, loadSession, saveSession } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
-import { verifyApiKey } from "./account.js";
-import { openUrl } from "./utils.js";
-import { t, setLocale, detectLanguage, getLocale, LANGUAGES } from "./i18n/index.js";
+import { t, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
 
 const require = createRequire(import.meta.url);
@@ -63,82 +60,7 @@ function parseCliArgs(argv) {
   }
 }
 
-const MAX_KEY_ATTEMPTS = 5;
-
-async function chooseLanguage(ask) {
-  const current = getLocale();
-  console.log(chalk.bold(t("onboarding.chooseLanguage")));
-  LANGUAGES.forEach((lang, index) => {
-    const mark = lang.code === current ? chalk.green(" ✓") : "";
-    console.log(`  ${index + 1}. ${lang.label}${mark}`);
-  });
-  const answer = (await ask(t("onboarding.languagePrompt"))).trim();
-  const picked = LANGUAGES[Number(answer) - 1];
-  if (picked) {
-    setLocale(picked.code);
-    saveConfig({ language: picked.code });
-  }
-}
-
-async function onboard() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const ask = (question) => rl.question(question);
-
-    if (process.stdin.isTTY) {
-      await chooseLanguage(ask);
-    }
-
-    console.log(
-      boxen(
-        [
-          chalk.bold.cyan("WenOX AI CLI"),
-          "",
-          t("onboarding.needKey"),
-          chalk.bold.cyan(t("onboarding.getKeyHere", { url: API_KEY_URL })),
-        ].join("\n"),
-        {
-          padding: { top: 1, bottom: 1, left: 2, right: 2 },
-          borderStyle: "round",
-          borderColor: "cyan",
-          title: chalk.bold.white("W E N O X"),
-          titleAlignment: "center",
-        },
-      ),
-    );
-
-    if (!process.stdin.isTTY) {
-      console.error(chalk.red(t("onboarding.noTty")));
-      process.exit(1);
-    }
-
-    let key = (await ask(t("onboarding.openOrPaste"))).trim();
-    if (!key) {
-      const opened = openUrl(API_KEY_URL);
-      console.log(chalk.dim(opened ? t("onboarding.opening") : t("onboarding.openFailed", { url: API_KEY_URL })));
-      key = (await ask(t("onboarding.pasteKey"))).trim();
-    }
-
-    for (let attempt = 0; attempt < MAX_KEY_ATTEMPTS; attempt += 1) {
-      if (!key) break;
-      console.log(chalk.dim(t("onboarding.verifying")));
-      const result = await verifyApiKey(key);
-      if (result.ok) {
-        saveConfig({ apiKey: key });
-        await ui.typewrite(chalk.green(ui.welcomeMessage(result.account)));
-        return key;
-      }
-      const reason = result.reason === "network" ? "onboarding.network" : "onboarding.invalid";
-      console.log(chalk.red(`✗ ${t(reason)}`));
-      key = (await ask(t("onboarding.pasteKey"))).trim();
-    }
-
-    console.error(chalk.red(t("onboarding.giveUp")));
-    process.exit(1);
-  } finally {
-    rl.close();
-  }
-}
+// Anahtar yoksa onboarding, TUI içindeki Onboarding ekranında tamamlanır (src/tui/root.js)
 
 function createLineReader() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -201,7 +123,13 @@ async function resolveApiKey(values) {
   const existing = loadConfig().apiKey;
   if (existing) return existing;
 
-  return onboard();
+  if (!(process.stdout.isTTY && process.stdin.isTTY)) {
+    console.error(chalk.red(t("onboarding.noTty")));
+    process.exit(1);
+  }
+
+  // İnteraktif: anahtar TUI içindeki onboarding ekranında alınır
+  return "";
 }
 
 async function main() {

@@ -157,14 +157,16 @@ kullanıcı tarafından okunabilir). Öncelik sırası:
 
 ### İlk çalıştırma (onboarding)
 
-Anahtar yokken CLI sizi adım adım karşılar:
+Anahtar yokken CLI sizi **tam ekran bir onboarding ekranıyla** karşılar (uygulamanın
+kendi TUI'ı içinde — logo ve çerçeveli giriş kutusuyla):
 
-1. **Dil seçimi** — arayüz dili sorulur (Enter ile sistem dilinde devam edilir).
-2. **API anahtarı** — `https://me.wenox.co/api-key` bağlantısı gösterilir;
-   **Enter'a basınca tarayıcıda açılır** (veya anahtarı doğrudan yapıştırırsınız).
-3. **Doğrulama** — anahtar `GET /v1/me` ile doğrulanır; geçersizse tekrar sorar,
-   ağ hatasıysa ayrı mesaj verir.
-4. **Karşılama** — daktilo efektiyle hesabınıza özel karşılama:
+1. **Dil seçimi** — `↑/↓` ile Türkçe/İngilizce, `Enter` ile onay (varsayılan: sistem dili).
+2. **API anahtarı** — `https://me.wenox.co/api-key` bağlantısı gösterilir.
+   **Boş kutuda `Enter`** → sayfa tarayıcıda açılır; ya da anahtarı kutuya yapıştırıp
+   `Enter` ile doğrularsınız.
+3. **Doğrulama** — anahtar `GET /v1/me` ile doğrulanır; geçersizse tekrar denenir,
+   ağ hatasıysa ayrı mesaj verilir.
+4. **Karşılama** — hesabınıza özel, daktilo efektli karşılama:
 
    ```
    Merhaba Mert İlhan, WenOX CLI'a hoş geldin!
@@ -172,9 +174,10 @@ Anahtar yokken CLI sizi adım adım karşılar:
    Kalan kredi: 12.500
    ```
 
-Anahtar zaten kayıtlıysa (veya `--key` / `WENOX_API_KEY` verildiyse) onboarding
-atlanır. Etkileşimli olmayan (pipe) çalıştırmalarda anahtar yoksa CLI anlaşılır bir
-hata verip çıkar; anahtarı `--key` ile geçin.
+`Esc` (veya `Ctrl+C`) ile çıkabilirsiniz. Anahtar zaten kayıtlıysa (veya `--key` /
+`WENOX_API_KEY` verildiyse) onboarding atlanır. Etkileşimli olmayan (pipe)
+çalıştırmalarda anahtar yoksa CLI anlaşılır bir hata verip çıkar; anahtarı `--key`
+ile geçin.
 
 ## Yetenekler
 

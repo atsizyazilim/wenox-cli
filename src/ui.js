@@ -67,19 +67,6 @@ export function welcomeMessage(account) {
   return lines.join("\n");
 }
 
-export async function typewrite(text, { delay = 14 } = {}) {
-  const out = process.stdout;
-  if (!out.isTTY || delay <= 0) {
-    out.write(`${text}\n`);
-    return;
-  }
-  for (const char of text) {
-    out.write(char);
-    await sleep(delay);
-  }
-  out.write("\n");
-}
-
 function renderBar(pct, width, label) {
   const filled = Math.max(0, Math.min(width, Math.round((pct / 100) * width)));
   const bar = chalk.cyan("█".repeat(filled)) + chalk.dim("░".repeat(width - filled));

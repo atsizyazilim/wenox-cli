@@ -1,6 +1,6 @@
 import { render } from "ink";
 import { html } from "htm/react";
-import { App } from "./app.js";
+import { Root } from "./root.js";
 import { resetCancel } from "../cancel.js";
 import { saveSession } from "../session.js";
 import { enterFullScreen, leaveFullScreen, setTitle } from "./screen.js";
@@ -14,7 +14,7 @@ export async function launchTui({ agent, version, modelId, autoApprove = false, 
   process.on("exit", restore);
 
   const instance = render(
-    html`<${App}
+    html`<${Root}
       agent=${agent}
       version=${version}
       initialModelId=${modelId}

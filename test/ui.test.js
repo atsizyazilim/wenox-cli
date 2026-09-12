@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-ui-"));
-const { welcomeMessage, typewrite } = await import("../src/ui.js");
+const { welcomeMessage } = await import("../src/ui.js");
 const { setLocale } = await import("../src/i18n/index.js");
 
 test("welcomeMessage isim, abonelik ve krediyi içerir (TR)", () => {
@@ -38,19 +38,4 @@ test("welcomeMessage gün sayısı yoksa da çalışır", () => {
   const msg = welcomeMessage({ name: "Ayşe", premium: true });
   assert.match(msg, /Ayşe/);
   assert.match(msg, /aboneliğin var/);
-});
-
-test("typewrite TTY olmayan ortamda tek seferde yazar", async () => {
-  const original = process.stdout.write;
-  let captured = "";
-  process.stdout.write = (chunk) => {
-    captured += chunk;
-    return true;
-  };
-  try {
-    await typewrite("merhaba");
-  } finally {
-    process.stdout.write = original;
-  }
-  assert.equal(captured, "merhaba\n");
 });
