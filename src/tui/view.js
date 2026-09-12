@@ -2,7 +2,6 @@ import chalk from "chalk";
 import wrapAnsi from "wrap-ansi";
 import stringWidth from "string-width";
 import { renderMarkdownBlocks } from "../markdown.js";
-import { plain } from "../utils.js";
 import { theme } from "./theme.js";
 import { t } from "../i18n/index.js";
 
@@ -16,13 +15,10 @@ const TOOL_ICONS = {
   code_intel: "🧭",
 };
 
-// Komut bloğu: `$ komut` başlığı ve çıktısı, solda renkli şerit + arka plan ile.
-function commandBar(text, width, colorName) {
-  const bar = chalk[colorName]("│");
-  const bg = chalk.bgHex(theme.inputBg);
-  const used = 2 + stringWidth(plain(text));
-  const pad = " ".repeat(Math.max(0, width - used));
-  return bg(`${bar} ${text}${pad}`);
+// Komut bloğu: `$ komut` başlığı ve çıktısı, solda renkli şerit ile.
+// (Tam genişlik arka plan kullanmıyoruz: kırpma/taşmada hizası bozuluyordu.)
+function commandBar(text, colorName) {
+  return `${chalk[colorName]("│")} ${text}`;
 }
 
 const MAX_COMMAND_LINES = 6;
@@ -44,12 +40,12 @@ function commandOutput(result, width, expanded) {
   const hidden = Math.max(0, body.length - MAX_COMMAND_LINES);
   const visible = hidden > 0 && !expanded ? body.slice(0, MAX_COMMAND_LINES) : body;
 
-  const rows = visible.map((line) => commandBar(line, width, color));
+  const rows = visible.map((line) => commandBar(line, color));
   if (hidden > 0) {
     const hint = expanded ? t("tool.collapseHint") : t("tool.expandHint", { count: hidden });
-    rows.push(commandBar(chalk.dim(hint), width, color));
+    rows.push(commandBar(chalk.dim(hint), color));
   }
-  rows.push(commandBar("", width, color));
+  rows.push(commandBar("", color));
   return rows;
 }
 
@@ -142,10 +138,12 @@ function itemLines(item, width, options = {}) {
         return [chalk.hex(theme.menuDesc)(t("view.questionAsked")), ""];
       }
       if (item.name === "run_command") {
+        const inner = Math.max(10, width - 4);
+        const header = wrapLines(`$ ${item.args?.command ?? ""}`, inner);
         return [
-          commandBar("", width, theme.accent),
-          commandBar(chalk.bold(`$ ${item.args?.command ?? ""}`), width, theme.accent),
-          commandBar("", width, theme.accent),
+          commandBar("", theme.accent),
+          ...header.map((line) => commandBar(chalk.bold(line), theme.accent)),
+          commandBar("", theme.accent),
         ];
       }
       return [
