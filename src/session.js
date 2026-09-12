@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CONFIG_DIR } from "./config.js";
+import { configDir } from "./config.js";
 
-const SESSIONS_DIR = path.join(CONFIG_DIR, "sessions");
+function sessionsDir() {
+  return path.join(configDir(), "sessions");
+}
 
 function randomId() {
   return Math.random().toString(36).slice(2, 8);
@@ -26,10 +28,11 @@ export function createSession({ cwd, model }) {
 export function saveSession(session) {
   if (!session?.id) return;
   try {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    const dir = sessionsDir();
+    fs.mkdirSync(dir, { recursive: true });
     session.updatedAt = Date.now();
     fs.writeFileSync(
-      path.join(SESSIONS_DIR, `${session.id}.json`),
+      path.join(dir, `${session.id}.json`),
       JSON.stringify(session, null, 2),
       "utf8",
     );
@@ -40,7 +43,7 @@ export function saveSession(session) {
 
 export function loadSession(id) {
   try {
-    const file = path.join(SESSIONS_DIR, `${id}.json`);
+    const file = path.join(sessionsDir(), `${id}.json`);
     if (!fs.existsSync(file)) return null;
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
@@ -50,13 +53,14 @@ export function loadSession(id) {
 
 export function listSessions() {
   try {
-    if (!fs.existsSync(SESSIONS_DIR)) return [];
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) return [];
     return fs
-      .readdirSync(SESSIONS_DIR)
+      .readdirSync(dir)
       .filter((name) => name.endsWith(".json"))
       .map((name) => {
         try {
-          return JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, name), "utf8"));
+          return JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"));
         } catch {
           return null;
         }

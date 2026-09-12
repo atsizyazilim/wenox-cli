@@ -6,8 +6,13 @@ import { t } from "./i18n/index.js";
 export const API_BASE_URL =
   process.env.WENOX_API_BASE_URL || "https://api.WenOX.co/v1";
 
-export const CONFIG_DIR = process.env.WENOX_HOME || path.join(os.homedir(), ".wenox");
-export const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+export function configDir() {
+  return process.env.WENOX_HOME || path.join(os.homedir(), ".wenox");
+}
+
+export function configFile() {
+  return path.join(configDir(), "config.json");
+}
 
 export const AVAILABLE_MODELS = {
   1: { id: "grok-4.6", name: "Grok 4.6" },
@@ -35,8 +40,9 @@ export function getModelInfo(modelIdOrKey) {
 export function loadConfig() {
   let data = {};
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      data = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+    const file = configFile();
+    if (fs.existsSync(file)) {
+      data = JSON.parse(fs.readFileSync(file, "utf8"));
     }
   } catch {
     data = {};
@@ -59,14 +65,14 @@ export function saveConfig({ apiKey, currentModel, language } = {}) {
   if (currentModel != null) cfg.currentModel = String(currentModel).trim();
   if (language != null) cfg.language = String(language).trim();
 
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(configDir(), { recursive: true, mode: 0o700 });
   const payload = {
     apiKey: cfg.apiKey,
     currentModel: cfg.currentModel,
     language: cfg.language ?? "",
     apiBaseUrl: API_BASE_URL,
   };
-  fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(payload, null, 2)}\n`, {
+  fs.writeFileSync(configFile(), `${JSON.stringify(payload, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });
