@@ -403,10 +403,40 @@ function killProcessTree(child) {
   }
 }
 
+// CLI'ın kendisi Node ile çalışır. Tüm node süreçlerini öldüren komutlar
+// CLI'ı da öldürür (terminali bozuk bırakır) — bunları reddet.
+export function killsOwnProcess(command) {
+  const cmd = String(command ?? "").toLowerCase();
+  if (!cmd.trim()) return null;
+
+  if (/\btaskkill\b/.test(cmd) && /\/im\s+["']?node(js)?(\.exe)?\b/.test(cmd)) return "taskkill /IM node";
+  if (/\bstop-process\b/.test(cmd) && /(-name\s+["']?node|get-process\s+["']?node)/.test(cmd)) return "Stop-Process node";
+  if (/\b(pkill|killall)\b/.test(cmd) && /\bnode(js)?\b/.test(cmd)) return "pkill/killall node";
+  if (/\bkill\b[^|;&]*\s(?:-\d+\s+)*-1(?!\d)/.test(cmd)) return "kill -1 (all processes)";
+
+  const self = String(process.pid);
+  const pidArgs = [...cmd.matchAll(/(?:\/pid|--pid)\s+([\d\s]+)/g)].flatMap((match) =>
+    match[1].trim().split(/\s+/),
+  );
+  if (pidArgs.includes(self)) return `targets pid ${self}`;
+  if (new RegExp(`\\bkill\\b[^|;&]*\\b${self}\\b`).test(cmd)) return `kill ${self}`;
+
+  return null;
+}
+
 export function runCommand(command) {
   return new Promise((resolve) => {
     if (!command || !String(command).trim()) {
       resolve({ success: false, error: "Command to run cannot be empty." });
+      return;
+    }
+
+    const selfKill = killsOwnProcess(command);
+    if (selfKill) {
+      resolve({
+        success: false,
+        error: `Refused: "${selfKill}" would also terminate the WenOX CLI itself, which runs on Node (pid ${process.pid}). Kill only the exact PID you need and never include pid ${process.pid}.`,
+      });
       return;
     }
 

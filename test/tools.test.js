@@ -90,6 +90,38 @@ test("iptal edilince çalışan komut durdurulur", async () => {
   assert.match(result.error, /cancel/i);
 });
 
+test("kendi sürecini öldürecek komutlar tespit edilir", () => {
+  const self = process.pid;
+  for (const cmd of [
+    "taskkill /F /IM node.exe",
+    "taskkill /F /IM nodejs.exe",
+    "pkill node",
+    "killall -9 node",
+    "Get-Process node | Stop-Process",
+    `taskkill /F /PID ${self}`,
+    `kill -9 ${self}`,
+    "kill -1",
+  ]) {
+    assert.ok(tools.killsOwnProcess(cmd), `tespit edilmeliydi: ${cmd}`);
+  }
+
+  for (const cmd of [
+    "taskkill /F /PID 1234",
+    "node --version",
+    "npm run build",
+    "git status",
+    "echo node",
+  ]) {
+    assert.equal(tools.killsOwnProcess(cmd), null, `yanlış tespit: ${cmd}`);
+  }
+});
+
+test("kendi sürecini öldüren komut reddedilir", async () => {
+  const result = await tools.runCommand("taskkill /F /IM node.exe");
+  assert.equal(result.success, false);
+  assert.match(result.error, /refused/i);
+});
+
 test("executeTool bilinmeyen araçta hata döner", async () => {
   const r = await tools.executeTool("boyle_bir_arac_yok");
   assert.equal(r.success, false);
