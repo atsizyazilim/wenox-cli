@@ -97,25 +97,25 @@ test("Tab mod değiştirir, model listesi açılmaz", async () => {
   setLocale("en");
   const modeAgent = {
     ...agent,
-    mode: "build",
+    mode: "plan",
     setMode(value) {
       modeAgent.mode = value;
     },
   };
   const ui = render(html`<${App} agent=${modeAgent} version="0.1.1" initialModelId="grok-4.6" />`);
   await d(150);
-  assert.ok(plain(ui.lastFrame()).includes("Build"), "başlangıç Build");
+  assert.ok(plain(ui.lastFrame()).includes("Plan"), "başlangıç Plan");
 
   ui.stdin.write("\t");
   await d(90);
   const f = plain(ui.lastFrame());
-  assert.ok(f.includes("Plan"), "Tab sonrası Plan olmalı");
+  assert.ok(f.includes("Build"), "Tab sonrası Build olmalı");
   assert.ok(!f.includes("Enter select"), "model menüsü açılmamalı");
-  assert.equal(modeAgent.mode, "plan");
+  assert.equal(modeAgent.mode, "build");
 
   ui.stdin.write("\t");
   await d(90);
-  assert.ok(plain(ui.lastFrame()).includes("Build"), "tekrar Tab -> Build");
+  assert.ok(plain(ui.lastFrame()).includes("Plan"), "tekrar Tab -> Plan");
   ui.unmount();
 });
 

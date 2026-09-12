@@ -110,11 +110,12 @@ Durum çubuğunda aktif mod görünür; **`Tab`** ile değiştirilir:
 
 | Mod | Davranış |
 |---|---|
-| **Build** (varsayılan) | Ajan dosyaları okuyup düzenler, komut çalıştırır — normal çalışma. |
-| **Plan** (salt-okunur) | Ajan yalnızca inceler ve adım adım plan önerir. `write_file`, `edit_file`, `run_command` **engellenir**; değişiklik istiyorsan Build'e geçmesini söyler. |
+| **Plan** (açılışta varsayılan) | Salt-okunur. Ajan yalnızca inceler ve adım adım plan önerir. `write_file`, `edit_file`, `run_command` **engellenir**; değişiklik istiyorsan Tab'a basmanı söyler. |
+| **Build** | Ajan dosyaları okuyup düzenler, komut çalıştırır — normal çalışma. |
 
-Plan modu, "önce bir plan göster, sonra uygula" akışı için: ajanı çalıştırmadan
-önce ne yapacağını görürsün, onaylayınca `Tab` ile Build'e geçersin.
+İnteraktif uygulama **Plan** modda açılır: önce ne yapılacağını görürsün,
+onaylayınca `Tab` ile Build'e geçersin. (Tab bulunmayan `-p` ve pipe modunda
+doğrudan Build kullanılır.)
 
 ## Diller
 

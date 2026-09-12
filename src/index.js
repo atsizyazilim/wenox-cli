@@ -220,6 +220,7 @@ async function main() {
 
   if (process.stdout.isTTY && process.stdin.isTTY) {
     const { launchTui } = await import("./tui/launch.js");
+    agent.setMode("plan"); // interaktif oturum Plan (salt-okunur) modda açılır
     const finished = await launchTui({
       agent,
       version: pkg.version,
