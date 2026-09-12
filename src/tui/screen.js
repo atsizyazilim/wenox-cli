@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 const ALT_SCREEN_ON = "\x1b[?1049h";
 const ALT_SCREEN_OFF = "\x1b[?1049l";
 const HIDE_CURSOR = "\x1b[?25l";
@@ -7,6 +9,21 @@ const MOUSE_OFF = "\x1b[?1002l\x1b[?1006l";
 
 let active = false;
 
+// Çıkış dizileri SENKRON yazılmalı: process.stdout.write asenkron olduğu için
+// süreç kapanınca kaybolabiliyor ve terminal fare modunda kalıyordu (fare
+// hareketleri kabuğa escape dizisi olarak dökülüyordu).
+function writeSync(sequence) {
+  try {
+    fs.writeSync(1, sequence);
+  } catch {
+    try {
+      process.stdout.write(sequence);
+    } catch {
+      // yoksay
+    }
+  }
+}
+
 export function enterFullScreen() {
   if (active || !process.stdout.isTTY) return;
   process.stdout.write(`${ALT_SCREEN_ON}\x1b[2J\x1b[H${HIDE_CURSOR}${MOUSE_ON}`);
@@ -15,7 +32,7 @@ export function enterFullScreen() {
 
 export function leaveFullScreen() {
   if (!active) return;
-  process.stdout.write(`${MOUSE_OFF}${SHOW_CURSOR}${ALT_SCREEN_OFF}`);
+  writeSync(`${MOUSE_OFF}${SHOW_CURSOR}${ALT_SCREEN_OFF}`);
   active = false;
 }
 
