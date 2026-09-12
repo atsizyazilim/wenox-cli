@@ -4,7 +4,7 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { Logo } from "../components/logo.js";
 import { InputBar } from "../components/input-bar.js";
 import { useBlink } from "../hooks.js";
-import { parseMouse } from "../screen.js";
+import { parseMouse, disableMouse } from "../screen.js";
 import { theme } from "../theme.js";
 import {
   buildView,
@@ -88,7 +88,10 @@ export function Onboarding({ onComplete }) {
     // Fare takibi açık: tıklama/sürükleme dizilerini yoksay, input'a sızmasın
     if (parseMouse(char) || /^\[M/.test(char ?? "")) return;
 
-    if (key.escape || (key.ctrl && char === "c")) {
+    const isEsc = key.escape || char === "";
+
+    if (isEsc || (key.ctrl && char === "c")) {
+      disableMouse();
       exit();
       return;
     }

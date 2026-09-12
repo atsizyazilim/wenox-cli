@@ -95,6 +95,8 @@ yapabilirsiniz (seçim açık gri zeminle işaretlenir ve kalıcıdır). Kopyala
 
 > Not: Uygulama fare takibini açtığı için terminalin kendi seçimi yerine bu seçim
 > kullanılır. Gerekirse **Shift + sürükle** ile terminal seçimine de geçebilirsiniz.
+> Fare takibini tamamen kapatmak için `WENOX_NO_MOUSE=1 wenox` ile başlatın —
+> tekerleği ve seçimi terminal kendi yönetir.
 
 `run_command` çalıştırılmadan önce onay istenir. Çalışırken `Esc` (veya `Ctrl+C`) o
 komutu **alt süreçleriyle birlikte** durdurur (ör. açık kalan bir dev server). Onay kutusunda `←/→` (veya `Tab`) ile

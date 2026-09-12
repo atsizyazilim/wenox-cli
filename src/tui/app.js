@@ -13,7 +13,7 @@ import { t, setLocale, getLocale, localeTag, LANGUAGES } from "../i18n/index.js"
 import { requestCancel } from "../cancel.js";
 import { useBlink } from "./hooks.js";
 import { theme } from "./theme.js";
-import { setTitle, parseMouse } from "./screen.js";
+import { setTitle, parseMouse, disableMouse } from "./screen.js";
 import { buildTranscript } from "./view.js";
 import {
   buildView,
@@ -370,6 +370,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       switch ((cmd ?? "").toLowerCase()) {
         case "exit":
         case "quit":
+          disableMouse();
           exit();
           return;
         case "new":
@@ -930,7 +931,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       }
       if (copySelection()) return;
       if (busy) cancelWork();
-      else exit();
+      else {
+        disableMouse();
+        exit();
+      }
       return;
     }
 

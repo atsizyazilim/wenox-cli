@@ -24,10 +24,22 @@ function writeSync(sequence) {
   }
 }
 
+// WENOX_NO_MOUSE=1 ile fare takibi kapatılır: tekerleği ve seçimi terminal
+// kendi yapar (native scrollback). Sorun çıkarsa kaçış yolu.
+const MOUSE_ENABLED = !process.env.WENOX_NO_MOUSE;
+
 export function enterFullScreen() {
   if (active || !process.stdout.isTTY) return;
-  process.stdout.write(`${ALT_SCREEN_ON}\x1b[2J\x1b[H${HIDE_CURSOR}${MOUSE_ON}`);
+  const mouse = MOUSE_ENABLED ? MOUSE_ON : "";
+  process.stdout.write(`${ALT_SCREEN_ON}\x1b[2J\x1b[H${HIDE_CURSOR}${mouse}`);
   active = true;
+}
+
+// Ink raw mode'u kapatmadan ÖNCE fareyi kapat: aradaki boşlukta gelen fare
+// olayları echo ile kabuğa escape dizisi olarak dökülüyordu.
+export function disableMouse() {
+  if (!process.stdout.isTTY) return;
+  writeSync(MOUSE_OFF);
 }
 
 export function leaveFullScreen() {
