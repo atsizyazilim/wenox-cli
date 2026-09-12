@@ -77,14 +77,27 @@ function parseToolArgs(raw) {
 
 export class WenOXAgent {
   constructor({ apiKey, modelId = DEFAULT_MODEL_ID, autoApprove = false }) {
-    this.apiKey = apiKey;
+    this.apiKey = apiKey ?? "";
     this.modelId = modelId;
     this.autoApprove = autoApprove;
-    this.client = new OpenAI({ apiKey, baseURL: API_BASE_URL });
+    this.clientInstance = null;
     this.mode = "build";
     this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
     this.projectRoot = process.cwd();
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
+  }
+
+  // OpenAI istemcisi tembel kurulur: anahtar onboarding ekranında alınacağı için
+  // başlangıçta boş olabilir ve SDK boş anahtarla kurulmaya izin vermez.
+  get client() {
+    if (!this.clientInstance) {
+      this.clientInstance = new OpenAI({ apiKey: this.apiKey, baseURL: API_BASE_URL });
+    }
+    return this.clientInstance;
+  }
+
+  set client(value) {
+    this.clientInstance = value;
   }
 
   setModel(modelId) {
@@ -108,11 +121,11 @@ export class WenOXAgent {
 
   setApiKey(apiKey) {
     this.apiKey = apiKey;
-    this.client = new OpenAI({ apiKey, baseURL: API_BASE_URL });
+    this.clientInstance = null;
   }
 
   clearHistory() {
-    this.messages = [{ role: "system", content: getSystemPrompt() }];
+    this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
   }
 
   updateCwd() {

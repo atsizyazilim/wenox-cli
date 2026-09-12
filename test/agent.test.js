@@ -137,6 +137,13 @@ test("plan modunda yazma/komut engellenir", async () => {
   assert.equal(fs.existsSync(target), false, "dosya yazılmamalıydı");
 });
 
+test("boş anahtarla ajan kurulabilir (istemci tembel kurulur)", () => {
+  const agent = new WenOXAgent({ apiKey: "" });
+  assert.equal(agent.apiKey, "");
+  agent.setApiKey("wx-test");
+  assert.ok(agent.client, "anahtar verilince istemci oluşur");
+});
+
 test("compact boş geçmişte {summary,tokens} döner", async () => {
   const agent = new WenOXAgent({ apiKey: "k" });
   const result = await agent.compact();
