@@ -1,5 +1,6 @@
 import { html } from "htm/react";
 import { Text } from "ink";
+import stringWidth from "string-width";
 import { theme } from "../theme.js";
 
 function row(content, bold) {
@@ -12,12 +13,13 @@ function row(content, bold) {
   `;
 }
 
-// Üç satırlık kompakt kart (üst/alt boşluk + etiket). Transkriptin üst
-// satırlarının yerine geçer, üzerine binmez.
-export function toastRows(text) {
+// Sağa yaslı üç satırlık kompakt kart. Transkriptin üzerine bindirilir: sadece
+// kapladığı dikey şerit örtülür, satırın geri kalanı görünür kalır.
+export function toastCard(text) {
   const label = `  ${text}  `;
   const blank = " ".repeat(label.length);
-  return [row(blank, false), row(label, true), row(blank, false)];
+  return {
+    width: stringWidth(label) + 2,
+    rows: [row(blank, false), row(label, true), row(blank, false)],
+  };
 }
-
-export const TOAST_HEIGHT = 3;

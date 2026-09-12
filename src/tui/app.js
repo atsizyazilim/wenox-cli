@@ -1198,6 +1198,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
               height=${viewportHeight}
               selection=${selection}
               toast=${toast}
+              contentWidth=${Math.max(10, columns - 4)}
             />`
           : html`<${Home} height=${viewportHeight} />`}
       <//>

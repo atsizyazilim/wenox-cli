@@ -1,8 +1,8 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
-import { sliceByWidth, textWidth } from "../../utils.js";
+import { padTo, sliceByWidth, textWidth } from "../../utils.js";
 import { theme } from "../theme.js";
-import { toastRows } from "./toast.js";
+import { toastCard } from "./toast.js";
 
 function rangeFor(selection, lineIndex, width) {
   if (!selection) return null;
@@ -31,17 +31,28 @@ function renderLine(line, range, key) {
   `;
 }
 
-export function Transcript({ lines, offset, height, selection, toast }) {
+export function Transcript({ lines, offset, height, selection, toast, contentWidth }) {
   const visible = lines.slice(offset, offset + height);
-  const card = toast ? toastRows(toast) : null;
+  const card = toast ? toastCard(toast) : null;
+  const leftWidth = card ? Math.max(1, contentWidth - card.width) : 0;
 
   return html`
     <${Box} flexDirection="column" height=${height} overflow="hidden">
       ${visible.map((line, i) => {
-        if (card && i < card.length) {
-          return html`<${Box} key=${`toast${i}`} justifyContent="flex-end">${card[i]}<//>`;
-        }
         const lineIndex = offset + i;
+
+        // Kart üstteki satırların üzerine binler: satırın kart dışında kalan
+        // sol kısmı görünür kalır, kart kaybolunca satırın tamamı geri gelir.
+        if (card && i < card.rows.length) {
+          const left = padTo(sliceByWidth(line, 0, leftWidth), leftWidth);
+          return html`
+            <${Box} key=${lineIndex} flexShrink=${0} width=${contentWidth}>
+              <${Text} flexShrink=${0}>${left}<//>
+              ${card.rows[i]}
+            <//>
+          `;
+        }
+
         return renderLine(line, rangeFor(selection, lineIndex, textWidth(line)), lineIndex);
       })}
     <//>
