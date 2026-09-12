@@ -1,0 +1,46 @@
+{
+  "name": "@wenox/cli",
+  "version": "0.1.1",
+  "description": "Official WenOX CLI — WenOX AI kodlama asistanı",
+  "type": "module",
+  "bin": {
+    "wenox": "./bin/wenox.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/wenox.js"
+  },
+  "keywords": [
+    "wenox",
+    "cli",
+    "ai",
+    "coding-assistant",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@inkjs/ui": "^2.0.0",
+    "boxen": "^8.0.1",
+    "chalk": "^6.0.0",
+    "cli-highlight": "^2.1.11",
+    "cli-table3": "^0.6.5",
+    "diff": "^9.0.0",
+    "htm": "^3.1.1",
+    "ink": "^7.1.1",
+    "marked": "^18.0.12",
+    "openai": "^7.15.0",
+    "ora": "^9.4.1",
+    "react": "^19.3.0",
+    "string-width": "^8.2.2",
+    "wrap-ansi": "^10.0.1"
+  },
+  "devDependencies": {
+    "ink-testing-library": "^4.0.0"
+  }
+}

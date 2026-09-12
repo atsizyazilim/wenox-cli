@@ -1,0 +1,58 @@
+import { html } from "htm/react";
+import { Box, Text } from "ink";
+import { padTo, sliceByWidth, textWidth } from "../../utils.js";
+import { theme } from "../theme.js";
+import { toastCard } from "./toast.js";
+
+function rangeFor(selection, lineIndex, width) {
+  if (!selection) return null;
+  const { startLine, startCol, endLine, endCol } = selection;
+  if (lineIndex < startLine || lineIndex > endLine) return null;
+  const from = lineIndex === startLine ? startCol : 0;
+  const to = lineIndex === endLine ? endCol : width;
+  if (to <= from) return null;
+  return [Math.max(0, from), Math.min(width, to)];
+}
+
+function renderLine(line, range, key) {
+  const text = line === "" ? " " : line;
+  if (!range) return html`<${Text} key=${key}>${text}<//>`;
+
+  const before = sliceByWidth(text, 0, range[0]);
+  const selected = sliceByWidth(text, range[0], range[1]);
+  const after = sliceByWidth(text, range[1], textWidth(text));
+
+  return html`
+    <${Text} key=${key}>
+      <${Text}>${before}<//>
+      <${Text} backgroundColor=${theme.selectionBg} color=${theme.selectionFg}>${selected}<//>
+      <${Text}>${after}<//>
+    <//>
+  `;
+}
+
+export function Transcript({ lines, offset, height, selection, toast, contentWidth }) {
+  const visible = lines.slice(offset, offset + height);
+  const card = toast ? toastCard(toast) : null;
+  const leftWidth = card ? Math.max(0, contentWidth - card.width) : 0;
+
+  return html`
+    <${Box} flexDirection="column" height=${height} overflow="hidden">
+      ${visible.map((line, i) => {
+        const lineIndex = offset + i;
+
+        if (card && i < card.rows.length && leftWidth > 0) {
+          const left = padTo(sliceByWidth(line, 0, leftWidth), leftWidth);
+          return html`
+            <${Box} key=${lineIndex}>
+              <${Text}>${left}<//>
+              ${card.rows[i]}
+            <//>
+          `;
+        }
+
+        return renderLine(line, rangeFor(selection, lineIndex, textWidth(line)), lineIndex);
+      })}
+    <//>
+  `;
+}

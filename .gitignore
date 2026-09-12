@@ -1,0 +1,13 @@
+node_modules/
+
+# Yerel ayarlar ve sırlar — asla commit edilmemeli
+.env
+.env.*
+config.json
+.wenox/
+
+# Günlükler ve geçici dosyalar
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

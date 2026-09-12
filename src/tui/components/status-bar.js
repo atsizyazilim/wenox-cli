@@ -1,0 +1,48 @@
+import { html } from "htm/react";
+import { Box, Text } from "ink";
+import os from "node:os";
+import { theme } from "../theme.js";
+import { formatTokens } from "../view.js";
+import { CONTEXT_WINDOW } from "../../config.js";
+import { t, localeTag } from "../../i18n/index.js";
+
+function shortCwd(cwd) {
+  const home = os.homedir();
+  if (cwd.toLowerCase().startsWith(home.toLowerCase())) {
+    return `~${cwd.slice(home.length)}`;
+  }
+  return cwd;
+}
+
+export function StatusRow({ modelName, autoApprove, premium }) {
+  return html`
+    <${Box} justifyContent="space-between" paddingX=${2} marginTop=${1}>
+      <${Text}>
+        <${Text} bold color=${theme.questionLink}>${"Build"}<//>
+        <${Text} color=${theme.muted}>${"  ·  "}<//>
+        <${Text} color=${theme.muted}>${modelName}<//>
+        ${autoApprove ? html`<${Text} color=${theme.warn}>${`  ·  ${t("status.autoApprove")}`}<//>` : null}
+        ${premium ? html`<${Text} color=${theme.warn}>${`  ·  ${t("status.premium")}`}<//>` : null}
+      <//>
+      <${Text}>
+        <${Text} color=${theme.muted}>${t("status.keysHint")}<//>
+        <${Text} bold>${t("status.commands")}<//>
+      <//>
+    <//>
+  `;
+}
+
+export function BottomBar({ cwd, tokens, credits }) {
+  const pct = tokens ? ((tokens / CONTEXT_WINDOW) * 100).toFixed(1) : "0.0";
+  const creditText = typeof credits === "number" ? credits.toLocaleString(localeTag()) : t("status.noCredits");
+  return html`
+    <${Box} justifyContent="space-between" paddingX=${2} width="100%">
+      <${Text} color=${theme.muted}>${shortCwd(cwd)}<//>
+      <${Text} color=${theme.muted}>
+        ${`${formatTokens(tokens)} (${pct}%)  ·  $0.00   `}
+        ${t("status.credits")}
+        <${Text} bold color="white">${creditText}<//>
+      <//>
+    <//>
+  `;
+}

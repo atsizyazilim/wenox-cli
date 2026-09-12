@@ -1,0 +1,164 @@
+# WenOX CLI
+
+WenOX AI kodlama asistanının resmi komut satırı arayüzü. Terminalinizde çalışan,
+yerel projenizi okuyabilen, düzenleyebilen, arayabilen ve komut çalıştırabilen bir
+AI ajanıdır.
+
+## Kurulum
+
+Tek komut — gerekli tüm bağımlılıklar otomatik olarak kurulur, ek adım gerekmez:
+
+```bash
+npm install -g @wenox/cli
+```
+
+Gereksinim: Node.js 20 veya üzeri.
+
+## Kullanım
+
+```bash
+wenox                       # İnteraktif oturum başlat
+wenox -p "bu proje ne yapıyor?"   # Tek seferlik komut
+wenox -m 2 -y               # GLM 5.3 Flash ile başlat, komutları otomatik onayla
+```
+
+### Seçenekler
+
+| Seçenek | Açıklama |
+|---|---|
+| `-m, --model <id\|no>` | Kullanılacak model (`1`: Grok 4.6, `2`: GLM 5.3 Flash, `3`: Big Pickle) |
+| `-k, --key <anahtar>` | WenOX API anahtarı (kalıcı olarak kaydedilir) |
+| `-s, --session <id>` | Kayıtlı bir oturuma devam et |
+| `-d, --cwd <yol>` | Başlangıç çalışma dizini / proje yolu |
+| `-y, --auto-approve` | Komutları onay sormadan otomatik çalıştır |
+| `-p, --prompt <metin>` | Tek seferlik komut çalıştır ve çık |
+| `-v, --version` | Sürümü göster |
+| `-h, --help` | Yardımı göster |
+
+### Arayüz
+
+İnteraktif terminalde WenOX **tam ekran** bir TUI olarak açılır ve terminali tamamen
+ele geçirir (alternatif ekran tamponu) — üstteki kabuk geçmişi görünmez. Ekranın
+ortasında logo ve blok giriş çubuğu, altta model/durum satırı, en altta dizin ve
+token sayacı bulunur. Konuşma kendi kaydırılabilir görünümünde akar; her yanıtın
+altında `▣ Build · <model> · <süre>` meta satırı yer alır.
+
+Model yanıt üretirken giriş kilitlenmez: yazıp gönderdiğiniz mesajlar **kuyruğa**
+alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak için
+**tek istemde onlarca araç çağrısını kendi kendine** yapar (dosya oku/yaz, komut
+çalıştır…) ve yeni bir mesaj bekleyip durmaz.
+
+### Oturum içi komutlar
+
+| Komut | Açıklama |
+|---|---|
+| `/help` | Komutları gösterir |
+| `/model` | Modeli değiştirir — liste her seferinde `GET /v1/models`'ten çekilir (kısayol: `Tab`) |
+| `/lang` | Arayüz dilini değiştirir (Türkçe / English) |
+| `/key` | API anahtarını günceller |
+| `/me` | Hesap bilgisi ve kalan kredi (`GET /v1/me`) |
+| `/compact` | Bağlamı özetler, yer açar (bağlam dolmaya yaklaşınca önerilir) |
+| `/new` | Bağlamı temizler (yeni oturum) |
+| `/sessions` | Geçmiş oturumları listeler ve seçileni yükler |
+| `/auto` | Oto-onayı açar/kapatır |
+| `/status` | Oturum durumunu gösterir |
+| `/exit` | Çıkış |
+
+### Klavye kısayolları
+
+| Tuş | İşlev |
+|---|---|
+| `Enter` | Gönder |
+| `/` | Komut menüsü (yazdıkça filtreler, `↑/↓` + `Enter`) |
+| `Tab` | Model seçici (slash menüsü açıkken komutu tamamlar) |
+| `Ctrl+P` | Komut paleti |
+| `Esc` | Açık menüyü kapat / akan yanıtı iptal et |
+| `Ctrl+C` | Akan işi iptal et, boştaysa çık |
+| `↑` / `↓` | Girdi geçmişi (slash menüsü açıkken menüde gezinir) |
+| `PgUp` / `PgDn` | Konuşmayı kaydır |
+| `Ctrl+U` / `Ctrl+D` | Yarım sayfa kaydır |
+| Fare tekeri | Konuşmayı kaydır |
+
+**Metin seçme ve kopyalama:** Konuşma alanında fareyle **tıkla-sürükle** ile seçim
+yapabilirsiniz (seçim açık gri zeminle işaretlenir ve kalıcıdır). Kopyalamak için
+**Ctrl+C** tuşlayın — seçim panoya alınır, sağ üstte "Panoya kopyalandı" bildirimi
+çıkar. `Esc` seçimi iptal eder.
+
+> Not: Uygulama fare takibini açtığı için terminalin kendi seçimi yerine bu seçim
+> kullanılır. Gerekirse **Shift + sürükle** ile terminal seçimine de geçebilirsiniz.
+
+`run_command` çalıştırılmadan önce onay istenir. Onay kutusunda `←/→` (veya `Tab`) ile
+**Allow / Disallow** seçin, `Enter` ile onaylayın; `Esc` reddeder. Kısayollar:
+`a` / `e` / `y` izin verir, `d` / `h` / `n` reddeder. `-y` ile oto-onay açılır.
+
+**Proje dışı dizin erişimi:** Ajan, çalışma dizini dışındaki bir yola erişmeye
+çalıştığında **izin istenir** — `Allow once` (bir kez), `Allow always` (oturum
+boyunca o dizine izin ver) veya `Reject`. `←/→` ile seçin, `Enter` ile onaylayın,
+`Esc` reddeder (`o` / `a` / `r` kısayolları). Yalnızca `read_file`, `write_file`,
+`edit_file`, `list_dir`, `search_code` araçlarının yolları denetlenir; proje
+içindeki yollar sorulmadan geçer.
+
+## Diller
+
+Arayüz **Türkçe** ve **İngilizce** destekler. Dil, sistem dilinize göre otomatik
+seçilir (Türkçe sistem → Türkçe, diğerleri → İngilizce).
+
+- Oturum içinde `/lang` yazıp listeden seçerek değiştirebilirsiniz; seçim
+  `~/.wenox/config.json`'a kaydedilir ve sonraki açılışlarda korunur.
+- `WENOX_LANG=tr|en` ortam değişkeni ile geçici olarak geçersiz kılabilirsiniz.
+
+> Not: Yalnızca **arayüz** yerelleştirilir. Modele gönderilen sistem prompt'u ve araç
+> şemaları her zaman İngilizce kalır; model, sizin yazdığınız dile göre yanıt verir.
+
+## Oturumlar
+
+Her konuşma otomatik olarak `~/.wenox/sessions/` altına kaydedilir. Konuşma ilerledikçe
+(4 kullanıcı mesajından sonra) konuşmaya **kısa bir başlık** üretilir.
+
+- Çıkışta terminale devam komutu yazılır:
+
+  ```
+  Session   Selamlaşma
+  Continue  wenox -s ses_f78edf902ffe
+  ```
+
+- `wenox -s <id>` ile o oturuma **kaldığı yerden** devam edersiniz: mesaj geçmişi,
+  token sayacı, model ve **çalışma dizini** geri yüklenir.
+- Oturum içinde `/sessions` yazıp listeden seçerek de geçmiş bir oturumu açabilirsiniz
+  (oturumun kendi klasörü ve geçmişiyle birlikte).
+
+## Yapılandırma
+
+API anahtarı ve aktif model `~/.wenox/config.json` dosyasında saklanır (yalnızca
+kullanıcı tarafından okunabilir). Öncelik sırası:
+
+1. Ortam değişkenleri: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_API_BASE_URL`
+2. `~/.wenox/config.json`
+3. Varsayılanlar
+
+İlk çalıştırmada anahtar yoksa CLI sizden anahtar ister ve kaydeder.
+
+## Yetenekler
+
+WenOX AI aşağıdaki araçlarla yerel projenizde çalışır:
+
+`read_file`, `write_file`, `edit_file`, `list_dir`, `search_code`, `run_command`,
+`ask_user`.
+
+`ask_user`: ajan gerçekten bir tercih gerektiğinde size **çoktan seçmeli soru** sorar
+(`↑/↓` veya `1-9` ile seçin, `Enter` gönderir, `Esc` kapatır; isterseniz "Kendi
+cevabını yaz" ile serbest metin girebilirsiniz). Gereksiz soru sormaz; emin olmadığı
+yerde makul varsayımla ilerler.
+
+`run_command` varsayılan olarak onay ister; `-y` ile otomatik onaylanır.
+
+## Geliştirme
+
+```bash
+npm install
+npm start          # veya: node bin/wenox.js
+```
+
+## Lisans
+
+MIT
