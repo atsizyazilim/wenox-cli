@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { createPatch } from "diff";
 import { resolvePath } from "./utils.js";
+import { codeIntel } from "./lsp.js";
 
 const IGNORED_DIRS = new Set([
   ".git", ".svn", "__pycache__", "node_modules", "venv", ".venv", ".idea",
@@ -482,6 +483,9 @@ export async function executeTool(name, args = {}) {
     if (name === "run_command") {
       return await runCommand(args.command);
     }
+    if (name === "code_intel") {
+      return await codeIntel(args);
+    }
     const handler = SYNC_TOOLS[name];
     if (!handler) {
       return { success: false, error: `Unknown tool: ${name}` };
@@ -587,6 +591,34 @@ export const TOOLS_SCHEMA = [
           command: { type: "string", description: "Shell command to run" },
         },
         required: ["command"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "code_intel",
+      description:
+        "Queries a language server for code intelligence: go to definition, find references, hover type/signature info, or list document symbols. Requires a language server for the file type (typescript-language-server, pyright, gopls, rust-analyzer).",
+      parameters: {
+        type: "object",
+        properties: {
+          operation: {
+            type: "string",
+            enum: ["definition", "references", "hover", "symbols"],
+            description: "The code intelligence operation to perform",
+          },
+          path: { type: "string", description: "Path of the file to analyze" },
+          line: {
+            type: "integer",
+            description: "1-based line number (required for definition, references and hover)",
+          },
+          character: {
+            type: "integer",
+            description: "1-based column number (required for definition, references and hover)",
+          },
+        },
+        required: ["operation", "path"],
       },
     },
   },

@@ -201,6 +201,7 @@ Kısayollar
     items: "{count} öğe",
     matches: "{count} eşleşme",
     exitCode: "çıkış kodu {code}",
+    results: "{count} sonuç",
     done: "tamamlandı",
     error: "hata",
     readTotal: "↳ Başarıyla okundu ({count} toplam satır)",

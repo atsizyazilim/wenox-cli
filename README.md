@@ -149,7 +149,22 @@ kullanıcı tarafından okunabilir). Öncelik sırası:
 WenOX AI aşağıdaki araçlarla yerel projenizde çalışır:
 
 `read_file`, `write_file`, `edit_file`, `list_dir`, `search_code`, `run_command`,
-`ask_user`.
+`code_intel`, `ask_user`.
+
+`code_intel`: kod zekâsı aracı — **tanıma git** (`definition`), **kullanımları bul**
+(`references`), **hover** (tip/imza bilgisi) ve **dosya sembolleri** (`symbols`).
+Metin aramasından farklı olarak bir **dil sunucusu** kullanır. Sunucular:
+
+| Dil | Sunucu | Kurulum |
+|---|---|---|
+| TypeScript / JavaScript | `typescript-language-server` | `npm i -g typescript-language-server` |
+| Python | `pyright-langserver` | `npm i -g pyright` |
+| Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
+| Rust | `rust-analyzer` | `rustup component add rust-analyzer` |
+
+TypeScript/JavaScript için projede `typescript` paketi de gereklidir (sunucu
+`tsserver`'ı oradan bulur). Sunucu kurulu değilse araç çökmez; ajan kurulum
+komutunu size söyler.
 
 `ask_user`: ajan gerçekten bir tercih gerektiğinde size **çoktan seçmeli soru** sorar
 (`↑/↓` veya `1-9` ile seçin, `Enter` gönderir, `Esc` kapatır; isterseniz "Kendi

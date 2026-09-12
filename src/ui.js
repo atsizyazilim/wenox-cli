@@ -187,6 +187,9 @@ export function printToolCall(toolName, args = {}) {
     case "run_command":
       console.log(`${chalk.bold.red("⚡ [run_command]")} ${chalk.bold.white(args.command ?? "")}`);
       break;
+    case "code_intel":
+      console.log(`${chalk.bold.cyan("🧭 [code_intel]")} ${chalk.dim(args.operation ?? "")} ${chalk.underline(args.path ?? "")}`);
+      break;
     default:
       console.log(`${chalk.bold.magenta(`⚙️  [${toolName}]`)} ${chalk.dim(JSON.stringify(args))}`);
   }
@@ -225,6 +228,9 @@ export function printToolResult(toolName, result = {}) {
       break;
     case "search_code":
       console.log(chalk.dim(t("tool.matchesFound", { count: result.match_count ?? 0 })));
+      break;
+    case "code_intel":
+      console.log(chalk.dim(`↳ ${typeof result.count === "number" ? t("tool.results", { count: result.count }) : t("tool.done")}`));
       break;
     case "run_command": {
       const parts = [];

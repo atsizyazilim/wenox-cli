@@ -87,7 +87,7 @@ test("araç şeması İngilizce — Türkçe karakter içermez", () => {
 
 test("araç şeması beklenen araçları içerir", () => {
   const names = tools.TOOLS_SCHEMA.map((t) => t.function.name);
-  for (const name of ["read_file", "write_file", "edit_file", "list_dir", "search_code", "run_command", "ask_user"]) {
+  for (const name of ["read_file", "write_file", "edit_file", "list_dir", "search_code", "run_command", "code_intel", "ask_user"]) {
     assert.ok(names.includes(name), `${name} eksik`);
   }
 });

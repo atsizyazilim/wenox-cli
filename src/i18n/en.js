@@ -201,6 +201,7 @@ Shortcuts
     items: "{count} items",
     matches: "{count} matches",
     exitCode: "exit code {code}",
+    results: "{count} results",
     done: "done",
     error: "error",
     readTotal: "↳ Read successfully ({count} lines total)",

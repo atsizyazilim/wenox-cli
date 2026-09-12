@@ -12,6 +12,7 @@ const TOOL_ICONS = {
   list_dir: "📁",
   search_code: "🔍",
   run_command: "⚡",
+  code_intel: "🧭",
 };
 
 function wrapLines(text, width) {
@@ -34,6 +35,8 @@ function detailOf(name, args) {
       return args.path ?? ".";
     case "run_command":
       return args.command;
+    case "code_intel":
+      return `${args.operation ?? ""}  ${args.path ?? ""}`;
     default:
       return args.path ?? "";
   }
@@ -53,6 +56,8 @@ function summaryOf(name, result) {
       return t("tool.matches", { count: result.match_count ?? 0 });
     case "run_command":
       return t("tool.exitCode", { code: result.returncode ?? 0 });
+    case "code_intel":
+      return typeof result.count === "number" ? t("tool.results", { count: result.count }) : t("tool.done");
     default:
       return t("tool.done");
   }
