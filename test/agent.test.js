@@ -76,7 +76,7 @@ test("proje içi yol izin istemez", async () => {
   assert.equal(asked, 0);
 });
 
-test("'always' seçilince izin oturum için hatırlanır", async () => {
+test("'always' seçilince izin kalıcı kaydedilir", async () => {
   const agent = makeAgent(toolCallChunk("list_dir", { path: OUTSIDE }));
   let asked = 0;
   await agent.chatStep("t", {
@@ -88,15 +88,25 @@ test("'always' seçilince izin oturum için hatırlanır", async () => {
   });
   assert.equal(asked, 1);
   assert.equal(agent.allowedExternal.size, 1);
+  const { loadGrants } = await import("../src/permissions.js");
+  assert.ok(loadGrants(process.cwd()).length >= 1, "izin diske yazılmalı");
 });
 
-test("'once' seçilince tek seferlik geçer, hatırlanmaz", async () => {
+test("yeni ajan diskteki izinleri yükler", async () => {
+  const { addGrant } = await import("../src/permissions.js");
+  addGrant(process.cwd(), "C:\\persisted\\dir");
+  const agent = new WenOXAgent({ apiKey: "k" });
+  assert.ok(agent.allowedExternal.has("C:\\persisted\\dir"));
+});
+
+test("'once' seçilince kalıcı izin eklenmez", async () => {
   const agent = makeAgent(toolCallChunk("list_dir", { path: OUTSIDE }));
+  const before = agent.allowedExternal.size;
   await agent.chatStep("t", {
     askPermission: async () => "once",
     toolResult: () => {},
   });
-  assert.equal(agent.allowedExternal.size, 0);
+  assert.equal(agent.allowedExternal.size, before);
 });
 
 test("system prompt İngilizce ve dil talimatı içerir", () => {

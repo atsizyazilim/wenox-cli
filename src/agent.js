@@ -4,6 +4,7 @@ import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import { sanitizeOutput } from "./utils.js";
 import { t } from "./i18n/index.js";
+import { loadGrants, addGrant } from "./permissions.js";
 import {
   isCancelled,
   resetCancel,
@@ -71,7 +72,8 @@ export class WenOXAgent {
     this.autoApprove = autoApprove;
     this.client = new OpenAI({ apiKey, baseURL: API_BASE_URL });
     this.messages = [{ role: "system", content: getSystemPrompt() }];
-    this.allowedExternal = new Set();
+    this.projectRoot = process.cwd();
+    this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
   setModel(modelId) {
@@ -91,6 +93,8 @@ export class WenOXAgent {
     if (this.messages[0]?.role === "system") {
       this.messages[0] = { role: "system", content: getSystemPrompt() };
     }
+    this.projectRoot = process.cwd();
+    this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
   get messageCount() {
@@ -106,7 +110,7 @@ export class WenOXAgent {
 
   async #ensurePathAccess(toolName, args, sink) {
     if (!PATH_TOOLS.has(toolName) || !args?.path) return true;
-    const root = process.cwd();
+    const root = this.projectRoot;
     if (withinProject(args.path, root)) return true;
 
     const abs = path.resolve(root, String(args.path));
@@ -122,6 +126,7 @@ export class WenOXAgent {
 
     if (decision === "always") {
       this.allowedExternal.add(grant);
+      addGrant(this.projectRoot, grant);
       return true;
     }
     return decision === "once";

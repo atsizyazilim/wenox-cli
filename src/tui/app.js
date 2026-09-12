@@ -71,6 +71,15 @@ function commandItems() {
 
 const TRANSCRIPT_TOP = 2; // transkriptin ilk satırının ekran satırı (1 tabanlı)
 const TRANSCRIPT_LEFT = 3; // transkriptin ilk kolonunun ekran kolonu (1 tabanlı)
+const AUTO_COMPACT_RATIO = 0.85;
+
+function computeCost(pricing, usage) {
+  if (!pricing || typeof pricing !== "object") return null;
+  const inRate = pricing.input_per_million ?? pricing.prompt ?? null;
+  const outRate = pricing.output_per_million ?? pricing.completion ?? null;
+  if (inRate == null && outRate == null) return null;
+  return (usage.prompt / 1e6) * (inRate ?? 0) + (usage.completion / 1e6) * (outRate ?? 0);
+}
 
 function normalizeSelection(selection) {
   const { startLine, startCol, endLine, endCol } = selection;
@@ -127,6 +136,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const [account, setAccount] = useState(null);
   const [credits, setCredits] = useState(null);
   const [remoteModels, setRemoteModels] = useState(null);
+  const [modelMeta, setModelMeta] = useState({});
   const [selection, setSelection] = useState(null);
   const [toast, setToast] = useState(null);
   const [lang, setLang] = useState(getLocale());
@@ -153,6 +163,8 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
   const tokensRef = useRef(session?.tokens ?? 0);
+  const usageRef = useRef({ prompt: 0, completion: 0 });
+  const contextWindowRef = useRef(CONTEXT_WINDOW);
   const warnedRef = useRef(false);
   const push = useCallback((item) => {
     idRef.current += 1;
@@ -167,6 +179,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       const list = Array.isArray(page?.data) ? page.data : [];
       if (list.length === 0) return null;
 
+      const metas = {};
       const items = list.map((model) => {
         const id = model?.id ?? String(model);
         const name = model?.name && model.name !== id ? model.name : id;
@@ -174,9 +187,14 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         if (name !== id) extras.push(id);
         if (model?.context_window) extras.push(t("models.contextWindow", { k: Math.round(model.context_window / 1000) }));
         if (model?.owned_by) extras.push(model.owned_by);
+        metas[id] = {
+          contextWindow: Number(model?.context_window) || null,
+          pricing: model?.pricing ?? null,
+        };
         return { value: id, left: name, right: extras.join("  ·  ") };
       });
 
+      setModelMeta(metas);
       setRemoteModels(items);
       return items;
     } catch {
@@ -279,10 +297,12 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         setLiveText("");
         if (meta?.usage?.total_tokens) {
           tokensRef.current += meta.usage.total_tokens;
+          usageRef.current.prompt += meta.usage.prompt_tokens ?? 0;
+          usageRef.current.completion += meta.usage.completion_tokens ?? 0;
           setTokens(tokensRef.current);
-          if (!warnedRef.current && tokensRef.current > CONTEXT_WINDOW * 0.7) {
+          if (!warnedRef.current && tokensRef.current > contextWindowRef.current * 0.7) {
             warnedRef.current = true;
-            const pct = Math.round((tokensRef.current / CONTEXT_WINDOW) * 100);
+            const pct = Math.round((tokensRef.current / contextWindowRef.current) * 100);
             push({
               role: "info",
               text: t("context.warning", { pct }),
@@ -481,6 +501,25 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
           push({ role: "error", text: t("notices.errorPrefix", { message: error.message }) });
         }
       }
+
+      if (
+        agent.messageCount > 0 &&
+        contextWindowRef.current > 0 &&
+        tokensRef.current >= contextWindowRef.current * AUTO_COMPACT_RATIO
+      ) {
+        push({ role: "info", text: t("compact.auto") });
+        try {
+          const result = await agent.compact();
+          if (result?.tokens != null) {
+            tokensRef.current = result.tokens;
+            setTokens(result.tokens);
+          }
+          warnedRef.current = false;
+          push({ role: "info", text: t("compact.summarized") });
+        } catch {
+          // otomatik compact başarısız olsa da oturum devam etmeli
+        }
+      }
     } finally {
       drivingRef.current = false;
       busyRef.current = false;
@@ -571,6 +610,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
 
   const commands = useMemo(() => commandItems(), [lang]);
 
+  const activeMeta = modelMeta[modelId] ?? {};
+  const contextWindow = activeMeta.contextWindow || CONTEXT_WINDOW;
+  contextWindowRef.current = contextWindow;
+  const sessionCost = computeCost(activeMeta.pricing, usageRef.current);
+
   const overlayList = overlay
     ? filterBy(
         overlay.kind === "palette" ? commands : (overlay.items ?? MODEL_ITEMS),
@@ -611,6 +655,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   useEffect(() => {
     refreshAccount();
   }, [refreshAccount]);
+
+  useEffect(() => {
+    loadRemoteModels();
+  }, [loadRemoteModels]);
 
   useEffect(() => {
     const name = sessionTitle || sessionName;
@@ -1074,7 +1122,13 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       <//>
       ${busy
         ? html`<${WorkingIndicator} />`
-        : html`<${BottomBar} cwd=${process.cwd()} tokens=${tokens} credits=${credits} />`}
+        : html`<${BottomBar}
+            cwd=${process.cwd()}
+            tokens=${tokens}
+            credits=${credits}
+            contextWindow=${contextWindow}
+            cost=${sessionCost}
+          />`}
     <//>
   `;
 }

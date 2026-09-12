@@ -48,6 +48,10 @@ alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak i
 **tek istemde onlarca araç çağrısını kendi kendine** yapar (dosya oku/yaz, komut
 çalıştır…) ve yeni bir mesaj bekleyip durmaz.
 
+Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyatlar
+`GET /v1/models`'ten okunur (API sağlıyorsa); bağlam %85'e ulaşınca oturum
+**otomatik olarak özetlenir** (`/compact` elle de çalışır).
+
 ### Oturum içi komutlar
 
 | Komut | Açıklama |
@@ -92,11 +96,13 @@ yapabilirsiniz (seçim açık gri zeminle işaretlenir ve kalıcıdır). Kopyala
 `a` / `e` / `y` izin verir, `d` / `h` / `n` reddeder. `-y` ile oto-onay açılır.
 
 **Proje dışı dizin erişimi:** Ajan, çalışma dizini dışındaki bir yola erişmeye
-çalıştığında **izin istenir** — `Allow once` (bir kez), `Allow always` (oturum
-boyunca o dizine izin ver) veya `Reject`. `←/→` ile seçin, `Enter` ile onaylayın,
+çalıştığında **izin istenir** — `Allow once` (bir kez), `Allow always` (kalıcı:
+proje bazında kaydedilir) veya `Reject`. `←/→` ile seçin, `Enter` ile onaylayın,
 `Esc` reddeder (`o` / `a` / `r` kısayolları). Yalnızca `read_file`, `write_file`,
 `edit_file`, `list_dir`, `search_code` araçlarının yolları denetlenir; proje
-içindeki yollar sorulmadan geçer.
+içindeki yollar sorulmadan geçer. `Allow always` izinleri projeye göre
+`~/.wenox/permissions.json` dosyasında saklanır — bir projede verdiğiniz izin
+başka projeye taşınmaz.
 
 ## Diller
 

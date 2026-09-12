@@ -155,6 +155,7 @@ Kısayollar
     busy: "Şu an bir işlem sürüyor. Bitince /compact deneyin.",
     empty: "Özetlenecek konuşma yok.",
     summarized: "Bağlam özetlendi, yer açıldı.",
+    auto: "⚠️  Bağlam dolmak üzere — otomatik özetleniyor…",
     done: "Bağlam özetlendi, yer açıldı.\n\n{summary}",
     failed: "Özetleme başarısız: {message}",
   },

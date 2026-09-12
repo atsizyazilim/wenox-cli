@@ -155,6 +155,7 @@ Shortcuts
     busy: "An operation is in progress. Try /compact when it finishes.",
     empty: "There is no conversation to summarize.",
     summarized: "Context summarized, space freed.",
+    auto: "⚠️  Context near full — compacting automatically…",
     done: "Context summarized, space freed.\n\n{summary}",
     failed: "Summarization failed: {message}",
   },
