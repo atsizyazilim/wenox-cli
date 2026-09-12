@@ -4,6 +4,7 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { Logo } from "../components/logo.js";
 import { InputBar } from "../components/input-bar.js";
 import { useBlink } from "../hooks.js";
+import { parseMouse } from "../screen.js";
 import { theme } from "../theme.js";
 import {
   buildView,
@@ -84,6 +85,9 @@ export function Onboarding({ onComplete }) {
   };
 
   useInput((char, key) => {
+    // Fare takibi açık: tıklama/sürükleme dizilerini yoksay, input'a sızmasın
+    if (parseMouse(char) || /^\[M/.test(char ?? "")) return;
+
     if (key.escape || (key.ctrl && char === "c")) {
       exit();
       return;

@@ -53,3 +53,22 @@ test("onboarding akışı: dil → anahtar → doğrulama → karşılama", asyn
   assert.equal(completed, "wx-test", "onComplete anahtarla çağrılır");
   ui.unmount();
 });
+
+test("fare olayı dizileri input'a sızmaz", async () => {
+  setLocale("tr");
+  const ui = render(html`<${Onboarding} onComplete=${() => {}} />`);
+  await d(150);
+  ui.stdin.write("\r"); // apikey adımına geç
+  await d(150);
+
+  ui.stdin.write("[<0;69;19M");
+  await d(60);
+  ui.stdin.write("[<32;69;19M");
+  await d(60);
+  assert.ok(!plain(ui.lastFrame()).includes("[<"), "fare dizisi görünmemeli");
+
+  ui.stdin.write("wx-abc");
+  await d(80);
+  assert.ok(plain(ui.lastFrame()).includes("wx-abc"), "sonrasında yazı yazılabilmeli");
+  ui.unmount();
+});
