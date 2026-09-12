@@ -22,17 +22,17 @@ import { openUrl } from "../../utils.js";
 import { welcomeMessage } from "../../ui.js";
 import { t, setLocale, getLocale, LANGUAGES } from "../../i18n/index.js";
 
-function Typewriter({ text, interval = 14 }) {
+function Typewriter({ text, interval = 24 }) {
   const [shown, setShown] = useState(0);
-  // Karakter karakter değil, parça parça: her tick bir React/Ink yeniden çizimi
-  // tetiklediği için tek tek yazmak uzun metinlerde çok yavaş kalıyor.
-  const step = Math.max(1, Math.ceil(text.length / 40));
+  // Her tick bir Ink yeniden çizimi tetiklediği için çok uzun metinlerde parça
+  // parça yazıyoruz; normal uzunlukta karakter karakter ilerliyor.
+  const step = Math.max(1, Math.ceil(text.length / 150));
   useEffect(() => {
     if (shown >= text.length) return undefined;
     const timer = setTimeout(() => setShown((value) => Math.min(text.length, value + step)), interval);
     return () => clearTimeout(timer);
   }, [shown, text, interval, step]);
-  return html`<${Text} color=${theme.ok}>${text.slice(0, shown)}<//>`;
+  return html`<${Text} color="white">${text.slice(0, shown)}<//>`;
 }
 
 export function Onboarding({ onComplete }) {
