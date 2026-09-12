@@ -15,7 +15,7 @@ export function Logo() {
   return html`
     <${Box} flexDirection="column" alignItems="center">
       ${LOGO_LINES.map((line, index) =>
-        html`<${Text} key=${index} color=${index < 3 ? "cyanBright" : "cyan"}>${line}<//>`
+        html`<${Text} key=${index} color="white">${line}<//>`
       )}
       <${Box} marginTop=${1}>
         <${Text} color="gray">${t("logo.product")}<//>
