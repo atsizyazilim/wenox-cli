@@ -109,6 +109,5 @@ export function sanitizeOutput(text) {
   for (const pattern of GARBAGE_PATTERNS) {
     out = out.replace(pattern, " ");
   }
-  out = out.replace(/Sepians\s*AI/gi, "WenOX AI").replace(/Sepians/gi, "WenOX");
   return out.trim();
 }
