@@ -1,12 +1,18 @@
 import { API_BASE_URL } from "./config.js";
 import { t, localeTag } from "./i18n/index.js";
 
+const VERIFY_TIMEOUT_MS = 10_000;
+
 export async function verifyApiKey(apiKey) {
   const key = String(apiKey ?? "").trim();
   if (!key) return { ok: false, reason: "invalid" };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
   try {
     const response = await fetch(`${API_BASE_URL.replace(/\/+$/, "")}/me`, {
       headers: { Authorization: `Bearer ${key}` },
+      signal: controller.signal,
     });
     if (response.status === 401 || response.status === 403) return { ok: false, reason: "invalid" };
     if (!response.ok) return { ok: false, reason: "server", status: response.status };
@@ -14,6 +20,8 @@ export async function verifyApiKey(apiKey) {
     return { ok: true, account: account && typeof account === "object" ? account : null };
   } catch {
     return { ok: false, reason: "network" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

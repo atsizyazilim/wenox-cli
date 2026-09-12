@@ -77,7 +77,7 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 | `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
 | `Ctrl+P` | Komut paleti |
 | `Esc` | Açık menüyü kapat / akan yanıtı iptal et |
-| `Ctrl+C` | Akan işi iptal et, boştaysa çık |
+| `Ctrl+C` | Her durumda kaçış: açık paneli kapatır, akan işi iptal eder, boştaysa çıkar |
 | `↑` / `↓` | Girdi geçmişi (slash menüsü açıkken menüde gezinir) |
 | `PgUp` / `PgDn` | Konuşmayı kaydır |
 | `Ctrl+U` / `Ctrl+D` | Yarım sayfa kaydır |

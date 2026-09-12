@@ -606,6 +606,20 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     resolve?.(decision);
   };
 
+  // İptal: çalışan isteği durdur + kuyruktaki bekleyen mesajları da bırak
+  const cancelWork = useCallback(() => {
+    requestCancel();
+    if (queuedRef.current.length > 0) {
+      const ids = new Set(queuedRef.current.map((item) => item.id));
+      queuedRef.current = [];
+      itemsRef.current = itemsRef.current.map((entry) =>
+        ids.has(entry.id) ? { ...entry, queued: false } : entry,
+      );
+      setItems(itemsRef.current);
+      push({ role: "info", text: t("notices.queueCleared") });
+    }
+  }, [push]);
+
   const selectModel = (value) => {
     agent.setModel(value);
     setModelId(value);
@@ -881,6 +895,40 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
     if (/^\[M/.test(char ?? "")) return;
 
+    // Bazı terminaller ESC'yi isEsc olmadan ham karakter olarak gönderir
+    const isEsc = key.escape || char === "";
+
+    // Evrensel kaçış: Ctrl+C her durumda çalışır — açık paneli kapatır, meşgulken
+    // iptal eder, boştaysa çıkar. Böylece hiçbir durumda kilitli kalınmaz.
+    if (key.ctrl && char === "c") {
+      if (permission) {
+        resolvePermission("reject");
+        return;
+      }
+      if (approval) {
+        resolveApproval(false);
+        return;
+      }
+      if (question) {
+        question.resolve({ answer: t("ask.closed"), cancelled: true });
+        setQuestion(null);
+        return;
+      }
+      if (overlay) {
+        setOverlay(null);
+        return;
+      }
+      if (keyMode) {
+        setKeyMode(false);
+        resetInput();
+        return;
+      }
+      if (copySelection()) return;
+      if (busy) cancelWork();
+      else exit();
+      return;
+    }
+
     if (permission) {
       const total = 3;
       if (key.leftArrow) {
@@ -895,7 +943,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         resolvePermission(["once", "always", "reject"][permission.choice]);
         return;
       }
-      if (key.escape) {
+      if (isEsc) {
         resolvePermission("reject");
         return;
       }
@@ -916,7 +964,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         resolveApproval(approval.allow);
         return;
       }
-      if (key.escape || ch === "h" || ch === "n" || ch === "d") {
+      if (isEsc || ch === "h" || ch === "n" || ch === "d") {
         resolveApproval(false);
         return;
       }
@@ -930,7 +978,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       const total = question.options.length + 1;
 
       if (question.typing) {
-        if (key.escape) {
+        if (isEsc) {
           setQuestion({ ...question, typing: false });
           resetInput();
           return;
@@ -955,7 +1003,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         setQuestion({ ...question, index: (question.index + 1) % total });
         return;
       }
-      if (key.escape) {
+      if (isEsc) {
         const resolve = question.resolve;
         setQuestion(null);
         resolve({ answer: t("ask.closed"), cancelled: true });
@@ -978,7 +1026,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
 
     if (overlay) {
       const state = overlay;
-      if (key.escape) {
+      if (isEsc) {
         setOverlay(null);
         return;
       }
@@ -1010,7 +1058,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
 
     if (keyMode) {
-      if (key.escape) {
+      if (isEsc) {
         setKeyMode(false);
         resetInput();
         return;
@@ -1046,13 +1094,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       setOverlay({ kind: "palette", query: "", index: 0 });
       return;
     }
-    if (key.ctrl && char === "c") {
-      if (copySelection()) return;
-      if (busy) requestCancel();
-      else exit();
-      return;
-    }
-    if (key.escape) {
+    if (isEsc) {
       if (selectionRef.current) {
         setSel(null);
         return;
@@ -1061,7 +1103,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         resetInput();
         return;
       }
-      if (busy) requestCancel();
+      if (busy) cancelWork();
       return;
     }
     if (key.tab) {

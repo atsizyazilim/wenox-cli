@@ -183,6 +183,7 @@ Shortcuts
     unknownCommand: "Unknown command: /{cmd}",
     apiKeyUpdated: "API key updated.",
     apiKeyAccount: "Signed in as {name}",
+    queueCleared: "Queue cleared.",
     commandRejected: "Command rejected.",
     modelSelected: "Model: {name}",
     modeChanged: "Mode: {mode}",

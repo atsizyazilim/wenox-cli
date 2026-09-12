@@ -183,6 +183,7 @@ Kısayollar
     unknownCommand: "Bilinmeyen komut: /{cmd}",
     apiKeyUpdated: "API anahtarı güncellendi.",
     apiKeyAccount: "{name} olarak giriş yapıldı",
+    queueCleared: "Kuyruk temizlendi.",
     commandRejected: "Komut reddedildi.",
     modelSelected: "Model: {name}",
     modeChanged: "Mod: {mode}",

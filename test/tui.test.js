@@ -129,6 +129,68 @@ test("onay paneli Allow/Disallow içerir", async () => {
   ui.unmount();
 });
 
+test("Ctrl+C açık paneli kapatır (kilitlenme yok)", async () => {
+  setLocale("tr");
+  const panelAgent = {
+    ...agent,
+    async chatStep(_text, sink) {
+      await sink.askPermission({
+        tool: "list_dir",
+        path: ".",
+        resolved: process.cwd(),
+        grant: process.cwd(),
+        pattern: "x",
+      });
+    },
+  };
+  const ui = render(html`<${App} agent=${panelAgent} version="0.1.1" initialModelId="grok-4.6" />`);
+  await d(180);
+  ui.stdin.write("x");
+  await d(60);
+  ui.stdin.write("\r");
+  await d(250);
+  assert.ok(plain(ui.lastFrame()).includes("İzin gerekli"), "panel açık");
+
+  ui.stdin.write(""); // Ctrl+C
+  await d(250);
+  assert.ok(!plain(ui.lastFrame()).includes("İzin gerekli"), "Ctrl+C paneli kapattı");
+
+  ui.stdin.write("yazdim");
+  await d(120);
+  assert.ok(plain(ui.lastFrame()).includes("yazdim"), "panelden sonra yazı yazılabiliyor");
+  ui.unmount();
+});
+
+test("ESC beklemedeki kuyruğu temizler", async () => {
+  setLocale("tr");
+  const slowAgent = {
+    ...agent,
+    async chatStep(_text, sink) {
+      sink.thinking?.();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    },
+  };
+  const ui = render(html`<${App} agent=${slowAgent} version="0.1.1" initialModelId="grok-4.6" />`);
+  await d(180);
+  ui.stdin.write("bir");
+  await d(60);
+  ui.stdin.write("\r");
+  await d(150);
+  ui.stdin.write("iki");
+  await d(60);
+  ui.stdin.write("\r");
+  await d(150);
+  assert.ok(plain(ui.lastFrame()).includes("KUYRUKTA"), "ikinci mesaj kuyrukta");
+
+  ui.stdin.write(""); // ESC
+  await d(250);
+  const frame = plain(ui.lastFrame());
+  assert.ok(frame.includes("Kuyruk temizlendi"), "kuyruk temizlendi mesajı görünür");
+  assert.ok(!frame.includes("KUYRUKTA"), "kuyruk etiketi kalktı");
+  ui.unmount();
+  await d(1600);
+});
+
 test("güvensiz dizinde (ev dizini) uyarı gösterilir", async () => {
   setLocale("tr");
   const original = process.cwd();
