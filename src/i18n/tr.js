@@ -182,6 +182,7 @@ Kısayollar
   notices: {
     unknownCommand: "Bilinmeyen komut: /{cmd}",
     apiKeyUpdated: "API anahtarı güncellendi.",
+    apiKeyAccount: "{name} olarak giriş yapıldı",
     commandRejected: "Komut reddedildi.",
     modelSelected: "Model: {name}",
     modeChanged: "Mod: {mode}",

@@ -128,3 +128,45 @@ test("onay paneli Allow/Disallow içerir", async () => {
   assert.ok(f.includes("Allow") && f.includes("Disallow"));
   ui.unmount();
 });
+
+test("/key anahtarı doğrulayarak günceller", async () => {
+  setLocale("en");
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ name: "Ali", credits_remaining: 5 }),
+  });
+  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  await d(150);
+  ui.stdin.write("/key");
+  await d(80);
+  ui.stdin.write("\r");
+  await d(120);
+  ui.stdin.write("wx-good");
+  await d(80);
+  ui.stdin.write("\r");
+  await d(300);
+  const f = plain(ui.lastFrame());
+  assert.ok(f.includes("API key updated"), "güncellendi mesajı görünür");
+  assert.ok(f.includes("Signed in as Ali"), "hesap adı gösterilir");
+  ui.unmount();
+});
+
+test("/key geçersiz anahtarı kaydetmez", async () => {
+  setLocale("en");
+  globalThis.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
+  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  await d(150);
+  ui.stdin.write("/key");
+  await d(80);
+  ui.stdin.write("\r");
+  await d(120);
+  ui.stdin.write("wx-bad");
+  await d(80);
+  ui.stdin.write("\r");
+  await d(300);
+  const f = plain(ui.lastFrame());
+  assert.ok(f.includes("Invalid API key"), "geçersiz mesajı görünür");
+  assert.ok(!f.includes("API key updated"), "kaydedilmemeli");
+  ui.unmount();
+});

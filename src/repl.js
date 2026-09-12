@@ -11,6 +11,7 @@ import {
   maskKey,
 } from "./config.js";
 import { resolvePath } from "./utils.js";
+import { verifyApiKey } from "./account.js";
 import { listSessions } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { t, localeTag, setLocale, getLocale, LANGUAGES } from "./i18n/index.js";
@@ -129,11 +130,17 @@ export async function runRepl({ agent }) {
   const handleKeyUpdate = async () => {
     console.log(t("repl.currentKey", { key: chalk.yellow(maskKey(agent.apiKey)) }));
     const newKey = (await ask(t("repl.newKey"))).trim();
-    if (newKey) {
-      agent.setApiKey(newKey);
-      saveConfig({ apiKey: newKey });
-      ui.printSuccess(t("repl.keyUpdated"));
+    if (!newKey) return;
+    ui.printDim(t("onboarding.verifying"));
+    const result = await verifyApiKey(newKey);
+    if (!result.ok) {
+      ui.printError(t(result.reason === "network" ? "onboarding.network" : "onboarding.invalid"));
+      return;
     }
+    agent.setApiKey(newKey);
+    saveConfig({ apiKey: newKey });
+    ui.printSuccess(t("repl.keyUpdated"));
+    if (result.account?.name) ui.printDim(t("notices.apiKeyAccount", { name: result.account.name }));
   };
 
   while (true) {

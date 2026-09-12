@@ -182,6 +182,7 @@ Shortcuts
   notices: {
     unknownCommand: "Unknown command: /{cmd}",
     apiKeyUpdated: "API key updated.",
+    apiKeyAccount: "Signed in as {name}",
     commandRejected: "Command rejected.",
     modelSelected: "Model: {name}",
     modeChanged: "Mode: {mode}",

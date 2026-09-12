@@ -5,7 +5,7 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { AVAILABLE_MODELS, CONTEXT_WINDOW, getModelInfo, saveConfig } from "../config.js";
 import { getSystemPrompt } from "../agent.js";
 import { listSessions, saveSession } from "../session.js";
-import { fetchAccount, formatAccount } from "../account.js";
+import { fetchAccount, formatAccount, verifyApiKey } from "../account.js";
 import { copyToClipboard } from "../clipboard.js";
 import { plain, sliceByWidth } from "../utils.js";
 import { t, setLocale, getLocale, localeTag, LANGUAGES } from "../i18n/index.js";
@@ -465,12 +465,26 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   );
 
   const applyKey = useCallback(
-    (value) => {
+    async (value) => {
       const key = value.trim();
       if (!key) return;
+      push({ role: "info", text: t("onboarding.verifying") });
+      const result = await verifyApiKey(key);
+      if (!result.ok) {
+        const reason = result.reason === "network" ? "onboarding.network" : "onboarding.invalid";
+        push({ role: "error", text: t(reason) });
+        return;
+      }
       agent.setApiKey(key);
       saveConfig({ apiKey: key });
+      if (result.account) {
+        setAccount(result.account);
+        if (typeof result.account.credits_remaining === "number") setCredits(result.account.credits_remaining);
+      }
       push({ role: "info", text: t("notices.apiKeyUpdated") });
+      if (result.account?.name) {
+        push({ role: "info", text: t("notices.apiKeyAccount", { name: result.account.name }) });
+      }
     },
     [agent, push],
   );
