@@ -6,6 +6,7 @@ import chalk from "chalk";
 import boxen from "boxen";
 import {
   API_BASE_URL,
+  API_KEY_URL,
   AVAILABLE_MODELS,
   DEFAULT_MODEL_ID,
   getModelInfo,
@@ -17,6 +18,8 @@ import { runRepl } from "./repl.js";
 import { changeDirectory } from "./tools.js";
 import { createSession, loadSession, saveSession } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
+import { verifyApiKey } from "./account.js";
+import { openUrl } from "./utils.js";
 import { t, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
 
@@ -60,18 +63,60 @@ function parseCliArgs(argv) {
   }
 }
 
-async function promptForApiKey() {
-  console.log(chalk.bold.yellow(`\n${t("cli.apiKeyMissing")}`));
-  console.log(t("cli.apiKeyNeeded"));
+const MAX_KEY_ATTEMPTS = 5;
 
+async function onboard() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    let apiKey = "";
-    while (!apiKey) {
-      apiKey = (await rl.question(t("cli.apiKeyPrompt"))).trim();
-      if (!apiKey) console.log(t("cli.apiKeyEmpty"));
+    console.log(
+      boxen(
+        [
+          chalk.bold.cyan("WenOX AI CLI"),
+          "",
+          t("onboarding.needKey"),
+          chalk.bold.cyan(t("onboarding.getKeyHere", { url: API_KEY_URL })),
+        ].join("\n"),
+        {
+          padding: { top: 1, bottom: 1, left: 2, right: 2 },
+          borderStyle: "round",
+          borderColor: "cyan",
+          title: chalk.bold.white("W E N O X"),
+          titleAlignment: "center",
+        },
+      ),
+    );
+
+    if (!process.stdin.isTTY) {
+      console.error(chalk.red(t("onboarding.noTty")));
+      process.exit(1);
     }
-    return apiKey;
+
+    const ask = (question) => rl.question(question);
+
+    let key = (await ask(t("onboarding.openOrPaste"))).trim();
+    if (!key) {
+      const opened = openUrl(API_KEY_URL);
+      console.log(chalk.dim(opened ? t("onboarding.opening") : t("onboarding.openFailed", { url: API_KEY_URL })));
+      key = (await ask(t("onboarding.pasteKey"))).trim();
+    }
+
+    for (let attempt = 0; attempt < MAX_KEY_ATTEMPTS; attempt += 1) {
+      if (!key) break;
+      console.log(chalk.dim(t("onboarding.verifying")));
+      const result = await verifyApiKey(key);
+      if (result.ok) {
+        saveConfig({ apiKey: key });
+        const name = result.account?.name;
+        console.log(chalk.bold.green(`✓ ${name ? t("onboarding.welcomeBack", { name }) : t("onboarding.saved")}`));
+        return key;
+      }
+      const reason = result.reason === "network" ? "onboarding.network" : "onboarding.invalid";
+      console.log(chalk.red(`✗ ${t(reason)}`));
+      key = (await ask(t("onboarding.pasteKey"))).trim();
+    }
+
+    console.error(chalk.red(t("onboarding.giveUp")));
+    process.exit(1);
   } finally {
     rl.close();
   }
@@ -138,10 +183,7 @@ async function resolveApiKey(values) {
   const existing = loadConfig().apiKey;
   if (existing) return existing;
 
-  const apiKey = await promptForApiKey();
-  saveConfig({ apiKey });
-  ui.printSuccess(t("cli.apiKeySaved"));
-  return apiKey;
+  return onboard();
 }
 
 async function main() {

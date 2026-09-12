@@ -6,6 +6,9 @@ import { t } from "./i18n/index.js";
 export const API_BASE_URL =
   process.env.WENOX_API_BASE_URL || "https://api.WenOX.co/v1";
 
+export const API_KEY_URL =
+  process.env.WENOX_API_KEY_URL || "https://me.wenox.co/api-key";
+
 export function configDir() {
   return process.env.WENOX_HOME || path.join(os.homedir(), ".wenox");
 }

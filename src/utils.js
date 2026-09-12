@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import stripAnsi from "strip-ansi";
 import stringWidth from "string-width";
 
@@ -33,6 +34,26 @@ export function sliceByWidth(text, from, to) {
     column = next;
   }
   return out;
+}
+
+export function openUrl(url) {
+  const target = String(url ?? "").trim();
+  if (!/^https?:\/\//i.test(target)) return false;
+  try {
+    const platform = process.platform;
+    const [command, args] =
+      platform === "win32"
+        ? ["cmd", ["/c", "start", "", target]]
+        : platform === "darwin"
+          ? ["open", [target]]
+          : ["xdg-open", [target]];
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => {});
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function resolvePath(input) {

@@ -155,7 +155,17 @@ kullanıcı tarafından okunabilir). Öncelik sırası:
 2. `~/.wenox/config.json`
 3. Varsayılanlar
 
-İlk çalıştırmada anahtar yoksa CLI sizden anahtar ister ve kaydeder.
+### İlk çalıştırma (onboarding)
+
+Anahtar yokken CLI sizi karşılar: API anahtarı alma bağlantısını
+(**https://me.wenox.co/api-key**) gösterir ve **Enter'a basınca tarayıcıda açar**
+(veya anahtarı doğrudan yapıştırabilirsiniz). Girilen anahtar `GET /v1/me` ile
+**doğrulanır** — geçersizse tekrar sorar, geçerliyse kaydeder ve hesabınızın adıyla
+karşılar. Böylece hatalı bir anahtarla başlamazsınız.
+
+Anahtar zaten kayıtlıysa (veya `--key` / `WENOX_API_KEY` verildiyse) onboarding
+atlanır. Etkileşimli olmayan (pipe) çalıştırmalarda anahtar yoksa CLI anlaşılır bir
+hata verip çıkar; anahtarı `--key` ile geçin.
 
 ## Yetenekler
 

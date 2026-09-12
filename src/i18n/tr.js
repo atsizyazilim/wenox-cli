@@ -285,12 +285,23 @@ Kısayollar
 
   cli: {
     argError: "Argüman hatası: {message}",
-    apiKeyMissing: "⚠️  WenOX API Anahtarı Bulunamadı!",
-    apiKeyNeeded: "WenOX AI modellerini kullanabilmek için geçerli bir API anahtarı gereklidir.",
-    apiKeyPrompt: "Lütfen WenOX API anahtarınızı yapıştırın: ",
-    apiKeyEmpty: "API anahtarı boş olamaz. Lütfen girin.",
-    apiKeySaved: "API anahtarı ~/.wenox/config.json dosyasına kaydedildi.",
     unexpectedError: "Beklenmeyen hata: {message}",
+  },
+
+  onboarding: {
+    needKey: "WenOX AI'yı kullanmak için bir API anahtarı gerekir.",
+    getKeyHere: "API anahtarını buradan alabilirsiniz: {url}",
+    openOrPaste: "Tarayıcıda açmak için Enter'a bas, ya da anahtarını yapıştır: ",
+    opening: "Sayfa tarayıcıda açılıyor…",
+    openFailed: "Tarayıcı açılamadı. Şu adresi elle açın: {url}",
+    pasteKey: "API anahtarını yapıştır: ",
+    verifying: "Anahtar doğrulanıyor…",
+    invalid: "Geçersiz API anahtarı. Kontrol edip tekrar deneyin.",
+    network: "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+    welcomeBack: "Hoş geldin, {name}! Anahtar kaydedildi.",
+    saved: "API anahtarı kaydedildi. Hoş geldin!",
+    giveUp: "Geçerli bir API anahtarı girilmedi. Çıkılıyor.",
+    noTty: "API anahtarı bulunamadı. Etkileşimli çalıştırın veya --key ya da WENOX_API_KEY ile verin.",
   },
 
   account: {

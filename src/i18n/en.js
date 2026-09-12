@@ -285,12 +285,23 @@ Shortcuts
 
   cli: {
     argError: "Argument error: {message}",
-    apiKeyMissing: "⚠️  WenOX API Key Not Found!",
-    apiKeyNeeded: "A valid API key is required to use WenOX AI models.",
-    apiKeyPrompt: "Please paste your WenOX API key: ",
-    apiKeyEmpty: "API key cannot be empty. Please enter it.",
-    apiKeySaved: "API key saved to ~/.wenox/config.json.",
     unexpectedError: "Unexpected error: {message}",
+  },
+
+  onboarding: {
+    needKey: "To use WenOX AI you need an API key.",
+    getKeyHere: "Get your API key here: {url}",
+    openOrPaste: "Press Enter to open the page in your browser, or paste your key: ",
+    opening: "Opening the page in your browser…",
+    openFailed: "Could not open the browser. Open this manually: {url}",
+    pasteKey: "Paste your API key: ",
+    verifying: "Verifying key…",
+    invalid: "Invalid API key. Please check it and try again.",
+    network: "Could not reach the server. Check your connection and try again.",
+    welcomeBack: "Welcome, {name}! Key saved.",
+    saved: "API key saved. Welcome!",
+    giveUp: "No valid API key was provided. Exiting.",
+    noTty: "No API key found. Run interactively, or provide one with --key or WENOX_API_KEY.",
   },
 
   account: {

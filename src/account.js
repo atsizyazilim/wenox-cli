@@ -1,6 +1,22 @@
 import { API_BASE_URL } from "./config.js";
 import { t, localeTag } from "./i18n/index.js";
 
+export async function verifyApiKey(apiKey) {
+  const key = String(apiKey ?? "").trim();
+  if (!key) return { ok: false, reason: "invalid" };
+  try {
+    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, "")}/me`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (response.status === 401 || response.status === 403) return { ok: false, reason: "invalid" };
+    if (!response.ok) return { ok: false, reason: "server", status: response.status };
+    const account = await response.json();
+    return { ok: true, account: account && typeof account === "object" ? account : null };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
 export async function fetchAccount(apiKey) {
   if (!apiKey) return null;
   try {
