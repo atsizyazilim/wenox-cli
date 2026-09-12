@@ -57,7 +57,7 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 | Komut | Açıklama |
 |---|---|
 | `/help` | Komutları gösterir |
-| `/model` | Modeli değiştirir — liste her seferinde `GET /v1/models`'ten çekilir (kısayol: `Tab`) |
+| `/model` | Modeli değiştirir — liste her seferinde `GET /v1/models`'ten çekilir |
 | `/lang` | Arayüz dilini değiştirir (Türkçe / English) |
 | `/key` | API anahtarını günceller |
 | `/me` | Hesap bilgisi ve kalan kredi (`GET /v1/me`) |
@@ -74,7 +74,7 @@ Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyat
 |---|---|
 | `Enter` | Gönder |
 | `/` | Komut menüsü (yazdıkça filtreler, `↑/↓` + `Enter`) |
-| `Tab` | Model seçici (slash menüsü açıkken komutu tamamlar) |
+| `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
 | `Ctrl+P` | Komut paleti |
 | `Esc` | Açık menüyü kapat / akan yanıtı iptal et |
 | `Ctrl+C` | Akan işi iptal et, boştaysa çık |
@@ -103,6 +103,18 @@ proje bazında kaydedilir) veya `Reject`. `←/→` ile seçin, `Enter` ile onay
 içindeki yollar sorulmadan geçer. `Allow always` izinleri projeye göre
 `~/.wenox/permissions.json` dosyasında saklanır — bir projede verdiğiniz izin
 başka projeye taşınmaz.
+
+## Modlar
+
+Durum çubuğunda aktif mod görünür; **`Tab`** ile değiştirilir:
+
+| Mod | Davranış |
+|---|---|
+| **Build** (varsayılan) | Ajan dosyaları okuyup düzenler, komut çalıştırır — normal çalışma. |
+| **Plan** (salt-okunur) | Ajan yalnızca inceler ve adım adım plan önerir. `write_file`, `edit_file`, `run_command` **engellenir**; değişiklik istiyorsan Build'e geçmesini söyler. |
+
+Plan modu, "önce bir plan göster, sonra uygula" akışı için: ajanı çalıştırmadan
+önce ne yapacağını görürsün, onaylayınca `Tab` ile Build'e geçersin.
 
 ## Diller
 

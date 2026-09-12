@@ -116,6 +116,27 @@ test("system prompt İngilizce ve dil talimatı içerir", () => {
   assert.match(sys, /You are WenOX AI/);
 });
 
+test("setMode system prompt'u Build/Plan arasında günceller", () => {
+  const agent = new WenOXAgent({ apiKey: "k" });
+  assert.match(agent.messages[0].content, /MODE: BUILD/);
+  agent.setMode("plan");
+  assert.match(agent.messages[0].content, /MODE: PLAN/);
+  assert.equal(agent.mode, "plan");
+  agent.setMode("build");
+  assert.match(agent.messages[0].content, /MODE: BUILD/);
+});
+
+test("plan modunda yazma/komut engellenir", async () => {
+  const target = path.join(process.cwd(), "plan-block-test.txt");
+  const agent = makeAgent(toolCallChunk("write_file", { path: target, content: "x" }));
+  agent.setMode("plan");
+  const results = [];
+  await agent.chatStep("t", { toolResult: (_name, result) => results.push(result) });
+  assert.equal(results[0].success, false);
+  assert.match(results[0].error, /plan mode/i);
+  assert.equal(fs.existsSync(target), false, "dosya yazılmamalıydı");
+});
+
 test("compact boş geçmişte {summary,tokens} döner", async () => {
   const agent = new WenOXAgent({ apiKey: "k" });
   const result = await agent.compact();

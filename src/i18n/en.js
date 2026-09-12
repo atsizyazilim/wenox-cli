@@ -46,7 +46,7 @@ export default {
     ],
     tui: `Commands
   /help            This help
-  /model           Change model (same as: Tab)
+  /model           Change model
   /key             Update API key
   /me              Account and credits
   /lang            Change language
@@ -58,7 +58,7 @@ export default {
   /exit            Exit
 
 Shortcuts
-  /        command menu     Tab     select model
+  /        command menu     Tab     switch mode (Build/Plan)
   Ctrl+P   command palette  Esc     cancel
   PgUp/PgDn  scroll         Ctrl+C  cancel / exit`,
     tableCommand: "Command",
@@ -79,7 +79,9 @@ Shortcuts
   status: {
     autoApprove: "auto-approve",
     premium: "premium",
-    keysHint: "tab model   ctrl+p ",
+    modeBuild: "Build",
+    modePlan: "Plan",
+    keysHint: "tab mode   ctrl+p ",
     commands: "commands",
     credits: "Credits: ",
     noCredits: "—",
@@ -182,6 +184,7 @@ Shortcuts
     apiKeyUpdated: "API key updated.",
     commandRejected: "Command rejected.",
     modelSelected: "Model: {name}",
+    modeChanged: "Mode: {mode}",
     copied: "Copied to clipboard",
     errorPrefix: "Error: {message}",
   },

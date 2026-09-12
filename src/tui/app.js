@@ -140,6 +140,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const [selection, setSelection] = useState(null);
   const [toast, setToast] = useState(null);
   const [lang, setLang] = useState(getLocale());
+  const [mode, setMode] = useState(agent.mode ?? "build");
   const [modelId, setModelId] = useState(initialModelId);
   const [autoApprove, setAutoApprove] = useState(initialAutoApprove);
   const [overlay, setOverlay] = useState(null);
@@ -240,7 +241,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       if (!loaded) return;
       try {
         agent.messages = [
-          { role: "system", content: getSystemPrompt() },
+          { role: "system", content: getSystemPrompt(agent.mode) },
           ...(loaded.messages ?? []),
         ];
         if (loaded.model) {
@@ -590,6 +591,18 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     saveConfig({ language: code });
     const name = LANGUAGES.find((entry) => entry.code === code)?.label ?? code;
     push({ role: "info", text: t("lang.selected", { name }) });
+  };
+
+  const toggleMode = () => {
+    const next = mode === "build" ? "plan" : "build";
+    agent.setMode(next);
+    setMode(next);
+    push({
+      role: "info",
+      text: t("notices.modeChanged", {
+        mode: next === "plan" ? t("status.modePlan") : t("status.modeBuild"),
+      }),
+    });
   };
 
   const displayItems = useMemo(() => {
@@ -1029,15 +1042,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         setSlashIndex(0);
         return;
       }
-      if (!busy) {
-        if (remoteModels) {
-          setOverlay({ kind: "models", query: "", index: 0, items: remoteModels });
-        } else {
-          loadRemoteModels().then((items) =>
-            setOverlay({ kind: "models", query: "", index: 0, items: items ?? MODEL_ITEMS }),
-          );
-        }
-      }
+      if (!busy) toggleMode();
       return;
     }
     if (key.return) {
@@ -1112,6 +1117,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         <${InputBar} view=${inputView} prefix=${prefix} disabled=${disabled} blinkOn=${blink} />
         <${StatusRow}
           modelName=${getModelInfo(modelId).name}
+          mode=${mode}
           autoApprove=${autoApprove}
           premium=${Boolean(account?.premium)}
         />

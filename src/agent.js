@@ -18,6 +18,9 @@ const FALLBACK_RESPONSE = () => t("agent.fallback");
 
 const PATH_TOOLS = new Set(["read_file", "write_file", "edit_file", "list_dir", "search_code"]);
 const DENIED_EXTERNAL = "User denied access to a path outside the project directory.";
+const PLAN_BLOCKED_TOOLS = new Set(["write_file", "edit_file", "run_command", "change_directory"]);
+const PLAN_BLOCKED_ERROR =
+  "Blocked: the agent is in PLAN mode (read-only). Switch to Build mode (Tab) to modify files or run commands.";
 
 function withinProject(targetPath, root) {
   const abs = path.resolve(root, String(targetPath));
@@ -25,11 +28,17 @@ function withinProject(targetPath, root) {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
-export function getSystemPrompt() {
+export function getSystemPrompt(mode = "build") {
   const cwd = process.cwd();
+  const modeLine =
+    mode === "plan"
+      ? "MODE: PLAN (read-only). Do NOT modify files and do NOT run commands — write_file, edit_file and run_command are disabled. Inspect the codebase and propose a clear, step-by-step plan. If the user asks for changes, describe exactly what you would change and ask them to switch to Build mode (Tab) to apply it."
+      : "MODE: BUILD. You may inspect the codebase, modify files and run commands to complete the task.";
   return `You are WenOX AI. You are an advanced AI Coding Assistant developed by WenOX.
 If asked who you are, your answer is always: "I am WenOX AI, developed by WenOX." Never state any other name.
 You have direct access to the local file system and can use the tools below to inspect projects, read files, edit files, and run commands.
+
+${modeLine}
 
 Environment:
 - Operating System: ${process.platform === "win32" ? "Windows" : process.platform}
@@ -72,13 +81,29 @@ export class WenOXAgent {
     this.modelId = modelId;
     this.autoApprove = autoApprove;
     this.client = new OpenAI({ apiKey, baseURL: API_BASE_URL });
-    this.messages = [{ role: "system", content: getSystemPrompt() }];
+    this.mode = "build";
+    this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
     this.projectRoot = process.cwd();
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
   setModel(modelId) {
     this.modelId = modelId;
+  }
+
+  setMode(mode) {
+    const next = mode === "plan" ? "plan" : "build";
+    if (this.mode !== next) {
+      this.mode = next;
+      this.#refreshSystem();
+    }
+    return this.mode;
+  }
+
+  #refreshSystem() {
+    if (this.messages[0]?.role === "system") {
+      this.messages[0] = { role: "system", content: getSystemPrompt(this.mode) };
+    }
   }
 
   setApiKey(apiKey) {
@@ -91,9 +116,7 @@ export class WenOXAgent {
   }
 
   updateCwd() {
-    if (this.messages[0]?.role === "system") {
-      this.messages[0] = { role: "system", content: getSystemPrompt() };
-    }
+    this.#refreshSystem();
     this.projectRoot = process.cwd();
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
@@ -294,38 +317,42 @@ export class WenOXAgent {
           const args = parseToolArgs(call.arguments);
           sink.toolCall?.(call.name, args);
 
-          let allowed = true;
-          try {
-            allowed = await this.#ensurePathAccess(call.name, args, sink);
-          } catch {
-            allowed = false;
-          }
-
           let toolResult;
-          if (!allowed) {
-            toolResult = { success: false, error: DENIED_EXTERNAL };
+          if (this.mode === "plan" && PLAN_BLOCKED_TOOLS.has(call.name)) {
+            toolResult = { success: false, error: PLAN_BLOCKED_ERROR };
           } else {
+            let allowed = true;
             try {
-              if (call.name === "ask_user") {
-                const options = Array.isArray(args.options) ? args.options : [];
-                const response = sink.askUser
-                  ? await sink.askUser({ question: args.question ?? "", options })
-                  : { answer: t("ask.noInterface") };
-                toolResult = {
-                  success: !response.cancelled,
-                  question: args.question ?? "",
-                  answer: response.answer,
-                };
-              } else if (call.name === "run_command" && !this.autoApprove) {
-                const approved = sink.askApproval ? await sink.askApproval(args.command ?? "") : false;
-                toolResult = approved
-                  ? await executeTool("run_command", args)
-                  : { success: false, error: "User rejected running this command." };
-              } else {
-                toolResult = await executeTool(call.name, args);
+              allowed = await this.#ensurePathAccess(call.name, args, sink);
+            } catch {
+              allowed = false;
+            }
+
+            if (!allowed) {
+              toolResult = { success: false, error: DENIED_EXTERNAL };
+            } else {
+              try {
+                if (call.name === "ask_user") {
+                  const options = Array.isArray(args.options) ? args.options : [];
+                  const response = sink.askUser
+                    ? await sink.askUser({ question: args.question ?? "", options })
+                    : { answer: t("ask.noInterface") };
+                  toolResult = {
+                    success: !response.cancelled,
+                    question: args.question ?? "",
+                    answer: response.answer,
+                  };
+                } else if (call.name === "run_command" && !this.autoApprove) {
+                  const approved = sink.askApproval ? await sink.askApproval(args.command ?? "") : false;
+                  toolResult = approved
+                    ? await executeTool("run_command", args)
+                    : { success: false, error: "User rejected running this command." };
+                } else {
+                  toolResult = await executeTool(call.name, args);
+                }
+              } catch (error) {
+                toolResult = { success: false, error: error.message };
               }
-            } catch (error) {
-              toolResult = { success: false, error: error.message };
             }
           }
 
@@ -416,7 +443,7 @@ export class WenOXAgent {
     if (!summary) return { summary: "", tokens: 0 };
 
     this.messages = [
-      { role: "system", content: getSystemPrompt() },
+      { role: "system", content: getSystemPrompt(this.mode) },
       { role: "user", content: `[SUMMARY] Summary of the previous conversation:\n${summary}` },
       { role: "assistant", content: "I've got the summary. We can continue where we left off." },
     ];

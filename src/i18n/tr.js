@@ -46,7 +46,7 @@ export default {
     ],
     tui: `Komutlar
   /help            Bu yardım
-  /model           Modeli değiştir (aynı: Tab)
+  /model           Modeli değiştir
   /key             API anahtarını güncelle
   /me              Hesap ve kredi bilgisi
   /lang            Dili değiştir
@@ -58,7 +58,7 @@ export default {
   /exit            Çık
 
 Kısayollar
-  /        komut menüsü     Tab     model seç
+  /        komut menüsü     Tab     mod değiştir (Build/Plan)
   Ctrl+P   komut paleti     Esc     iptal
   PgUp/PgDn  kaydır         Ctrl+C  iptal / çıkış`,
     tableCommand: "Komut",
@@ -79,7 +79,9 @@ Kısayollar
   status: {
     autoApprove: "oto-onay",
     premium: "premium",
-    keysHint: "tab model   ctrl+p ",
+    modeBuild: "Build",
+    modePlan: "Plan",
+    keysHint: "tab mod   ctrl+p ",
     commands: "komutlar",
     credits: "Credits: ",
     noCredits: "—",
@@ -182,6 +184,7 @@ Kısayollar
     apiKeyUpdated: "API anahtarı güncellendi.",
     commandRejected: "Komut reddedildi.",
     modelSelected: "Model: {name}",
+    modeChanged: "Mod: {mode}",
     copied: "Panoya kopyalandı",
     errorPrefix: "Hata: {message}",
   },

@@ -14,11 +14,13 @@ function shortCwd(cwd) {
   return cwd;
 }
 
-export function StatusRow({ modelName, autoApprove, premium }) {
+export function StatusRow({ modelName, mode = "build", autoApprove, premium }) {
+  const modeLabel = mode === "plan" ? t("status.modePlan") : t("status.modeBuild");
+  const modeColor = mode === "plan" ? theme.warn : theme.questionLink;
   return html`
     <${Box} justifyContent="space-between" paddingX=${2} marginTop=${1}>
       <${Text}>
-        <${Text} bold color=${theme.questionLink}>${"Build"}<//>
+        <${Text} bold color=${modeColor}>${modeLabel}<//>
         <${Text} color=${theme.muted}>${"  ·  "}<//>
         <${Text} color=${theme.muted}>${modelName}<//>
         ${autoApprove ? html`<${Text} color=${theme.warn}>${`  ·  ${t("status.autoApprove")}`}<//>` : null}
