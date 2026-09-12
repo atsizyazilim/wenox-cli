@@ -727,7 +727,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   if (unsafeWorkspace) extraRows += 3;
   if (question) extraRows += (question.options.length + 1) * 2 + 4;
 
-  const viewportHeight = Math.max(4, rows - 7 - inputView.lines.length - extraRows);
+  const viewportHeight = Math.max(4, rows - 8 - inputView.lines.length - extraRows);
   const maxOffset = Math.max(0, lines.length - viewportHeight);
   maxOffsetRef.current = maxOffset;
 
@@ -1184,8 +1184,8 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const prefix = keyMode ? t("input.keyPrefix") : question?.typing ? t("input.answerPrefix") : undefined;
 
   return html`
-    <${Box} flexDirection="column" height=${rows} width=${columns}>
-      <${Box} flexGrow=${1} flexDirection="column" paddingX=${2} paddingTop=${1}>
+    <${Box} flexDirection="column" height=${Math.max(10, rows - 1)} width=${columns}>
+      <${Box} flexGrow=${1} flexShrink=${1} overflow="hidden" flexDirection="column" paddingX=${2} paddingTop=${1}>
         ${unsafeWorkspace
           ? html`<${Box} marginBottom=${1}>
               <${Text} color=${theme.warn}>${t("notices.unsafeDir", { cwd: process.cwd() })}<//>
@@ -1231,7 +1231,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
 
       ${slashOpen ? html`<${Menu} items=${slashItems} index=${slashActive} nameWidth=${14} />` : null}
 
-      <${Box} paddingX=${1} flexDirection="column">
+      <${Box} flexDirection="column" flexShrink=${0} paddingX=${1}>
         <${InputBar} view=${inputView} prefix=${prefix} disabled=${disabled} blinkOn=${blink} />
         <${StatusRow}
           modelName=${getModelInfo(modelId).name}
@@ -1241,18 +1241,20 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         />
       <//>
 
-      <${Box} paddingX=${2}>
+      <${Box} flexShrink=${0} paddingX=${2}>
         <${Text} color=${theme.muted}>${"─".repeat(Math.max(10, columns - 4))}<//>
       <//>
-      ${busy
-        ? html`<${WorkingIndicator} />`
-        : html`<${BottomBar}
-            cwd=${process.cwd()}
-            tokens=${tokens}
-            credits=${credits}
-            contextWindow=${contextWindow}
-            cost=${sessionCost}
-          />`}
+      <${Box} flexShrink=${0}>
+        ${busy
+          ? html`<${WorkingIndicator} />`
+          : html`<${BottomBar}
+              cwd=${process.cwd()}
+              tokens=${tokens}
+              credits=${credits}
+              contextWindow=${contextWindow}
+              cost=${sessionCost}
+            />`}
+      <//>
     <//>
   `;
 }

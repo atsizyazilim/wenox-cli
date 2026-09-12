@@ -22,7 +22,7 @@ export function Question({ question, options, index, typing }) {
   ];
 
   return html`
-    <${Box} flexDirection="column" paddingX=${1} marginBottom=${1}>
+    <${Box} flexDirection="column" flexShrink=${0} paddingX=${1} marginBottom=${1}>
       <${Bar}><${Text} bold color="white">${question}<//><//>
 
       ${items.map((item, i) => {

@@ -15,7 +15,7 @@ export function Menu({ items, index, nameWidth = 16, hint }) {
   const visible = items.slice(start, start + MAX_VISIBLE);
 
   return html`
-    <${Box} flexDirection="column" width="100%">
+    <${Box} flexDirection="column" width="100%" flexShrink=${0}>
       ${visible.map((item, offset) => {
         const i = start + offset;
         const active = i === index;

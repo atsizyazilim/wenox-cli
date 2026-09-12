@@ -88,12 +88,12 @@ Shortcuts
   },
 
   approval: {
-    title: "⚠️  The model wants to run a command",
+    title: "The model wants to run a command",
     hint: "←/→ or Tab: select    ·    Enter: confirm    ·    Esc: reject",
   },
 
   permission: {
-    title: "⚠️  Permission required",
+    title: "Permission required",
     accessExternal: "← Access external directory {path}",
     patterns: "Patterns",
     allowOnce: "Allow once",

@@ -88,12 +88,12 @@ Kısayollar
   },
 
   approval: {
-    title: "⚠️  Model bir komut çalıştırmak istiyor",
+    title: "Model bir komut çalıştırmak istiyor",
     hint: "←/→ veya Tab: seç    ·    Enter: onayla    ·    Esc: reddet",
   },
 
   permission: {
-    title: "⚠️  İzin gerekli",
+    title: "İzin gerekli",
     accessExternal: "← Proje dışındaki dizine erişim: {path}",
     patterns: "Kalıplar",
     allowOnce: "Bir kez izin ver",

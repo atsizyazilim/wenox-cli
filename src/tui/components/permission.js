@@ -29,7 +29,7 @@ export function Permission({ path: target, pattern, choice = 0 }) {
   ];
 
   return html`
-    <${Box} flexDirection="column" paddingX=${1} marginBottom=${1}>
+    <${Box} flexDirection="column" flexShrink=${0} paddingX=${1} marginBottom=${1}>
       <${Bar}><${Text} bold color=${theme.menuSelectedBg}>${t("permission.title")}<//><//>
       <${Bar}><${Text} color=${theme.menuDesc}>${t("permission.accessExternal", { path: target })}<//><//>
       <${Bar}><${Text}>${" "}<//><//>

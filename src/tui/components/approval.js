@@ -14,7 +14,7 @@ function Option({ label, selected, color }) {
 
 export function Approval({ command, allow = true }) {
   return html`
-    <${Box} flexDirection="column" paddingX=${2} marginBottom=${1}>
+    <${Box} flexDirection="column" flexShrink=${0} paddingX=${2} marginBottom=${1}>
       <${Text} color=${theme.warn} bold>${t("approval.title")}<//>
       <${Text} color=${theme.warn} bold>${`  ${command}`}<//>
       <${Box} marginTop=${1}>
