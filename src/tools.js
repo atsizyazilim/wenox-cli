@@ -435,10 +435,18 @@ export function runCommand(command) {
       resolve(result);
     };
 
-    // ESC / Ctrl+C çalışan komutu da durdurur (ör. açık kalan bir dev server)
+    // ESC / Ctrl+C çalışan komutu da durdurur (ör. açık kalan bir dev server).
+    // Süreç hemen ölmese bile beklemeden dön: arayüz takılı kalmasın.
     setAbortHandler(() => {
       cancelled = true;
       killProcessTree(child);
+      finish({
+        success: false,
+        error: "Command cancelled by the user.",
+        returncode: -1,
+        stdout,
+        stderr,
+      });
     });
 
     const timer = setTimeout(() => {

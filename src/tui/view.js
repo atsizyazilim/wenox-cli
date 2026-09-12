@@ -140,11 +140,16 @@ function itemLines(item, width, options = {}) {
       if (item.name === "run_command") {
         const inner = Math.max(10, width - 4);
         const header = wrapLines(`$ ${item.args?.command ?? ""}`, inner);
-        return [
+        const rows = [
           commandBar("", theme.accent),
           ...header.map((line) => commandBar(chalk.bold(line), theme.accent)),
           commandBar("", theme.accent),
         ];
+        // Hâlâ çalışıyorsa (son öğe bu çağrı) durum satırı + nefes payı
+        if (options.isLast) {
+          rows.push(commandBar(chalk.dim(t("tool.running")), theme.accent), "");
+        }
+        return rows;
       }
       return [
         `${chalk.cyan(`${TOOL_ICONS[item.name] ?? "⚙️"} ${item.name}`)}  ${chalk.dim(detailOf(item.name, item.args))}`,
@@ -189,9 +194,9 @@ function itemLines(item, width, options = {}) {
 
 export function buildTranscript(items, width, options = {}) {
   const lines = [];
-  for (const item of items) {
-    lines.push(...itemLines(item, width, options));
-  }
+  items.forEach((item, index) => {
+    lines.push(...itemLines(item, width, { ...options, isLast: index === items.length - 1 }));
+  });
   return lines;
 }
 
