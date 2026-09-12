@@ -1,8 +1,8 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
-import { padTo, sliceByWidth, textWidth } from "../../utils.js";
+import { sliceByWidth, textWidth } from "../../utils.js";
 import { theme } from "../theme.js";
-import { toastCard } from "./toast.js";
+import { ToastRow } from "./toast.js";
 
 function rangeFor(selection, lineIndex, width) {
   if (!selection) return null;
@@ -33,24 +33,14 @@ function renderLine(line, range, key) {
 
 export function Transcript({ lines, offset, height, selection, toast, contentWidth }) {
   const visible = lines.slice(offset, offset + height);
-  const card = toast ? toastCard(toast) : null;
-  const leftWidth = card ? Math.max(0, contentWidth - card.width) : 0;
 
   return html`
     <${Box} flexDirection="column" height=${height} overflow="hidden">
       ${visible.map((line, i) => {
-        const lineIndex = offset + i;
-
-        if (card && i < card.rows.length && leftWidth > 0) {
-          const left = padTo(sliceByWidth(line, 0, leftWidth), leftWidth);
-          return html`
-            <${Box} key=${lineIndex}>
-              <${Text}>${left}<//>
-              ${card.rows[i]}
-            <//>
-          `;
+        if (toast && i === 0) {
+          return html`<${Box} key="toast"><${ToastRow} text=${toast} width=${contentWidth} /><//>`;
         }
-
+        const lineIndex = offset + i;
         return renderLine(line, rangeFor(selection, lineIndex, textWidth(line)), lineIndex);
       })}
     <//>

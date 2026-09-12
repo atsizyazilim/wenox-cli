@@ -2,20 +2,18 @@ import { html } from "htm/react";
 import { Text } from "ink";
 import { theme } from "../theme.js";
 
-export function toastCard(text) {
+// Tam genişlikte tek satırlık bildirim şeridi. En üstteki transkript satırının
+// yerine geçer; komut bloklarının üstüne binmediği için çakışma olmaz.
+export function ToastRow({ text, width }) {
   const label = `  ${text}  `;
-  const blank = " ".repeat(label.length);
+  const filler = " ".repeat(Math.max(0, width - label.length - 2));
 
-  const row = (content, bold) => html`
+  return html`
     <${Text} backgroundColor=${theme.toastBg}>
+      ${filler}
       <${Text} color=${theme.toastBar} bold>${"▌"}<//>
-      <${Text} color=${theme.toastFg} bold=${bold}>${content}<//>
+      <${Text} color=${theme.toastFg} bold>${label}<//>
       <${Text} color=${theme.toastBar} bold>${"▌"}<//>
     <//>
   `;
-
-  return {
-    width: label.length + 2,
-    rows: [row(blank, false), row(label, true), row(blank, false)],
-  };
 }
