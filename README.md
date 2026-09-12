@@ -157,11 +157,20 @@ kullanıcı tarafından okunabilir). Öncelik sırası:
 
 ### İlk çalıştırma (onboarding)
 
-Anahtar yokken CLI sizi karşılar: API anahtarı alma bağlantısını
-(**https://me.wenox.co/api-key**) gösterir ve **Enter'a basınca tarayıcıda açar**
-(veya anahtarı doğrudan yapıştırabilirsiniz). Girilen anahtar `GET /v1/me` ile
-**doğrulanır** — geçersizse tekrar sorar, geçerliyse kaydeder ve hesabınızın adıyla
-karşılar. Böylece hatalı bir anahtarla başlamazsınız.
+Anahtar yokken CLI sizi adım adım karşılar:
+
+1. **Dil seçimi** — arayüz dili sorulur (Enter ile sistem dilinde devam edilir).
+2. **API anahtarı** — `https://me.wenox.co/api-key` bağlantısı gösterilir;
+   **Enter'a basınca tarayıcıda açılır** (veya anahtarı doğrudan yapıştırırsınız).
+3. **Doğrulama** — anahtar `GET /v1/me` ile doğrulanır; geçersizse tekrar sorar,
+   ağ hatasıysa ayrı mesaj verir.
+4. **Karşılama** — daktilo efektiyle hesabınıza özel karşılama:
+
+   ```
+   Merhaba Mert İlhan, WenOX CLI'a hoş geldin!
+   Görünüşe göre aktif bir aboneliğin var — 12 günün kalmış.
+   Kalan kredi: 12.500
+   ```
 
 Anahtar zaten kayıtlıysa (veya `--key` / `WENOX_API_KEY` verildiyse) onboarding
 atlanır. Etkileşimli olmayan (pipe) çalıştırmalarda anahtar yoksa CLI anlaşılır bir

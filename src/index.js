@@ -20,7 +20,7 @@ import { createSession, loadSession, saveSession } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { verifyApiKey } from "./account.js";
 import { openUrl } from "./utils.js";
-import { t, setLocale, detectLanguage } from "./i18n/index.js";
+import { t, setLocale, detectLanguage, getLocale, LANGUAGES } from "./i18n/index.js";
 import * as ui from "./ui.js";
 
 const require = createRequire(import.meta.url);
@@ -65,9 +65,30 @@ function parseCliArgs(argv) {
 
 const MAX_KEY_ATTEMPTS = 5;
 
+async function chooseLanguage(ask) {
+  const current = getLocale();
+  console.log(chalk.bold(t("onboarding.chooseLanguage")));
+  LANGUAGES.forEach((lang, index) => {
+    const mark = lang.code === current ? chalk.green(" ✓") : "";
+    console.log(`  ${index + 1}. ${lang.label}${mark}`);
+  });
+  const answer = (await ask(t("onboarding.languagePrompt"))).trim();
+  const picked = LANGUAGES[Number(answer) - 1];
+  if (picked) {
+    setLocale(picked.code);
+    saveConfig({ language: picked.code });
+  }
+}
+
 async function onboard() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
+    const ask = (question) => rl.question(question);
+
+    if (process.stdin.isTTY) {
+      await chooseLanguage(ask);
+    }
+
     console.log(
       boxen(
         [
@@ -91,8 +112,6 @@ async function onboard() {
       process.exit(1);
     }
 
-    const ask = (question) => rl.question(question);
-
     let key = (await ask(t("onboarding.openOrPaste"))).trim();
     if (!key) {
       const opened = openUrl(API_KEY_URL);
@@ -106,8 +125,7 @@ async function onboard() {
       const result = await verifyApiKey(key);
       if (result.ok) {
         saveConfig({ apiKey: key });
-        const name = result.account?.name;
-        console.log(chalk.bold.green(`✓ ${name ? t("onboarding.welcomeBack", { name }) : t("onboarding.saved")}`));
+        await ui.typewrite(chalk.green(ui.welcomeMessage(result.account)));
         return key;
       }
       const reason = result.reason === "network" ? "onboarding.network" : "onboarding.invalid";
