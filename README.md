@@ -1,62 +1,83 @@
-# WenOX CLI
+<h1 align="center">WenOX CLI</h1>
 
-The official command-line interface for WenOX AI — an agentic coding assistant
-that runs in your terminal. It can read, search, edit and create files in your
-project, run shell commands, and query a language server, all driven by WenOX
-models.
+<p align="center">
+  <strong>An agentic coding assistant that lives in your terminal.</strong>
+</p>
 
-[Türkçe README](README.tr.md)
+<p align="center">
+  <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/v/@wenox/cli?color=0ea5e9&label=npm" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/dt/@wenox/cli?color=0ea5e9&label=downloads" alt="downloads"></a>
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-22c55e" alt="license"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A520-339933" alt="node">
+</p>
 
-## Features
+<p align="center">
+  Read, search, edit and create files, run commands, and query a language<br>
+  server — all driven by WenOX AI, in a full-screen terminal interface.
+</p>
 
-- **Agentic tool loop** — one prompt can trigger dozens of tool calls (read, edit, search, run) until the task is done.
-- **Full-screen TUI** — logo, framed input, chat transcript, status bar, command palette.
-- **Real token streaming** — replies appear as the model writes them.
-- **Command cards** — each `run_command` shows `$ command` and its output; click a card to expand/collapse long output.
-- **Sessions** — every conversation is saved with an auto-generated title; resume with `wenox -s <id>`.
-- **Build / Plan modes** — Plan is read-only and proposes a plan; Build can modify files and run commands.
-- **Permissions** — access outside the working directory asks for confirmation; grants are remembered per project.
-- **Workspace safety** — warns when you start in a home/system directory and requires permission for every path there.
-- **Language server** — `code_intel` for go-to-definition, references, hover and document symbols.
-- **Turkish and English UI** — model-facing prompts stay English; the interface is localised.
+<p align="center">
+  <a href="README.md">English</a> · <a href="README_tr.md">Türkçe</a>
+</p>
 
-## Requirements
+---
 
-Node.js **20 or newer**.
+```text
+ ██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗  ██╗
+ ██║    ██║██╔════╝████╗  ██║██╔═══██╗╚██╗██╔╝
+ ██║ █╗ ██║█████╗  ██╔██╗ ██║██║   ██║ ╚███╔╝
+ ██║███╗██║██╔══╝  ██║╚██╗██║██║   ██║ ██╔██╗
+ ╚███╔███╔╝███████╗██║ ╚████║╚██████╔╝██╔╝ ██╗
+  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
+```
 
-## Install
+## ✨ Why WenOX CLI
+
+- **Actually agentic.** One prompt isn't one answer. The assistant keeps calling
+  tools — read, search, edit, run — until the task is finished, then reports back.
+- **Built for the terminal.** Full-screen interface with a framed prompt, a chat
+  transcript you can scroll, a status bar and a command palette. No browser tab.
+- **You stay in control.** Command execution asks first. Anything outside your
+  project asks first. Plan mode changes nothing at all.
+- **A real language server.** Go-to-definition, references and hover come from an
+  LSP server, not from grep.
+- **Remembers where you were.** Every conversation is saved and given a title;
+  pick it up later exactly where you left off.
+- **Speaks your language.** Turkish and English interface, with the model replying
+  in whichever language you write in.
+
+## 📦 Install
 
 ```bash
 npm install -g @wenox/cli
 ```
 
-All dependencies ship with the package — no extra steps, no native build.
+Node.js **20 or newer**. Everything ships with the package — no extra steps, no
+native build.
 
-## First run
+## 🚀 First run
 
-If no API key is stored, the CLI walks you through it:
+Start `wenox` and it walks you through setup:
 
-1. **Language** — pick Turkish or English (Enter keeps the detected one).
-2. **API key** — it shows the key page and opens it in your browser on Enter, or you paste the key directly.
-3. **Verification** — the key is checked against `GET /v1/me`; an invalid key is re-prompted.
-4. **Welcome** — a greeting with your name, subscription and remaining credits.
+1. **Language** — Turkish or English (Enter keeps the detected one)
+2. **API key** — the key page opens in your browser on Enter, or paste the key
+3. **Verification** — the key is checked before it is ever saved
+4. **Welcome** — your name, subscription and remaining credits
 
-Get a key at <https://me.wenox.co/api-key>.
+Get a key at **[me.wenox.co/api-key](https://me.wenox.co/api-key)**.
 
-## Usage
+## 🖥️ Usage
 
 ```bash
-wenox                                # interactive session
-wenox -p "how many files are here?"  # one-shot, prints the answer and exits
-wenox -m 2 -y                        # GLM 5.3 Flash, auto-approve commands
-wenox -s ses_abc123                  # resume a saved session
+wenox                                   # interactive session
+wenox -p "how many files are in here?"  # one-shot answer, then exit
+wenox -m 2 -y                           # GLM 5.3 Flash, auto-approve commands
+wenox -s ses_f78edf902ffe               # resume a saved session
 ```
 
-### Options
-
 | Option | Description |
-|---|---|
-| `-m, --model <id\|no>` | Model to use (`1`: Grok 4.6, `2`: GLM 5.3 Flash, `3`: Big Pickle) |
+| --- | --- |
+| `-m, --model <id\|no>` | Model to use (`1` Grok 4.6 · `2` GLM 5.3 Flash · `3` Big Pickle) |
 | `-k, --key <key>` | WenOX API key (saved permanently) |
 | `-s, --session <id>` | Resume a saved session |
 | `-d, --cwd <path>` | Starting working directory |
@@ -65,128 +86,126 @@ wenox -s ses_abc123                  # resume a saved session
 | `-v, --version` | Show version |
 | `-h, --help` | Show help |
 
-## Interface
+## ⌨️ Interface
 
-The interactive app is full screen. A command renders as a card with a `$ line`
-and its output; long output is shortened to six lines — **click the card** to see
-the rest and click again to collapse.
+A command renders as a card — the `$` line, then its output. Long output is
+shortened to six lines; **click the card** to see the rest, click again to
+collapse it.
 
-While the model is replying the input stays usable: anything you type is queued
-(`QUEUED`) and sent as soon as the current turn finishes.
-
-### Keyboard
+The prompt never locks. While the assistant is replying you can keep typing —
+your message is queued and sent the moment the current turn ends.
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | `Enter` | Send |
-| `/` | Command menu (filters as you type, `↑/↓` + `Enter`) |
-| `Tab` | Switch mode — **Build** / **Plan** (completes commands when the slash menu is open) |
+| `/` | Command menu — filters as you type, `↑/↓` to pick |
+| `Tab` | Switch mode: **Build** / **Plan** |
 | `Ctrl+P` | Command palette |
-| `Esc` | Close a menu · cancel the running reply **or command** |
-| `Ctrl+C` | Works in any state: closes a panel, cancels, or exits |
+| `Esc` | Close a menu · cancel the reply **or the running command** |
+| `Ctrl+C` | Works anywhere: closes a panel, cancels, or exits |
 | `↑` / `↓` | Input history |
 | `PgUp` / `PgDn` | Scroll the conversation |
 | Mouse wheel | Scroll the conversation |
 
-Selecting text: drag with the mouse, then `Ctrl+C` copies it (a toast confirms).
-Start with `WENOX_NO_MOUSE=1` to hand the wheel and selection back to your terminal.
+Drag with the mouse to select text, then `Ctrl+C` to copy it. Prefer your
+terminal's own selection and scrolling? Start with `WENOX_NO_MOUSE=1`.
 
-### In-session commands
-
-| Command | Description |
-|---|---|
-| `/help` | Show commands and shortcuts |
-| `/model` | Change model — the list is fetched from `GET /v1/models` |
-| `/lang` | Change interface language |
-| `/key` | Update the API key (verified before saving) |
-| `/me` | Account info and remaining credits |
-| `/compact` | Summarise the context to free space |
-| `/new` | Clear the context (new session) |
-| `/sessions` | List and load past sessions |
-| `/auto` | Toggle auto-approve |
-| `/status` | Session status |
-| `/exit` | Quit |
-
-## Modes
-
-The active mode is shown in the status bar; `Tab` switches.
-
-| Mode | Behaviour |
-|---|---|
-| **Plan** (default on start) | Read-only. The model inspects and proposes a plan; `write_file`, `edit_file` and `run_command` are blocked. |
-| **Build** | The model may read, edit files and run commands. |
-
-## Languages
-
-The interface supports **Turkish** and **English**; the language is detected from
-your system and can be changed with `/lang` or `WENOX_LANG=tr|en`.
-
-Only the interface is localised. The system prompt and tool schemas stay English,
-and the model replies in whichever language you write in.
-
-## Sessions
-
-Every conversation is saved under `~/.wenox/sessions/`. After four user messages a
-short **title** is generated. On exit the terminal prints how to come back:
-
-```
-  Session   Greeting
-  Continue  wenox -s ses_f78edf902ffe
-```
-
-Resuming restores the messages, token counter, model and working directory.
-`/sessions` lists past sessions and loads the one you pick.
-
-## Configuration
-
-The API key, active model and language live in `~/.wenox/config.json`
-(user-readable only). Precedence:
-
-1. Environment variables — `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`
-2. `~/.wenox/config.json`
-3. Built-in defaults
-
-Other files: `~/.wenox/permissions.json` (per-project directory grants),
-`~/.wenox/sessions/` (conversations).
-
-## Capabilities
+## 🧰 Capabilities
 
 The assistant works on your project through these tools:
 
-`read_file`, `write_file`, `edit_file`, `list_dir`, `search_code`, `run_command`,
-`code_intel`, `ask_user`.
+`read_file` · `write_file` · `edit_file` · `list_dir` · `search_code` ·
+`run_command` · `code_intel` · `ask_user`
 
-`code_intel` uses a real language server:
+**`code_intel`** uses a real language server:
 
 | Language | Server | Install |
-|---|---|---|
+| --- | --- | --- |
 | TypeScript / JavaScript | `typescript-language-server` | `npm i -g typescript-language-server` |
 | Python | `pyright-langserver` | `npm i -g pyright` |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Rust | `rust-analyzer` | `rustup component add rust-analyzer` |
 
-If no server is installed the tool reports the install command instead of failing.
+If a server isn't installed the tool says so and tells you how to get it — it
+never just fails.
 
-`ask_user` lets the model ask you a short multiple-choice question when a real
-decision is needed — it won't nag you otherwise.
+**`ask_user`** lets the assistant ask a short multiple-choice question when a real
+decision is needed. It won't nag you with questions it can answer itself.
 
-## Permissions and safety
+## 🔒 Safety
 
-`run_command` asks for confirmation before running; `-y` auto-approves.
+- **Commands ask first.** Execution is confirmed before it happens; `-y` opts out.
+- **Outside your project asks first.** Choose *Allow once*, *Allow always*
+  (remembered per project) or *Reject*.
+- **Unsafe folders are flagged.** Start in a home directory, a drive root or a
+  system folder and the CLI warns you, tells the assistant to be careful, and
+  requires permission for **every** path — `list_dir` included.
+- **Self-destructive commands are refused.** Anything that would kill every Node
+  process (`taskkill /IM node.exe`, `pkill node`, …) is blocked, because the CLI
+  itself is one of them.
+- **`Esc` stops the work.** A running command is killed together with its child
+  processes — a forgotten dev server included.
 
-**Outside the working directory:** when the model touches a path outside your
-project you choose **Allow once**, **Allow always** (remembered per project in
-`~/.wenox/permissions.json`) or **Reject**.
+## 🗺️ Modes
 
-**Unsafe working directory:** started in a home directory, drive root or a system
-folder, the CLI warns you, tells the model to be careful, and requires permission
-for every path — including `list_dir`.
+The active mode sits in the status bar; `Tab` switches.
 
-Commands that would kill the CLI's own Node process (`taskkill /IM node.exe`,
-`pkill node`, …) are refused. `Esc`/`Ctrl+C` stop a running command and its child
-processes.
+| Mode | Behaviour |
+| --- | --- |
+| **Plan** — default | Read-only. Inspects and proposes a plan; writes and commands are blocked. |
+| **Build** | Reads, edits files and runs commands to get the job done. |
 
-## Development
+Start in Plan, see what the assistant intends to do, then `Tab` into Build to let
+it happen.
+
+## 🌍 Languages
+
+Turkish and English, detected from your system and switchable with `/lang` or
+`WENOX_LANG`.
+
+Only the interface is translated. Prompts and tool schemas stay in English, and
+the assistant answers in whichever language you write in.
+
+## 💾 Sessions
+
+Conversations are saved automatically and titled after a few exchanges. On exit
+the terminal shows how to come back:
+
+```text
+  Session   Greeting
+  Continue  wenox -s ses_f78edf902ffe
+```
+
+Resuming restores the messages, the token counter, the model and the working
+directory. `/sessions` lists everything and loads whichever you pick.
+
+## ⚙️ Configuration
+
+The API key, active model and language live in `~/.wenox/config.json`, readable
+only by you. Precedence:
+
+1. Environment — `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`,
+   `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`
+2. `~/.wenox/config.json`
+3. Built-in defaults
+
+In-session commands:
+
+| Command | Description |
+| --- | --- |
+| `/help` | Commands and shortcuts |
+| `/model` | Change model — the list comes from the live API |
+| `/lang` | Change interface language |
+| `/key` | Update the API key (verified before saving) |
+| `/me` | Account and remaining credits |
+| `/compact` | Summarise the context to free space |
+| `/new` | Clear the context |
+| `/sessions` | List and load past sessions |
+| `/auto` | Toggle auto-approve |
+| `/status` | Session status |
+| `/exit` | Quit |
+
+## 🛠️ Development
 
 ```bash
 npm install
@@ -194,6 +213,6 @@ npm test        # node --test
 npm start       # node bin/wenox.js
 ```
 
-## License
+## 📄 License
 
 MIT
