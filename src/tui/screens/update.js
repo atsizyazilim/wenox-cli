@@ -1,0 +1,65 @@
+import { html } from "htm/react";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { parseMouse, disableMouse } from "../screen.js";
+import { theme } from "../theme.js";
+import { UPGRADE_COMMAND } from "../../update.js";
+import { t } from "../../i18n/index.js";
+
+export function UpdateRequired({ current, latest }) {
+  const { exit } = useApp();
+  const { stdout } = useStdout();
+  const rows = stdout?.rows ?? 30;
+  const columns = stdout?.columns ?? 100;
+  const boxWidth = Math.min(56, Math.max(34, columns - 8));
+
+  useInput((char, key) => {
+    if (parseMouse(char) || /^\[M/.test(char ?? "")) return;
+
+    const isEsc = key.escape || char === "\x1b";
+    if (isEsc || (key.ctrl && char === "c") || char === "q") {
+      disableMouse();
+      exit();
+    }
+  });
+
+  return html`
+    <${Box} height=${rows} width=${columns} flexDirection="column" alignItems="center" justifyContent="center">
+      <${Box}
+        flexDirection="column"
+        borderStyle="round"
+        borderColor=${theme.warn}
+        paddingX=${3}
+        paddingY=${1}
+        width=${boxWidth}
+        flexShrink=${0}
+      >
+        <${Box} justifyContent="center">
+          <${Text} bold color=${theme.warn}>${t("update.title")}<//>
+        <//>
+
+        <${Box} marginTop=${1} flexDirection="column">
+          <${Text}>
+            <${Text} color=${theme.muted}>${t("update.installed")}<//>
+            <${Text} color="white">v${current}<//>
+          <//>
+          <${Text}>
+            <${Text} color=${theme.muted}>${t("update.available")}<//>
+            <${Text} bold color=${theme.ok}>v${latest}<//>
+          <//>
+        <//>
+
+        <${Box} marginTop=${1}>
+          <${Text} color=${theme.questionLink}>${UPGRADE_COMMAND}<//>
+        <//>
+
+        <${Box} marginTop=${1}>
+          <${Text} color=${theme.muted}>${t("update.body")}<//>
+        <//>
+      <//>
+
+      <${Box} marginTop=${1}>
+        <${Text} color=${theme.muted}>${t("update.hint")}<//>
+      <//>
+    <//>
+  `;
+}

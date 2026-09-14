@@ -275,3 +275,27 @@ test("/key geçersiz anahtarı kaydetmez", async () => {
   assert.ok(!f.includes("API key updated"), "kaydedilmemeli");
   ui.unmount();
 });
+
+test("zorunlu güncelleme ekranı sürümleri ve komutu gösterir", async () => {
+  setLocale("tr");
+  const { UpdateRequired } = await import("../src/tui/screens/update.js");
+  const ui = render(html`<${UpdateRequired} current="0.1.1" latest="0.2.0" />`);
+  await d(90);
+  const f = plain(ui.lastFrame());
+  assert.ok(f.includes("Güncelleme gerekli"), "başlık görünür");
+  assert.ok(f.includes("v0.1.1") && f.includes("v0.2.0"), "kurulu ve güncel sürüm görünür");
+  assert.ok(f.includes("npm i -g @wenox/cli"), "güncelleme komutu görünür");
+  ui.unmount();
+});
+
+test("zorunlu güncelleme ekranı Q ve Ctrl+C ile kapanır", async () => {
+  setLocale("en");
+  const { UpdateRequired } = await import("../src/tui/screens/update.js");
+  for (const key of ["q", ""]) {
+    const ui = render(html`<${UpdateRequired} current="0.1.1" latest="0.2.0" />`);
+    await d(80);
+    ui.stdin.write(key);
+    await d(120);
+    ui.unmount();
+  }
+});

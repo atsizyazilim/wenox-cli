@@ -345,6 +345,15 @@ Kısayollar
     fallback: "Selam! Ben WenOX AI. Sana nasıl yardımcı olabilirim?",
   },
 
+  update: {
+    title: "Güncelleme gerekli",
+    installed: "Kurulu     ",
+    available: "Güncel     ",
+    body: "Bu sürüm artık desteklenmiyor.",
+    hint: "Güncelledikten sonra yeniden başlat    ·    Q çık",
+    forced: "Kurulu sürüm v{current}, güncel sürüm v{latest}. Bu sürüm artık desteklenmiyor.",
+  },
+
   modelDescriptions: {
     "grok-4.6": "xAI tarafından geliştirilmiş güçlü mantık ve kodlama modeli",
     "z-ai/glm-5.3-flash": "Çok hızlı yanıt veren hafif ve optimize kodlama modeli",

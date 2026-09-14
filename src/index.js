@@ -18,6 +18,7 @@ import { changeDirectory } from "./tools.js";
 import { createSession, loadSession, saveSession } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { isUnsafeWorkspace } from "./workspace.js";
+import { checkForUpdate, UPGRADE_COMMAND } from "./update.js";
 import { t, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
 
@@ -114,6 +115,23 @@ function printSessionFooter(session) {
   console.log("");
 }
 
+function printUpdateRequired({ current, latest }) {
+  console.error(
+    boxen(
+      `${t("update.forced", { current, latest })}
+
+  ${chalk.cyan(UPGRADE_COMMAND)}`,
+      {
+        padding: { top: 1, bottom: 1, left: 2, right: 2 },
+        borderStyle: "round",
+        borderColor: "yellow",
+        title: chalk.bold.white(t("update.title")),
+        titleAlignment: "center",
+      },
+    ),
+  );
+}
+
 async function resolveApiKey(values) {
   const provided = values.key?.trim();
   if (provided) {
@@ -150,6 +168,18 @@ async function main() {
 
   if (values.version) {
     console.log(`WenOX CLI v${pkg.version}`);
+    return;
+  }
+
+  const update = await checkForUpdate({ current: pkg.version });
+  if (update.outdated) {
+    if (process.stdout.isTTY && process.stdin.isTTY) {
+      const { launchUpdateScreen } = await import("./tui/launch.js");
+      await launchUpdateScreen({ current: update.current, latest: update.latest });
+    } else {
+      printUpdateRequired(update);
+      process.exitCode = 1;
+    }
     return;
   }
 

@@ -345,6 +345,15 @@ Shortcuts
     fallback: "Hi! I'm WenOX AI. How can I help you?",
   },
 
+  update: {
+    title: "Update required",
+    installed: "Installed  ",
+    available: "Available  ",
+    body: "This version is no longer supported.",
+    hint: "Restart after updating    ·    Q quit",
+    forced: "Installed v{current}, latest v{latest}. This version is no longer supported.",
+  },
+
   modelDescriptions: {
     "grok-4.6": "Powerful reasoning and coding model by xAI",
     "z-ai/glm-5.3-flash": "Very fast, lightweight and optimized coding model",
