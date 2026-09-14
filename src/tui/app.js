@@ -74,14 +74,6 @@ const TRANSCRIPT_TOP = 2; // transkriptin ilk satırının ekran satırı (1 tab
 const TRANSCRIPT_LEFT = 3; // transkriptin ilk kolonunun ekran kolonu (1 tabanlı)
 const AUTO_COMPACT_RATIO = 0.85;
 
-function computeCost(pricing, usage) {
-  if (!pricing || typeof pricing !== "object") return null;
-  const inRate = pricing.input_per_million ?? pricing.prompt ?? null;
-  const outRate = pricing.output_per_million ?? pricing.completion ?? null;
-  if (inRate == null && outRate == null) return null;
-  return (usage.prompt / 1e6) * (inRate ?? 0) + (usage.completion / 1e6) * (outRate ?? 0);
-}
-
 function normalizeSelection(selection) {
   const { startLine, startCol, endLine, endCol } = selection;
   if (startLine < endLine || (startLine === endLine && startCol <= endCol)) {
@@ -166,7 +158,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
   const tokensRef = useRef(session?.tokens ?? 0);
-  const usageRef = useRef({ prompt: 0, completion: 0 });
   const contextWindowRef = useRef(CONTEXT_WINDOW);
   const warnedRef = useRef(false);
   const push = useCallback((item) => {
@@ -192,7 +183,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         if (model?.owned_by) extras.push(model.owned_by);
         metas[id] = {
           contextWindow: Number(model?.context_window) || null,
-          pricing: model?.pricing ?? null,
         };
         return { value: id, left: name, right: extras.join("  ·  ") };
       });
@@ -313,8 +303,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         setLiveText("");
         if (meta?.usage?.total_tokens) {
           tokensRef.current += meta.usage.total_tokens;
-          usageRef.current.prompt += meta.usage.prompt_tokens ?? 0;
-          usageRef.current.completion += meta.usage.completion_tokens ?? 0;
           setTokens(tokensRef.current);
           if (!warnedRef.current && tokensRef.current > contextWindowRef.current * 0.7) {
             warnedRef.current = true;
@@ -701,7 +689,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   const activeMeta = modelMeta[modelId] ?? {};
   const contextWindow = activeMeta.contextWindow || CONTEXT_WINDOW;
   contextWindowRef.current = contextWindow;
-  const sessionCost = computeCost(activeMeta.pricing, usageRef.current);
 
   const overlayList = overlay
     ? filterBy(
@@ -1256,7 +1243,6 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
               tokens=${tokens}
               credits=${credits}
               contextWindow=${contextWindow}
-              cost=${sessionCost}
             />`}
       <//>
     <//>

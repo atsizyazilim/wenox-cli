@@ -34,15 +34,14 @@ export function StatusRow({ modelName, mode = "build", autoApprove, premium }) {
   `;
 }
 
-export function BottomBar({ cwd, tokens, credits, contextWindow = CONTEXT_WINDOW, cost = null }) {
+export function BottomBar({ cwd, tokens, credits, contextWindow = CONTEXT_WINDOW }) {
   const pct = tokens && contextWindow ? ((tokens / contextWindow) * 100).toFixed(1) : "0.0";
   const creditText = typeof credits === "number" ? credits.toLocaleString(localeTag()) : t("status.noCredits");
-  const costText = typeof cost === "number" ? `$${cost.toFixed(4)}` : "$0.00";
   return html`
     <${Box} justifyContent="space-between" paddingX=${2} width="100%">
       <${Text} color=${theme.muted}>${shortCwd(cwd)}<//>
       <${Text} color=${theme.muted}>
-        ${`${formatTokens(tokens)} (${pct}%)  ·  ${costText}   `}
+        ${`${formatTokens(tokens)} (${pct}%)   `}
         ${t("status.credits")}
         <${Text} bold color="white">${creditText}<//>
       <//>

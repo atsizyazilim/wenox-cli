@@ -54,7 +54,7 @@ alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak i
 **tek istemde onlarca araç çağrısını kendi kendine** yapar (dosya oku/yaz, komut
 çalıştır…) ve yeni bir mesaj bekleyip durmaz.
 
-Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyatlar
+Alt barda bağlam kullanımı ve kalan kredi gösterilir. Bağlam penceresi
 `GET /v1/models`'ten okunur (API sağlıyorsa); bağlam %85'e ulaşınca oturum
 **otomatik olarak özetlenir** (`/compact` elle de çalışır).
 
