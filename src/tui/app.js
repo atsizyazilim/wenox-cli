@@ -405,7 +405,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
             const shown = summary.length > 600 ? `${summary.slice(0, 600)}…` : summary;
             push({ role: "info", text: t("compact.done", { summary: shown }) });
           } catch (error) {
-            push({ role: "error", text: t("compact.failed", { message: error.message }) });
+            const aborted = error?.name === "AbortError" || /abort/i.test(error?.message ?? "");
+            push({
+              role: aborted ? "info" : "error",
+              text: aborted ? t("agent.cancelled") : t("compact.failed", { message: error.message }),
+            });
           }
           return;
         }

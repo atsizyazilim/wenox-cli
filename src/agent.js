@@ -17,6 +17,16 @@ const MAX_TURNS = 100;
 const RENDER_INTERVAL_MS = 50;
 const FALLBACK_RESPONSE = () => t("agent.fallback");
 
+// Sunucudan bu süre boyunca hiç veri gelmezse istek iptal edilir (WENOX_REQUEST_TIMEOUT_MS ile ayarlanır).
+const REQUEST_TIMEOUT_MS = Number(process.env.WENOX_REQUEST_TIMEOUT_MS) || 120_000;
+
+class RequestTimeoutError extends Error {
+  constructor() {
+    super("Request timed out");
+    this.name = "RequestTimeoutError";
+  }
+}
+
 const PATH_TOOLS = new Set(["read_file", "write_file", "edit_file", "list_dir", "search_code"]);
 const DENIED_EXTERNAL = "User denied access to a path outside the project directory.";
 const PLAN_BLOCKED_TOOLS = new Set(["write_file", "edit_file", "run_command", "change_directory"]);
@@ -196,6 +206,20 @@ export class WenOXAgent {
     setAbortHandler(() => controller.abort());
 
     const startedAt = Date.now();
+    let timedOut = false;
+    let idleTimer = null;
+    const armIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        timedOut = true;
+        try {
+          controller.abort();
+        } catch {
+          // ignore
+        }
+      }, REQUEST_TIMEOUT_MS);
+    };
+    armIdle();
 
     try {
       let stream;
@@ -225,6 +249,8 @@ export class WenOXAgent {
       let lastRender = 0;
 
       for await (const chunk of stream) {
+        armIdle();
+
         if (chunk.usage) usage = chunk.usage;
 
         if (isCancelled()) {
@@ -264,6 +290,8 @@ export class WenOXAgent {
         }
       }
 
+      if (timedOut) throw new RequestTimeoutError();
+
       const promptChars = this.messages.reduce(
         (sum, message) => sum + String(message.content ?? "").length,
         0,
@@ -283,7 +311,30 @@ export class WenOXAgent {
       };
 
       return { content, toolCalls, meta };
+    } catch (error) {
+      if (timedOut) throw new RequestTimeoutError();
+      throw error;
     } finally {
+      clearTimeout(idleTimer);
+      clearAbortHandler();
+    }
+  }
+
+  // compact/title gibi yardımcı istekler: iptal edilebilir + zaman aşımlı
+  async #request(params, timeoutMs = REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    }, timeoutMs);
+    setAbortHandler(() => controller.abort());
+    try {
+      return await this.client.chat.completions.create(params, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
       clearAbortHandler();
     }
   }
@@ -413,7 +464,7 @@ export class WenOXAgent {
 
     if (history.length === 0) return "";
 
-    const response = await this.client.chat.completions.create({
+    const response = await this.#request({
       model: this.modelId,
       temperature: 0.3,
       messages: [
@@ -448,7 +499,7 @@ export class WenOXAgent {
 
     if (history.length === 0) return { summary: "", tokens: 0 };
 
-    const response = await this.client.chat.completions.create({
+    const response = await this.#request({
       model: this.modelId,
       temperature: 0.2,
       messages: [
@@ -490,6 +541,8 @@ export class WenOXAgent {
       sink.error?.(t("agent.connection", { url: API_BASE_URL }));
     } else if (error instanceof OpenAI.APIError) {
       sink.error?.(t("agent.apiError", { status: error.status ?? "?", message: error.message }));
+    } else if (error instanceof RequestTimeoutError) {
+      sink.error?.(t("agent.timeout", { seconds: Math.round(REQUEST_TIMEOUT_MS / 1000) }));
     } else {
       sink.error?.(t("agent.unknownError", { message: error.message }));
     }

@@ -1,233 +1,199 @@
 # WenOX CLI
 
-WenOX AI kodlama asistanının resmi komut satırı arayüzü. Terminalinizde çalışan,
-yerel projenizi okuyabilen, düzenleyebilen, arayabilen ve komut çalıştırabilen bir
-AI ajanıdır.
+The official command-line interface for WenOX AI — an agentic coding assistant
+that runs in your terminal. It can read, search, edit and create files in your
+project, run shell commands, and query a language server, all driven by WenOX
+models.
 
-## Kurulum
+[Türkçe README](README.tr.md)
 
-Tek komut — gerekli tüm bağımlılıklar otomatik olarak kurulur, ek adım gerekmez:
+## Features
+
+- **Agentic tool loop** — one prompt can trigger dozens of tool calls (read, edit, search, run) until the task is done.
+- **Full-screen TUI** — logo, framed input, chat transcript, status bar, command palette.
+- **Real token streaming** — replies appear as the model writes them.
+- **Command cards** — each `run_command` shows `$ command` and its output; click a card to expand/collapse long output.
+- **Sessions** — every conversation is saved with an auto-generated title; resume with `wenox -s <id>`.
+- **Build / Plan modes** — Plan is read-only and proposes a plan; Build can modify files and run commands.
+- **Permissions** — access outside the working directory asks for confirmation; grants are remembered per project.
+- **Workspace safety** — warns when you start in a home/system directory and requires permission for every path there.
+- **Language server** — `code_intel` for go-to-definition, references, hover and document symbols.
+- **Turkish and English UI** — model-facing prompts stay English; the interface is localised.
+
+## Requirements
+
+Node.js **20 or newer**.
+
+## Install
 
 ```bash
 npm install -g @wenox/cli
 ```
 
-Gereksinim: Node.js 20 veya üzeri.
+All dependencies ship with the package — no extra steps, no native build.
 
-## Kullanım
+## First run
+
+If no API key is stored, the CLI walks you through it:
+
+1. **Language** — pick Turkish or English (Enter keeps the detected one).
+2. **API key** — it shows the key page and opens it in your browser on Enter, or you paste the key directly.
+3. **Verification** — the key is checked against `GET /v1/me`; an invalid key is re-prompted.
+4. **Welcome** — a greeting with your name, subscription and remaining credits.
+
+Get a key at <https://me.wenox.co/api-key>.
+
+## Usage
 
 ```bash
-wenox                       # İnteraktif oturum başlat
-wenox -p "bu proje ne yapıyor?"   # Tek seferlik komut
-wenox -m 2 -y               # GLM 5.3 Flash ile başlat, komutları otomatik onayla
+wenox                                # interactive session
+wenox -p "how many files are here?"  # one-shot, prints the answer and exits
+wenox -m 2 -y                        # GLM 5.3 Flash, auto-approve commands
+wenox -s ses_abc123                  # resume a saved session
 ```
 
-### Seçenekler
+### Options
 
-| Seçenek | Açıklama |
+| Option | Description |
 |---|---|
-| `-m, --model <id\|no>` | Kullanılacak model (`1`: Grok 4.6, `2`: GLM 5.3 Flash, `3`: Big Pickle) |
-| `-k, --key <anahtar>` | WenOX API anahtarı (kalıcı olarak kaydedilir) |
-| `-s, --session <id>` | Kayıtlı bir oturuma devam et |
-| `-d, --cwd <yol>` | Başlangıç çalışma dizini / proje yolu |
-| `-y, --auto-approve` | Komutları onay sormadan otomatik çalıştır |
-| `-p, --prompt <metin>` | Tek seferlik komut çalıştır ve çık |
-| `-v, --version` | Sürümü göster |
-| `-h, --help` | Yardımı göster |
+| `-m, --model <id\|no>` | Model to use (`1`: Grok 4.6, `2`: GLM 5.3 Flash, `3`: Big Pickle) |
+| `-k, --key <key>` | WenOX API key (saved permanently) |
+| `-s, --session <id>` | Resume a saved session |
+| `-d, --cwd <path>` | Starting working directory |
+| `-y, --auto-approve` | Run commands without asking |
+| `-p, --prompt <text>` | Run a single prompt and exit |
+| `-v, --version` | Show version |
+| `-h, --help` | Show help |
 
-### Arayüz
+## Interface
 
-İnteraktif terminalde WenOX **tam ekran** bir TUI olarak açılır ve terminali tamamen
-ele geçirir (alternatif ekran tamponu) — üstteki kabuk geçmişi görünmez. Ekranın
-ortasında logo ve blok giriş çubuğu, altta model/durum satırı, en altta dizin ve
-token sayacı bulunur. Konuşma kendi kaydırılabilir görünümünde akar; her yanıtın
-altında `▣ Build · <model> · <süre>` meta satırı yer alır.
+The interactive app is full screen. A command renders as a card with a `$ line`
+and its output; long output is shortened to six lines — **click the card** to see
+the rest and click again to collapse.
 
-Komutlar kart olarak çizilir: `$ komut` başlığı ve altında çıktısı. Uzun çıktılar
-varsayılan olarak **6 satırda kısaltılır** (`… +N satır daha · genişletmek için
-tıkla`); **karta tıklayarak** tamamını görebilir, tekrar tıklayarak daraltabilirsiniz.
+While the model is replying the input stays usable: anything you type is queued
+(`QUEUED`) and sent as soon as the current turn finishes.
 
-Model yanıt üretirken giriş kilitlenmez: yazıp gönderdiğiniz mesajlar **kuyruğa**
-alınır (`QUEUED`) ve sırayla otomatik işlenir. Ajan bir görevi tamamlamak için
-**tek istemde onlarca araç çağrısını kendi kendine** yapar (dosya oku/yaz, komut
-çalıştır…) ve yeni bir mesaj bekleyip durmaz.
+### Keyboard
 
-Alt barda bağlam kullanımı ve maliyet gösterilir. Bağlam penceresi ve fiyatlar
-`GET /v1/models`'ten okunur (API sağlıyorsa); bağlam %85'e ulaşınca oturum
-**otomatik olarak özetlenir** (`/compact` elle de çalışır).
-
-### Oturum içi komutlar
-
-| Komut | Açıklama |
+| Key | Action |
 |---|---|
-| `/help` | Komutları gösterir |
-| `/model` | Modeli değiştirir — liste her seferinde `GET /v1/models`'ten çekilir |
-| `/lang` | Arayüz dilini değiştirir (Türkçe / English) |
-| `/key` | API anahtarını günceller |
-| `/me` | Hesap bilgisi ve kalan kredi (`GET /v1/me`) |
-| `/compact` | Bağlamı özetler, yer açar (bağlam dolmaya yaklaşınca önerilir) |
-| `/new` | Bağlamı temizler (yeni oturum) |
-| `/sessions` | Geçmiş oturumları listeler ve seçileni yükler |
-| `/auto` | Oto-onayı açar/kapatır |
-| `/status` | Oturum durumunu gösterir |
-| `/exit` | Çıkış |
+| `Enter` | Send |
+| `/` | Command menu (filters as you type, `↑/↓` + `Enter`) |
+| `Tab` | Switch mode — **Build** / **Plan** (completes commands when the slash menu is open) |
+| `Ctrl+P` | Command palette |
+| `Esc` | Close a menu · cancel the running reply **or command** |
+| `Ctrl+C` | Works in any state: closes a panel, cancels, or exits |
+| `↑` / `↓` | Input history |
+| `PgUp` / `PgDn` | Scroll the conversation |
+| Mouse wheel | Scroll the conversation |
 
-### Klavye kısayolları
+Selecting text: drag with the mouse, then `Ctrl+C` copies it (a toast confirms).
+Start with `WENOX_NO_MOUSE=1` to hand the wheel and selection back to your terminal.
 
-| Tuş | İşlev |
+### In-session commands
+
+| Command | Description |
 |---|---|
-| `Enter` | Gönder |
-| `/` | Komut menüsü (yazdıkça filtreler, `↑/↓` + `Enter`) |
-| `Tab` | Mod değiştir — **Build** / **Plan** (slash menüsü açıkken komutu tamamlar) |
-| `Ctrl+P` | Komut paleti |
-| `Esc` | Açık menüyü kapat · akan yanıtı ve **çalışan komutu** iptal et |
-| `Ctrl+C` | Her durumda kaçış: açık paneli kapatır, akan işi iptal eder, boştaysa çıkar |
-| `↑` / `↓` | Girdi geçmişi (slash menüsü açıkken menüde gezinir) |
-| `PgUp` / `PgDn` | Konuşmayı kaydır |
-| `Ctrl+U` / `Ctrl+D` | Yarım sayfa kaydır |
-| Fare tekeri | Konuşmayı kaydır |
+| `/help` | Show commands and shortcuts |
+| `/model` | Change model — the list is fetched from `GET /v1/models` |
+| `/lang` | Change interface language |
+| `/key` | Update the API key (verified before saving) |
+| `/me` | Account info and remaining credits |
+| `/compact` | Summarise the context to free space |
+| `/new` | Clear the context (new session) |
+| `/sessions` | List and load past sessions |
+| `/auto` | Toggle auto-approve |
+| `/status` | Session status |
+| `/exit` | Quit |
 
-**Metin seçme ve kopyalama:** Konuşma alanında fareyle **tıkla-sürükle** ile seçim
-yapabilirsiniz (seçim açık gri zeminle işaretlenir ve kalıcıdır). Kopyalamak için
-**Ctrl+C** tuşlayın — seçim panoya alınır, sağ üstte "Panoya kopyalandı" bildirimi
-çıkar. `Esc` seçimi iptal eder.
+## Modes
 
-> Not: Uygulama fare takibini açtığı için terminalin kendi seçimi yerine bu seçim
-> kullanılır. Gerekirse **Shift + sürükle** ile terminal seçimine de geçebilirsiniz.
-> Fare takibini tamamen kapatmak için `WENOX_NO_MOUSE=1 wenox` ile başlatın —
-> tekerleği ve seçimi terminal kendi yönetir.
+The active mode is shown in the status bar; `Tab` switches.
 
-`run_command` çalıştırılmadan önce onay istenir. Çalışırken `Esc` (veya `Ctrl+C`) o
-komutu **alt süreçleriyle birlikte** durdurur (ör. açık kalan bir dev server). Onay kutusunda `←/→` (veya `Tab`) ile
-**Allow / Disallow** seçin, `Enter` ile onaylayın; `Esc` reddeder. Kısayollar:
-`a` / `e` / `y` izin verir, `d` / `h` / `n` reddeder. `-y` ile oto-onay açılır.
-
-**Proje dışı dizin erişimi:** Ajan, çalışma dizini dışındaki bir yola erişmeye
-çalıştığında **izin istenir** — `Allow once` (bir kez), `Allow always` (kalıcı:
-proje bazında kaydedilir) veya `Reject`. `←/→` ile seçin, `Enter` ile onaylayın,
-`Esc` reddeder (`o` / `a` / `r` kısayolları). Yalnızca `read_file`, `write_file`,
-`edit_file`, `list_dir`, `search_code` araçlarının yolları denetlenir; proje
-içindeki yollar sorulmadan geçer. `Allow always` izinleri projeye göre
-`~/.wenox/permissions.json` dosyasında saklanır — bir projede verdiğiniz izin
-başka projeye taşınmaz.
-
-**Güvensiz çalışma dizini:** CLI'ı ev dizini (`C:\Users\<ad>`), sürücü kökü
-(`C:\`) veya `Windows`, `Program Files`, `/etc` gibi bir konumda başlatırsanız
-ekranın üstünde **uyarı** çıkar ve o dizinde **hiçbir yol güvenilir sayılmaz** —
-`list_dir` dahil bütün yol araçları izin ister. Ajanın system prompt'una da
-"burası proje dizini değil, dikkatli ol" notu eklenir.
-
-## Modlar
-
-Durum çubuğunda aktif mod görünür; **`Tab`** ile değiştirilir:
-
-| Mod | Davranış |
+| Mode | Behaviour |
 |---|---|
-| **Plan** (açılışta varsayılan) | Salt-okunur. Ajan yalnızca inceler ve adım adım plan önerir. `write_file`, `edit_file`, `run_command` **engellenir**; değişiklik istiyorsan Tab'a basmanı söyler. |
-| **Build** | Ajan dosyaları okuyup düzenler, komut çalıştırır — normal çalışma. |
+| **Plan** (default on start) | Read-only. The model inspects and proposes a plan; `write_file`, `edit_file` and `run_command` are blocked. |
+| **Build** | The model may read, edit files and run commands. |
 
-İnteraktif uygulama **Plan** modda açılır: önce ne yapılacağını görürsün,
-onaylayınca `Tab` ile Build'e geçersin. (Tab bulunmayan `-p` ve pipe modunda
-doğrudan Build kullanılır.)
+## Languages
 
-## Diller
+The interface supports **Turkish** and **English**; the language is detected from
+your system and can be changed with `/lang` or `WENOX_LANG=tr|en`.
 
-Arayüz **Türkçe** ve **İngilizce** destekler. Dil, sistem dilinize göre otomatik
-seçilir (Türkçe sistem → Türkçe, diğerleri → İngilizce).
+Only the interface is localised. The system prompt and tool schemas stay English,
+and the model replies in whichever language you write in.
 
-- Oturum içinde `/lang` yazıp listeden seçerek değiştirebilirsiniz; seçim
-  `~/.wenox/config.json`'a kaydedilir ve sonraki açılışlarda korunur.
-- `WENOX_LANG=tr|en` ortam değişkeni ile geçici olarak geçersiz kılabilirsiniz.
+## Sessions
 
-> Not: Yalnızca **arayüz** yerelleştirilir. Modele gönderilen sistem prompt'u ve araç
-> şemaları her zaman İngilizce kalır; model, sizin yazdığınız dile göre yanıt verir.
+Every conversation is saved under `~/.wenox/sessions/`. After four user messages a
+short **title** is generated. On exit the terminal prints how to come back:
 
-## Oturumlar
-
-Her konuşma otomatik olarak `~/.wenox/sessions/` altına kaydedilir. Konuşma ilerledikçe
-(4 kullanıcı mesajından sonra) konuşmaya **kısa bir başlık** üretilir.
-
-- Çıkışta terminale devam komutu yazılır:
-
-  ```
-  Session   Selamlaşma
+```
+  Session   Greeting
   Continue  wenox -s ses_f78edf902ffe
-  ```
+```
 
-- `wenox -s <id>` ile o oturuma **kaldığı yerden** devam edersiniz: mesaj geçmişi,
-  token sayacı, model ve **çalışma dizini** geri yüklenir.
-- Oturum içinde `/sessions` yazıp listeden seçerek de geçmiş bir oturumu açabilirsiniz
-  (oturumun kendi klasörü ve geçmişiyle birlikte).
+Resuming restores the messages, token counter, model and working directory.
+`/sessions` lists past sessions and loads the one you pick.
 
-## Yapılandırma
+## Configuration
 
-API anahtarı ve aktif model `~/.wenox/config.json` dosyasında saklanır (yalnızca
-kullanıcı tarafından okunabilir). Öncelik sırası:
+The API key, active model and language live in `~/.wenox/config.json`
+(user-readable only). Precedence:
 
-1. Ortam değişkenleri: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_API_BASE_URL`
+1. Environment variables — `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`
 2. `~/.wenox/config.json`
-3. Varsayılanlar
+3. Built-in defaults
 
-### İlk çalıştırma (onboarding)
+Other files: `~/.wenox/permissions.json` (per-project directory grants),
+`~/.wenox/sessions/` (conversations).
 
-Anahtar yokken CLI sizi **tam ekran bir onboarding ekranıyla** karşılar (uygulamanın
-kendi TUI'ı içinde — logo ve çerçeveli giriş kutusuyla):
+## Capabilities
 
-1. **Dil seçimi** — `↑/↓` ile Türkçe/İngilizce, `Enter` ile onay (varsayılan: sistem dili).
-2. **API anahtarı** — `https://me.wenox.co/api-key` bağlantısı gösterilir.
-   **Boş kutuda `Enter`** → sayfa tarayıcıda açılır; ya da anahtarı kutuya yapıştırıp
-   `Enter` ile doğrularsınız.
-3. **Doğrulama** — anahtar `GET /v1/me` ile doğrulanır; geçersizse tekrar denenir,
-   ağ hatasıysa ayrı mesaj verilir.
-4. **Karşılama** — hesabınıza özel, daktilo efektli karşılama:
-
-   ```
-   Merhaba Mert İlhan, WenOX CLI'a hoş geldin!
-   Görünüşe göre aktif bir aboneliğin var — 12 günün kalmış.
-   Kalan kredi: 12.500
-   ```
-
-`Esc` (veya `Ctrl+C`) ile çıkabilirsiniz. Anahtar zaten kayıtlıysa (veya `--key` /
-`WENOX_API_KEY` verildiyse) onboarding atlanır. Etkileşimli olmayan (pipe)
-çalıştırmalarda anahtar yoksa CLI anlaşılır bir hata verip çıkar; anahtarı `--key`
-ile geçin.
-
-## Yetenekler
-
-WenOX AI aşağıdaki araçlarla yerel projenizde çalışır:
+The assistant works on your project through these tools:
 
 `read_file`, `write_file`, `edit_file`, `list_dir`, `search_code`, `run_command`,
 `code_intel`, `ask_user`.
 
-`code_intel`: kod zekâsı aracı — **tanıma git** (`definition`), **kullanımları bul**
-(`references`), **hover** (tip/imza bilgisi) ve **dosya sembolleri** (`symbols`).
-Metin aramasından farklı olarak bir **dil sunucusu** kullanır. Sunucular:
+`code_intel` uses a real language server:
 
-| Dil | Sunucu | Kurulum |
+| Language | Server | Install |
 |---|---|---|
 | TypeScript / JavaScript | `typescript-language-server` | `npm i -g typescript-language-server` |
 | Python | `pyright-langserver` | `npm i -g pyright` |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Rust | `rust-analyzer` | `rustup component add rust-analyzer` |
 
-TypeScript/JavaScript için projede `typescript` paketi de gereklidir (sunucu
-`tsserver`'ı oradan bulur). Sunucu kurulu değilse araç çökmez; ajan kurulum
-komutunu size söyler.
+If no server is installed the tool reports the install command instead of failing.
 
-`ask_user`: ajan gerçekten bir tercih gerektiğinde size **çoktan seçmeli soru** sorar
-(`↑/↓` veya `1-9` ile seçin, `Enter` gönderir, `Esc` kapatır; isterseniz "Kendi
-cevabını yaz" ile serbest metin girebilirsiniz). Gereksiz soru sormaz; emin olmadığı
-yerde makul varsayımla ilerler.
+`ask_user` lets the model ask you a short multiple-choice question when a real
+decision is needed — it won't nag you otherwise.
 
-`run_command` varsayılan olarak onay ister; `-y` ile otomatik onaylanır.
+## Permissions and safety
 
-## Geliştirme
+`run_command` asks for confirmation before running; `-y` auto-approves.
+
+**Outside the working directory:** when the model touches a path outside your
+project you choose **Allow once**, **Allow always** (remembered per project in
+`~/.wenox/permissions.json`) or **Reject**.
+
+**Unsafe working directory:** started in a home directory, drive root or a system
+folder, the CLI warns you, tells the model to be careful, and requires permission
+for every path — including `list_dir`.
+
+Commands that would kill the CLI's own Node process (`taskkill /IM node.exe`,
+`pkill node`, …) are refused. `Esc`/`Ctrl+C` stop a running command and its child
+processes.
+
+## Development
 
 ```bash
 npm install
-npm start          # veya: node bin/wenox.js
+npm test        # node --test
+npm start       # node bin/wenox.js
 ```
 
-## Lisans
+## License
 
 MIT

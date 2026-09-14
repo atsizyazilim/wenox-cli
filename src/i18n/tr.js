@@ -337,6 +337,7 @@ Kısayollar
     authError: "❌ Geçersiz veya yetkisiz WenOX API Anahtarı.",
     authHint: "Anahtarı '/key' komutu ile güncelleyebilirsiniz.",
     rateLimit: "❌ İstek limiti aşıldı (Rate Limit). Lütfen biraz bekleyip tekrar deneyin.",
+    timeout: "❌ İstek zaman aşımına uğradı — sunucu {seconds} sn içinde yanıt vermedi. Tekrar deneyin.",
     connection: "❌ API sunucusuna bağlanılamadı ({url}). İnternet bağlantınızı kontrol edin.",
     apiError: "❌ API Hatası (Kod: {status}): {message}",
     unknownError: "❌ Beklenmeyen bir hata oluştu: {message}",

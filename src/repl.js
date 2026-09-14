@@ -206,7 +206,9 @@ export async function runRepl({ agent }) {
         await agent.compact();
         ui.printSuccess(t("compact.summarized"));
       } catch (error) {
-        ui.printError(t("compact.failed", { message: error.message }));
+        const aborted = error?.name === "AbortError" || /abort/i.test(error?.message ?? "");
+        if (aborted) ui.printDim(t("agent.cancelled"));
+        else ui.printError(t("compact.failed", { message: error.message }));
       }
       continue;
     }

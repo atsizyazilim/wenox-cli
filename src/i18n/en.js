@@ -337,6 +337,7 @@ Shortcuts
     authError: "❌ Invalid or unauthorized WenOX API Key.",
     authHint: "You can update the key with the '/key' command.",
     rateLimit: "❌ Rate limit exceeded. Please wait a bit and try again.",
+    timeout: "❌ Request timed out — the server did not respond within {seconds}s. Please try again.",
     connection: "❌ Could not connect to the API server ({url}). Check your internet connection.",
     apiError: "❌ API Error (Code: {status}): {message}",
     unknownError: "❌ An unexpected error occurred: {message}",
