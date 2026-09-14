@@ -24,6 +24,10 @@
   <a href="README.md">English</a> · <a href="README_tr.md">Türkçe</a>
 </p>
 
+<div align="center">
+  <img src="preview.png" alt="WenOX CLI" width="100%">
+</div>
+
 ---
 
 ## ✨ Why WenOX CLI
