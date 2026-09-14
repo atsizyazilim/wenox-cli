@@ -5,7 +5,7 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { AVAILABLE_MODELS, CONTEXT_WINDOW, getModelInfo, saveConfig } from "../config.js";
 import { getSystemPrompt } from "../agent.js";
 import { listSessions, saveSession } from "../session.js";
-import { fetchAccount, formatAccount, verifyApiKey } from "../account.js";
+import { fetchAccount, formatAccount, verifyApiKey, verifyFailureMessage } from "../account.js";
 import { copyToClipboard } from "../clipboard.js";
 import { plain, sliceByWidth } from "../utils.js";
 import { isUnsafeWorkspace } from "../workspace.js";
@@ -479,8 +479,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       push({ role: "info", text: t("onboarding.verifying") });
       const result = await verifyApiKey(key);
       if (!result.ok) {
-        const reason = result.reason === "network" ? "onboarding.network" : "onboarding.invalid";
-        push({ role: "error", text: t(reason) });
+        push({ role: "error", text: verifyFailureMessage(result.reason) });
         return;
       }
       agent.setApiKey(key);

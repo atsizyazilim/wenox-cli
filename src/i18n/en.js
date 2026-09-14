@@ -305,6 +305,7 @@ Shortcuts
     verifying: "Verifying key…",
     invalid: "Invalid API key. Please check it and try again.",
     network: "Could not reach the server. Check your connection and try again.",
+    serverError: "The server is unavailable right now. Please try again shortly.",
     chooseLanguage: "Interface language",
     langHint: "↑/↓ select    ·    Enter confirm",
     verifyHint: "Enter to verify the key",

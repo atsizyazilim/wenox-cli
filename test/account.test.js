@@ -5,7 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-account-"));
-const { verifyApiKey } = await import("../src/account.js");
+const { verifyApiKey, verifyFailureMessage } = await import("../src/account.js");
+const { setLocale } = await import("../src/i18n/index.js");
 
 function stubFetch(impl) {
   const original = globalThis.fetch;
@@ -52,6 +53,18 @@ test("ağ hatası 'network' nedeni döner", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason, "network");
   restore();
+});
+
+test("sunucu hatasında 'geçersiz anahtar' denmez", async () => {
+  setLocale("tr");
+  const restore = stubFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
+  const result = await verifyApiKey("wx-x");
+  restore();
+
+  assert.equal(result.reason, "server");
+  const message = verifyFailureMessage(result.reason);
+  assert.match(message, /sunucu/i);
+  assert.doesNotMatch(message, /geçersiz/i);
 });
 
 test("boş anahtar doğrulanmadan geçersiz", async () => {

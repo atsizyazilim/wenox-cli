@@ -3,6 +3,14 @@ import { t, localeTag } from "./i18n/index.js";
 
 const VERIFY_TIMEOUT_MS = 10_000;
 
+// Doğrulama başarısızlığının nedenini kullanıcıya uygun mesaja çevir.
+// (Örn. 503 sırasında "geçersiz anahtar" demek yanıltıcı olur.)
+export function verifyFailureMessage(reason) {
+  if (reason === "network") return t("onboarding.network");
+  if (reason === "server") return t("onboarding.serverError");
+  return t("onboarding.invalid");
+}
+
 export async function verifyApiKey(apiKey) {
   const key = String(apiKey ?? "").trim();
   if (!key) return { ok: false, reason: "invalid" };

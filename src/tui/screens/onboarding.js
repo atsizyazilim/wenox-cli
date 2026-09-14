@@ -16,7 +16,7 @@ import {
   toText,
   MAX_INPUT_LINES,
 } from "../input-model.js";
-import { verifyApiKey } from "../../account.js";
+import { verifyApiKey, verifyFailureMessage } from "../../account.js";
 import { API_KEY_URL, saveConfig } from "../../config.js";
 import { openUrl } from "../../utils.js";
 import { welcomeMessage } from "../../ui.js";
@@ -80,7 +80,7 @@ export function Onboarding({ onComplete }) {
       setStep("welcome");
       return;
     }
-    setError(t(result.reason === "network" ? "onboarding.network" : "onboarding.invalid"));
+    setError(verifyFailureMessage(result.reason));
     setStep("apikey");
   };
 

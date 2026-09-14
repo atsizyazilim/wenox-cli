@@ -305,6 +305,7 @@ Kısayollar
     verifying: "Anahtar doğrulanıyor…",
     invalid: "Geçersiz API anahtarı. Kontrol edip tekrar dene.",
     network: "Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.",
+    serverError: "Sunucu şu an yanıt vermiyor. Kısa süre sonra tekrar dene.",
     chooseLanguage: "Arayüz dili",
     langHint: "↑/↓ seç    ·    Enter onayla",
     verifyHint: "Enter ile anahtarı doğrula",

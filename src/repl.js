@@ -11,7 +11,7 @@ import {
   maskKey,
 } from "./config.js";
 import { resolvePath } from "./utils.js";
-import { verifyApiKey } from "./account.js";
+import { verifyApiKey, verifyFailureMessage } from "./account.js";
 import { listSessions } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { t, localeTag, setLocale, getLocale, LANGUAGES } from "./i18n/index.js";
@@ -134,7 +134,7 @@ export async function runRepl({ agent }) {
     ui.printDim(t("onboarding.verifying"));
     const result = await verifyApiKey(newKey);
     if (!result.ok) {
-      ui.printError(t(result.reason === "network" ? "onboarding.network" : "onboarding.invalid"));
+      ui.printError(verifyFailureMessage(result.reason));
       return;
     }
     agent.setApiKey(newKey);
