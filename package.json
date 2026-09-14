@@ -25,6 +25,13 @@
     "coding-assistant",
     "agent"
   ],
+  "homepage": "https://github.com/atsizyazilim/wenox-cli#readme",
+  "bugs": "https://github.com/atsizyazilim/wenox-cli/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atsizyazilim/wenox-cli.git"
+  },
+  "author": "ATSIZ YAZILIM LTD",
   "license": "MIT",
   "dependencies": {
     "@inkjs/ui": "^2.0.0",
