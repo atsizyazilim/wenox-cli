@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/v/@wenox/cli?color=0ea5e9&label=npm" alt="npm"></a>
   <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/dt/@wenox/cli?color=0ea5e9&label=downloads" alt="indirme"></a>
-  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-22c55e" alt="lisans"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e" alt="lisans"></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A520-339933" alt="node">
 </p>
 
@@ -75,13 +75,13 @@ alabilirsiniz.
 ```bash
 wenox                                   # interaktif oturum
 wenox -p "bu projede kaç dosya var?"    # tek seferlik cevap, sonra çıkar
-wenox -m 2 -y                           # GLM 5.3 Flash, komutları otomatik onayla
+wenox -m <id> -y                        # model seç, komutları otomatik onayla
 wenox -s ses_f78edf902ffe               # kayıtlı oturuma devam et
 ```
 
 | Seçenek | Açıklama |
 | --- | --- |
-| `-m, --model <id\|no>` | Kullanılacak model (`1` Grok 4.6 · `2` GLM 5.3 Flash · `3` Big Pickle) |
+| `-m, --model <id\|no>` | Kullanılacak model — liste için `/model` |
 | `-k, --key <anahtar>` | WenOX API anahtarı (kalıcı olarak kaydedilir) |
 | `-s, --session <id>` | Kayıtlı oturuma devam et |
 | `-d, --cwd <yol>` | Başlangıç çalışma dizini |
@@ -183,22 +183,17 @@ nasıl dönüleceğini yazar:
 Devam ettiğinizde mesajlar, token sayacı, model ve çalışma dizini geri yüklenir.
 `/sessions` tüm oturumları listeler ve seçtiğinizi açar.
 
-## ⚙️ Yapılandırma
+## ⚙️ Komutlar
 
-API anahtarı, aktif model ve dil `~/.wenox/config.json` içinde tutulur; yalnızca
-siz okuyabilirsiniz. Öncelik sırası:
-
-1. Ortam değişkenleri — `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`,
-   `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`
-2. `~/.wenox/config.json`
-3. Varsayılanlar
-
-Oturum içi komutlar:
+Her şey oturumun içinden yönetilir — modeli, dili ya da anahtarı değiştirin,
+hesabı görün, bağlamı düzenleyin. Ayarlar ortam değişkenleriyle de verilebilir:
+`WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`, `WENOX_API_BASE_URL`,
+`WENOX_REQUEST_TIMEOUT_MS`.
 
 | Komut | Açıklama |
 | --- | --- |
 | `/help` | Komutlar ve kısayollar |
-| `/model` | Modeli değiştir — liste canlı API'den gelir |
+| `/model` | Modeli değiştir |
 | `/lang` | Arayüz dilini değiştir |
 | `/key` | API anahtarını güncelle (kaydetmeden önce doğrulanır) |
 | `/me` | Hesap ve kalan kredi |

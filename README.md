@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/v/@wenox/cli?color=0ea5e9&label=npm" alt="npm"></a>
   <a href="https://www.npmjs.com/package/@wenox/cli"><img src="https://img.shields.io/npm/dt/@wenox/cli?color=0ea5e9&label=downloads" alt="downloads"></a>
-  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-22c55e" alt="license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e" alt="license"></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A520-339933" alt="node">
 </p>
 
@@ -73,13 +73,13 @@ Get a key at **[me.wenox.co/api-key](https://me.wenox.co/api-key)**.
 ```bash
 wenox                                   # interactive session
 wenox -p "how many files are in here?"  # one-shot answer, then exit
-wenox -m 2 -y                           # GLM 5.3 Flash, auto-approve commands
+wenox -m <id> -y                        # pick a model, auto-approve commands
 wenox -s ses_f78edf902ffe               # resume a saved session
 ```
 
 | Option | Description |
 | --- | --- |
-| `-m, --model <id\|no>` | Model to use (`1` Grok 4.6 · `2` GLM 5.3 Flash · `3` Big Pickle) |
+| `-m, --model <id\|no>` | Model to use — see `/model` for the list |
 | `-k, --key <key>` | WenOX API key (saved permanently) |
 | `-s, --session <id>` | Resume a saved session |
 | `-d, --cwd <path>` | Starting working directory |
@@ -181,22 +181,17 @@ the terminal shows how to come back:
 Resuming restores the messages, the token counter, the model and the working
 directory. `/sessions` lists everything and loads whichever you pick.
 
-## ⚙️ Configuration
+## ⚙️ Commands
 
-The API key, active model and language live in `~/.wenox/config.json`, readable
-only by you. Precedence:
-
-1. Environment — `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`,
-   `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`
-2. `~/.wenox/config.json`
-3. Built-in defaults
-
-In-session commands:
+Everything is driven from inside the session — change the model, the language or
+the key, inspect the account, manage the context. Settings can also be supplied
+through environment variables: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`,
+`WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`.
 
 | Command | Description |
 | --- | --- |
 | `/help` | Commands and shortcuts |
-| `/model` | Change model — the list comes from the live API |
+| `/model` | Change model |
 | `/lang` | Change interface language |
 | `/key` | Update the API key (verified before saving) |
 | `/me` | Account and remaining credits |
