@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="banner.png" alt="WenOX CLI" width="100%">
+</div>
+
 <h1 align="center">WenOX CLI</h1>
 
 <p align="center">
@@ -22,17 +26,6 @@
 
 ---
 
-<div align="center">
-<pre>
- ██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗  ██╗
- ██║    ██║██╔════╝████╗  ██║██╔═══██╗╚██╗██╔╝
- ██║ █╗ ██║█████╗  ██╔██╗ ██║██║   ██║ ╚███╔╝
- ██║███╗██║██╔══╝  ██║╚██╗██║██║   ██║ ██╔██╗
- ╚███╔███╔╝███████╗██║ ╚████║╚██████╔╝██╔╝ ██╗
-  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
-</pre>
-</div>
-
 ## ✨ Why WenOX CLI
 
 - **Actually agentic.** One prompt isn't one answer. The assistant keeps calling
@@ -48,6 +41,8 @@
 - **Speaks your language.** Turkish and English interface, with the model replying
   in whichever language you write in.
 
+<img src="slimbanner.png" width="100%">
+
 ## 📦 Install
 
 ```bash
@@ -56,6 +51,8 @@ npm install -g @wenox/cli
 
 Node.js **20 or newer**. Everything ships with the package — no extra steps, no
 native build.
+
+<img src="slimbanner.png" width="100%">
 
 ## 🚀 First run
 
@@ -67,6 +64,8 @@ Start `wenox` and it walks you through setup:
 4. **Welcome** — your name, subscription and remaining credits
 
 Get a key at **[me.wenox.co/api-key](https://me.wenox.co/api-key)**.
+
+<img src="slimbanner.png" width="100%">
 
 ## 🖥️ Usage
 
@@ -87,6 +86,8 @@ wenox -s ses_f78edf902ffe               # resume a saved session
 | `-p, --prompt <text>` | Run a single prompt and exit |
 | `-v, --version` | Show version |
 | `-h, --help` | Show help |
+
+<img src="slimbanner.png" width="100%">
 
 ## ⌨️ Interface
 
@@ -112,6 +113,8 @@ your message is queued and sent the moment the current turn ends.
 Drag with the mouse to select text, then `Ctrl+C` to copy it. Prefer your
 terminal's own selection and scrolling? Start with `WENOX_NO_MOUSE=1`.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🧰 Capabilities
 
 The assistant works on your project through these tools:
@@ -134,6 +137,8 @@ never just fails.
 **`ask_user`** lets the assistant ask a short multiple-choice question when a real
 decision is needed. It won't nag you with questions it can answer itself.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🔒 Safety
 
 - **Commands ask first.** Execution is confirmed before it happens; `-y` opts out.
@@ -148,6 +153,8 @@ decision is needed. It won't nag you with questions it can answer itself.
 - **`Esc` stops the work.** A running command is killed together with its child
   processes — a forgotten dev server included.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🗺️ Modes
 
 The active mode sits in the status bar; `Tab` switches.
@@ -160,6 +167,8 @@ The active mode sits in the status bar; `Tab` switches.
 Start in Plan, see what the assistant intends to do, then `Tab` into Build to let
 it happen.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🌍 Languages
 
 Turkish and English, detected from your system and switchable with `/lang` or
@@ -167,6 +176,8 @@ Turkish and English, detected from your system and switchable with `/lang` or
 
 Only the interface is translated. Prompts and tool schemas stay in English, and
 the assistant answers in whichever language you write in.
+
+<img src="slimbanner.png" width="100%">
 
 ## 💾 Sessions
 
@@ -180,6 +191,8 @@ the terminal shows how to come back:
 
 Resuming restores the messages, the token counter, the model and the working
 directory. `/sessions` lists everything and loads whichever you pick.
+
+<img src="slimbanner.png" width="100%">
 
 ## ⚙️ Commands
 
@@ -202,6 +215,8 @@ through environment variables: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`,
 | `/status` | Session status |
 | `/exit` | Quit |
 
+<img src="slimbanner.png" width="100%">
+
 ## 🛠️ Development
 
 ```bash
@@ -209,6 +224,8 @@ npm install
 npm test        # node --test
 npm start       # node bin/wenox.js
 ```
+
+<img src="slimbanner.png" width="100%">
 
 ## 📄 License
 

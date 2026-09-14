@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="banner.png" alt="WenOX CLI" width="100%">
+</div>
+
 <h1 align="center">WenOX CLI</h1>
 
 <p align="center">
@@ -22,17 +26,6 @@
 
 ---
 
-<div align="center">
-<pre>
- ██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗  ██╗
- ██║    ██║██╔════╝████╗  ██║██╔═══██╗╚██╗██╔╝
- ██║ █╗ ██║█████╗  ██╔██╗ ██║██║   ██║ ╚███╔╝
- ██║███╗██║██╔══╝  ██║╚██╗██║██║   ██║ ██╔██╗
- ╚███╔███╔╝███████╗██║ ╚████║╚██████╔╝██╔╝ ██╗
-  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
-</pre>
-</div>
-
 ## ✨ Neden WenOX CLI
 
 - **Gerçekten ajan.** Bir istem, tek bir cevap değil. Asistan iş bitene kadar araç
@@ -48,6 +41,8 @@
 - **Sizin dilinizi konuşur.** Arayüz Türkçe ve İngilizce; model, sizin yazdığınız
   dilde yanıtlar.
 
+<img src="slimbanner.png" width="100%">
+
 ## 📦 Kurulum
 
 ```bash
@@ -56,6 +51,8 @@ npm install -g @wenox/cli
 
 Node.js **20 veya üzeri**. Gerekli her şey paketle gelir — ek adım yok, derleme
 yok.
+
+<img src="slimbanner.png" width="100%">
 
 ## 🚀 İlk çalıştırma
 
@@ -69,6 +66,8 @@ yok.
 
 Anahtarınızı **[me.wenox.co/api-key](https://me.wenox.co/api-key)** adresinden
 alabilirsiniz.
+
+<img src="slimbanner.png" width="100%">
 
 ## 🖥️ Kullanım
 
@@ -89,6 +88,8 @@ wenox -s ses_f78edf902ffe               # kayıtlı oturuma devam et
 | `-p, --prompt <metin>` | Tek seferlik komut çalıştır ve çık |
 | `-v, --version` | Sürümü göster |
 | `-h, --help` | Yardımı göster |
+
+<img src="slimbanner.png" width="100%">
 
 ## ⌨️ Arayüz
 
@@ -114,6 +115,8 @@ kuyruğa alınır ve tur biter bitmez gönderilir.
 Metin seçmek için fareyle sürükleyin, `Ctrl+C` ile kopyalayın. Tekerleği ve
 seçimi terminalinize bırakmak isterseniz `WENOX_NO_MOUSE=1` ile başlatın.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🧰 Yetenekler
 
 Asistan projenizde şu araçlarla çalışır:
@@ -136,6 +139,8 @@ başarısız olmaz.
 **`ask_user`** sayesinde asistan gerçekten bir karar gerektiğinde kısa, çoktan
 seçmeli bir soru sorar. Kendi cevaplayabileceği şeyler için sizi darlamaz.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🔒 Güvenlik
 
 - **Komutlar önce sorar.** Çalıştırma öncesi onay alınır; `-y` bunu kapatır.
@@ -150,6 +155,8 @@ seçmeli bir soru sorar. Kendi cevaplayabileceği şeyler için sizi darlamaz.
 - **`Esc` işi durdurur.** Çalışan komut, alt süreçleriyle birlikte öldürülür —
   unutulmuş bir dev server dahil.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🗺️ Modlar
 
 Aktif mod durum çubuğunda görünür; `Tab` ile değiştirilir.
@@ -162,6 +169,8 @@ Aktif mod durum çubuğunda görünür; `Tab` ile değiştirilir.
 Plan'da başlayın, asistanın ne yapmayı düşündüğünü görün, sonra `Tab` ile
 Build'e geçip uygulatın.
 
+<img src="slimbanner.png" width="100%">
+
 ## 🌍 Diller
 
 Arayüz Türkçe ve İngilizce; sistem dilinizden algılanır, `/lang` veya `WENOX_LANG`
@@ -169,6 +178,8 @@ ile değiştirilir.
 
 Yalnızca arayüz çevrilir. Prompt'lar ve araç şemaları İngilizce kalır; asistan
 sizin yazdığınız dilde yanıtlar.
+
+<img src="slimbanner.png" width="100%">
 
 ## 💾 Oturumlar
 
@@ -182,6 +193,8 @@ nasıl dönüleceğini yazar:
 
 Devam ettiğinizde mesajlar, token sayacı, model ve çalışma dizini geri yüklenir.
 `/sessions` tüm oturumları listeler ve seçtiğinizi açar.
+
+<img src="slimbanner.png" width="100%">
 
 ## ⚙️ Komutlar
 
@@ -204,6 +217,8 @@ hesabı görün, bağlamı düzenleyin. Ayarlar ortam değişkenleriyle de veril
 | `/status` | Oturum durumu |
 | `/exit` | Çıkış |
 
+<img src="slimbanner.png" width="100%">
+
 ## 🛠️ Geliştirme
 
 ```bash
@@ -211,6 +226,8 @@ npm install
 npm test        # node --test
 npm start       # node bin/wenox.js
 ```
+
+<img src="slimbanner.png" width="100%">
 
 ## 📄 Lisans
 
