@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { createPatch } from "diff";
-import { resolvePath } from "./utils.js";
+import { resolvePath, errorProp } from "./utils.js";
 import { codeIntel } from "./lsp.js";
+import type { CodeIntelResult, LocationEntry, SymbolEntry } from "./lsp.js";
 import { setAbortHandler, clearAbortHandler } from "./cancel.js";
 
 const IGNORED_DIRS = new Set([
@@ -29,7 +31,56 @@ const MAX_ITEMS = 80;
 const MAX_MATCHES = 50;
 const COMMAND_TIMEOUT_MS = 120_000;
 
-function readTextFile(filePath) {
+// Araç argümanları modelden doğrulanmamış JSON olarak geliyor; her alan
+// savunmacı okunuyor ve varsayılanlar çağrı yerinde veriliyor.
+export type ToolArgs = Record<string, unknown>;
+
+export interface ToolListItem {
+  name: string;
+  type: string;
+  size_bytes?: number;
+}
+
+export interface ToolMatch {
+  file: string;
+  line_number: number;
+  line_content: string;
+}
+
+export interface ToolResult {
+  success: boolean;
+  error?: string;
+  path?: string;
+  content?: string;
+  total_lines?: number;
+  viewing_range?: string;
+  lines_written?: number;
+  chars_written?: number;
+  message?: string;
+  diff?: string;
+  base_path?: string;
+  total_items?: number;
+  items?: ToolListItem[];
+  query?: string;
+  match_count?: number;
+  matches?: ToolMatch[];
+  returncode?: number;
+  stdout?: string;
+  stderr?: string;
+  new_directory?: string;
+  sample_files?: string[];
+  operation?: string;
+  count?: number;
+  symbols?: SymbolEntry[];
+  hover?: string;
+  locations?: LocationEntry[];
+}
+
+// Fırlatılan değer Error olmak zorunda değil; eski kod `${error.message}`
+// yazıyordu, aynı metin üretiliyor.
+const errText = (error: unknown): string => String(errorProp(error, "message"));
+
+function readTextFile(filePath: string): { text: string; encoding: string } {
   const buffer = fs.readFileSync(filePath);
   for (const encoding of READ_ENCODINGS) {
     try {
@@ -42,7 +93,7 @@ function readTextFile(filePath) {
   return { text: buffer.toString("latin1"), encoding: "latin1" };
 }
 
-function writeTextFile(filePath, text, encoding) {
+function writeTextFile(filePath: string, text: string, encoding: string): void {
   if (encoding === "utf-8") {
     fs.writeFileSync(filePath, text, "utf8");
   } else {
@@ -50,7 +101,7 @@ function writeTextFile(filePath, text, encoding) {
   }
 }
 
-function cleanLineNumbers(text) {
+function cleanLineNumbers(text: string): string {
   const lines = text.split("\n");
   const pattern = /^\s*\d+\s*\|\s?/;
   if (lines.some((line) => line.trim() && pattern.test(line))) {
@@ -59,17 +110,21 @@ function cleanLineNumbers(text) {
   return text;
 }
 
-function walkDirectory(baseDir, maxDepth, visit) {
-  const visitLevel = (dir, depth) => {
-    let entries;
+function walkDirectory(
+  baseDir: string,
+  maxDepth: number,
+  visit: (fullPath: string, type: "file" | "directory") => void,
+): void {
+  const visitLevel = (dir: string, depth: number): void => {
+    let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
       return;
     }
 
-    const dirs = [];
-    const files = [];
+    const dirs: string[] = [];
+    const files: string[] = [];
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (IGNORED_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
@@ -98,20 +153,24 @@ function walkDirectory(baseDir, maxDepth, visit) {
   visitLevel(baseDir, 0);
 }
 
-export function readFile(pathArg, startLine = null, endLine = null) {
+export function readFile(
+  pathArg: unknown,
+  startLine: unknown = null,
+  endLine: unknown = null,
+): ToolResult {
   const filePath = resolvePath(pathArg);
   if (!fs.existsSync(filePath)) {
-    return { success: false, error: `File not found: ${pathArg}` };
+    return { success: false, error: `File not found: ${String(pathArg)}` };
   }
   if (fs.statSync(filePath).isDirectory()) {
-    return { success: false, error: `'${pathArg}' is a directory, not a file.` };
+    return { success: false, error: `'${String(pathArg)}' is a directory, not a file.` };
   }
 
-  let text;
+  let text: string;
   try {
     text = readTextFile(filePath).text;
   } catch (error) {
-    return { success: false, error: `Could not read file as text: ${error.message}` };
+    return { success: false, error: `Could not read file as text: ${errText(error)}` };
   }
 
   const lines = text.split("\n");
@@ -130,13 +189,15 @@ export function readFile(pathArg, startLine = null, endLine = null) {
     };
   }
 
-  const numbered = [];
+  const numbered: string[] = [];
   for (let i = start; i <= end; i += 1) {
     numbered.push(`${String(i).padStart(5)} | ${lines[i - 1]}`);
   }
   let content = numbered.join("\n");
   if (end < total) {
-    content += `\n[... File has ${total} lines total. Showing lines ${start}-${end}. To continue, read with the start_line=${end + 1} parameter ...]`;
+    content += `\n[... File has ${total} lines total. Showing lines ${start}-${end}. To continue, read with the start_line=${
+      end + 1
+    } parameter ...]`;
   }
 
   return {
@@ -148,11 +209,11 @@ export function readFile(pathArg, startLine = null, endLine = null) {
   };
 }
 
-export function writeFile(pathArg, content = "") {
+export function writeFile(pathArg: unknown, content: unknown = ""): ToolResult {
   const filePath = resolvePath(pathArg);
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, content ?? "", "utf8");
+    fs.writeFileSync(filePath, String(content ?? ""), "utf8");
     return {
       success: true,
       path: filePath,
@@ -161,34 +222,38 @@ export function writeFile(pathArg, content = "") {
       message: `'${path.basename(filePath)}' saved successfully.`,
     };
   } catch (error) {
-    return { success: false, error: `Could not write file: ${error.message}` };
+    return { success: false, error: `Could not write file: ${errText(error)}` };
   }
 }
 
-export function editFile(pathArg, target = "", replacement = "") {
+export function editFile(
+  pathArg: unknown,
+  target: unknown = "",
+  replacement: unknown = "",
+): ToolResult {
   const filePath = resolvePath(pathArg);
   if (!fs.existsSync(filePath)) {
-    return { success: false, error: `File not found: ${pathArg}` };
+    return { success: false, error: `File not found: ${String(pathArg)}` };
   }
   if (!fs.statSync(filePath).isFile()) {
-    return { success: false, error: `'${pathArg}' is not a file.` };
+    return { success: false, error: `'${String(pathArg)}' is not a file.` };
   }
 
-  let originalContent;
-  let encoding;
+  let originalContent: string;
+  let encoding: string;
   try {
     const read = readTextFile(filePath);
     originalContent = read.text;
     encoding = read.encoding;
   } catch (error) {
-    return { success: false, error: `Could not open file: ${error.message}` };
+    return { success: false, error: `Could not open file: ${errText(error)}` };
   }
 
   const normOrig = originalContent.replace(/\r\n/g, "\n");
   const normTarget = cleanLineNumbers(String(target).replace(/\r\n/g, "\n"));
   const normReplacement = cleanLineNumbers(String(replacement).replace(/\r\n/g, "\n"));
 
-  let newContent = null;
+  let newContent: string | null = null;
 
   const occurrences = normOrig.split(normTarget).length - 1;
   if (occurrences === 1) {
@@ -204,7 +269,7 @@ export function editFile(pathArg, target = "", replacement = "") {
     const targetLen = targetLines.length;
     const targetRstrip = targetLines.map((line) => line.replace(/\s+$/, ""));
 
-    const matches = [];
+    const matches: number[] = [];
     for (let i = 0; i <= origLines.length - targetLen; i += 1) {
       let allMatch = true;
       for (let j = 0; j < targetLen; j += 1) {
@@ -232,7 +297,7 @@ export function editFile(pathArg, target = "", replacement = "") {
     } else {
       const targetTrimmed = targetLines.map((line) => line.trim()).filter(Boolean);
       if (targetTrimmed.length > 0) {
-        const looseMatches = [];
+        const looseMatches: [number, number][] = [];
         for (let i = 0; i < origLines.length; i += 1) {
           let sub = 0;
           for (let k = i; k < origLines.length; k += 1) {
@@ -276,7 +341,7 @@ export function editFile(pathArg, target = "", replacement = "") {
   try {
     writeTextFile(filePath, finalContent, encoding);
   } catch (error) {
-    return { success: false, error: `Could not write file: ${error.message}` };
+    return { success: false, error: `Could not write file: ${errText(error)}` };
   }
 
   const patch = createPatch(
@@ -297,16 +362,16 @@ export function editFile(pathArg, target = "", replacement = "") {
   };
 }
 
-export function listDir(pathArg = ".", maxDepth = 2) {
+export function listDir(pathArg: unknown = ".", maxDepth: unknown = 2): ToolResult {
   const targetDir = resolvePath(pathArg);
   if (!fs.existsSync(targetDir)) {
-    return { success: false, error: `Directory not found: ${pathArg}` };
+    return { success: false, error: `Directory not found: ${String(pathArg)}` };
   }
   if (!fs.statSync(targetDir).isDirectory()) {
-    return { success: false, error: `'${pathArg}' is not a directory.` };
+    return { success: false, error: `'${String(pathArg)}' is not a directory.` };
   }
 
-  const items = [];
+  const items: ToolListItem[] = [];
   walkDirectory(targetDir, Number(maxDepth) || 2, (fullPath, type) => {
     const rel = path.relative(targetDir, fullPath);
     if (type === "directory") {
@@ -330,23 +395,27 @@ export function listDir(pathArg = ".", maxDepth = 2) {
   };
 }
 
-export function searchCode(query, pathArg = ".", isRegex = false) {
+export function searchCode(
+  query: unknown,
+  pathArg: unknown = ".",
+  isRegex: unknown = false,
+): ToolResult {
   const targetDir = resolvePath(pathArg);
   if (!fs.existsSync(targetDir)) {
-    return { success: false, error: `Search path not found: ${pathArg}` };
+    return { success: false, error: `Search path not found: ${String(pathArg)}` };
   }
   if (!query) {
     return { success: false, error: "Search query cannot be empty." };
   }
 
-  let pattern;
+  let pattern: RegExp;
   try {
-    pattern = new RegExp(isRegex ? query : escapeRegExp(query), "i");
+    pattern = new RegExp(isRegex ? String(query) : escapeRegExp(String(query)), "i");
   } catch (error) {
-    return { success: false, error: `Invalid search pattern: ${error.message}` };
+    return { success: false, error: `Invalid search pattern: ${errText(error)}` };
   }
 
-  const matches = [];
+  const matches: ToolMatch[] = [];
   const root = fs.statSync(targetDir).isDirectory() ? targetDir : path.dirname(targetDir);
 
   walkDirectory(root, 99, (fullPath, type) => {
@@ -354,7 +423,7 @@ export function searchCode(query, pathArg = ".", isRegex = false) {
     if (type !== "file") return;
     if (BINARY_EXTENSIONS.has(path.extname(fullPath).toLowerCase())) return;
 
-    let content;
+    let content: string;
     try {
       content = fs.readFileSync(fullPath, "utf8");
     } catch {
@@ -376,18 +445,18 @@ export function searchCode(query, pathArg = ".", isRegex = false) {
 
   return {
     success: true,
-    query,
+    query: String(query),
     match_count: matches.length,
     matches,
   };
 }
 
-function escapeRegExp(text) {
+function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // Alt süreçleriyle birlikte öldür (Windows'ta taskkill /T, POSIX'te SIGTERM)
-function killProcessTree(child) {
+function killProcessTree(child: ChildProcess | null): void {
   if (!child || child.exitCode !== null || child.pid == null) return;
   try {
     if (process.platform === "win32") {
@@ -405,12 +474,16 @@ function killProcessTree(child) {
 
 // CLI'ın kendisi Node ile çalışır. Tüm node süreçlerini öldüren komutlar
 // CLI'ı da öldürür (terminali bozuk bırakır) — bunları reddet.
-export function killsOwnProcess(command) {
+export function killsOwnProcess(command: unknown): string | null {
   const cmd = String(command ?? "").toLowerCase();
   if (!cmd.trim()) return null;
 
-  if (/\btaskkill\b/.test(cmd) && /\/im\s+["']?node(js)?(\.exe)?\b/.test(cmd)) return "taskkill /IM node";
-  if (/\bstop-process\b/.test(cmd) && /(-name\s+["']?node|get-process\s+["']?node)/.test(cmd)) return "Stop-Process node";
+  if (/\btaskkill\b/.test(cmd) && /\/im\s+["']?node(js)?(\.exe)?\b/.test(cmd)) {
+    return "taskkill /IM node";
+  }
+  if (/\bstop-process\b/.test(cmd) && /(-name\s+["']?node|get-process\s+["']?node)/.test(cmd)) {
+    return "Stop-Process node";
+  }
   if (/\b(pkill|killall)\b/.test(cmd) && /\bnode(js)?\b/.test(cmd)) return "pkill/killall node";
   if (/\bkill\b[^|;&]*\s(?:-\d+\s+)*-1(?!\d)/.test(cmd)) return "kill -1 (all processes)";
 
@@ -424,7 +497,7 @@ export function killsOwnProcess(command) {
   return null;
 }
 
-export function runCommand(command) {
+export function runCommand(command: unknown): Promise<ToolResult> {
   return new Promise((resolve) => {
     if (!command || !String(command).trim()) {
       resolve({ success: false, error: "Command to run cannot be empty." });
@@ -440,7 +513,7 @@ export function runCommand(command) {
       return;
     }
 
-    let child;
+    let child: ChildProcess;
     try {
       child = spawn(String(command), {
         shell: true,
@@ -448,7 +521,7 @@ export function runCommand(command) {
         windowsHide: true,
       });
     } catch (error) {
-      resolve({ success: false, error: `Could not run command: ${error.message}` });
+      resolve({ success: false, error: `Could not run command: ${errText(error)}` });
       return;
     }
 
@@ -457,7 +530,7 @@ export function runCommand(command) {
     let settled = false;
     let cancelled = false;
 
-    const finish = (result) => {
+    const finish = (result: ToolResult): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -484,15 +557,15 @@ export function runCommand(command) {
       finish({ success: false, error: "Command timed out (120 seconds)." });
     }, COMMAND_TIMEOUT_MS);
 
-    child.stdout?.on("data", (chunk) => {
+    child.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString("utf8");
     });
-    child.stderr?.on("data", (chunk) => {
+    child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString("utf8");
     });
 
     child.on("error", (error) => {
-      finish({ success: false, error: `Could not run command: ${error.message}` });
+      finish({ success: false, error: `Could not run command: ${errText(error)}` });
     });
 
     child.on("close", (code) => {
@@ -511,13 +584,13 @@ export function runCommand(command) {
   });
 }
 
-export function changeDirectory(pathArg) {
+export function changeDirectory(pathArg: unknown): ToolResult {
   const target = resolvePath(pathArg);
   if (!fs.existsSync(target)) {
-    return { success: false, error: `Directory not found: ${pathArg}` };
+    return { success: false, error: `Directory not found: ${String(pathArg)}` };
   }
   if (!fs.statSync(target).isDirectory()) {
-    return { success: false, error: `'${pathArg}' is not a directory.` };
+    return { success: false, error: `'${String(pathArg)}' is not a directory.` };
   }
   try {
     process.chdir(target);
@@ -532,11 +605,13 @@ export function changeDirectory(pathArg) {
       message: `Working directory changed to '${process.cwd()}' successfully.`,
     };
   } catch (error) {
-    return { success: false, error: `Could not change directory: ${error.message}` };
+    return { success: false, error: `Could not change directory: ${errText(error)}` };
   }
 }
 
-const SYNC_TOOLS = {
+type SyncToolHandler = (args: ToolArgs) => ToolResult;
+
+const SYNC_TOOLS: Record<string, SyncToolHandler> = {
   read_file: (args) => readFile(args.path, args.start_line, args.end_line),
   write_file: (args) => writeFile(args.path, args.content),
   edit_file: (args) => editFile(args.path, args.target, args.replacement),
@@ -544,7 +619,10 @@ const SYNC_TOOLS = {
   search_code: (args) => searchCode(args.query, args.path ?? ".", args.is_regex ?? false),
 };
 
-export async function executeTool(name, args = {}) {
+export async function executeTool(
+  name: string,
+  args: ToolArgs = {},
+): Promise<ToolResult> {
   try {
     if (name === "ask_user") {
       return { success: false, error: "ask_user can only be run through the interface." };
@@ -562,13 +640,26 @@ export async function executeTool(name, args = {}) {
     return handler(args);
   } catch (error) {
     if (error instanceof TypeError) {
-      return { success: false, error: `Parameter error: ${error.message}` };
+      return { success: false, error: `Parameter error: ${errText(error)}` };
     }
-    return { success: false, error: `Unexpected error: ${error.message}` };
+    return { success: false, error: `Unexpected error: ${errText(error)}` };
   }
 }
 
-export const TOOLS_SCHEMA = [
+export interface ToolSchema {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+}
+
+export const TOOLS_SCHEMA: ToolSchema[] = [
   {
     type: "function",
     function: {
@@ -578,7 +669,10 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Relative or absolute path of the file to read" },
+          path: {
+            type: "string",
+            description: "Relative or absolute path of the file to read",
+          },
           start_line: { type: "integer", description: "Start line number (1-based, optional)" },
           end_line: { type: "integer", description: "End line number (optional)" },
         },
@@ -611,7 +705,10 @@ export const TOOLS_SCHEMA = [
         type: "object",
         properties: {
           path: { type: "string", description: "Path of the file to edit" },
-          target: { type: "string", description: "The exact, unique existing code block to be replaced" },
+          target: {
+            type: "string",
+            description: "The exact, unique existing code block to be replaced",
+          },
           replacement: { type: "string", description: "The new code block to insert" },
         },
         required: ["path", "target", "replacement"],
@@ -626,8 +723,16 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Directory path to list (default: .)", default: "." },
-          max_depth: { type: "integer", description: "Directory depth limit (default: 2)", default: 2 },
+          path: {
+            type: "string",
+            description: "Directory path to list (default: .)",
+            default: ".",
+          },
+          max_depth: {
+            type: "integer",
+            description: "Directory depth limit (default: 2)",
+            default: 2,
+          },
         },
       },
     },
@@ -641,8 +746,16 @@ export const TOOLS_SCHEMA = [
         type: "object",
         properties: {
           query: { type: "string", description: "Word or pattern to search for" },
-          path: { type: "string", description: "Directory to search in (default: .)", default: "." },
-          is_regex: { type: "boolean", description: "Whether the query is a regular expression", default: false },
+          path: {
+            type: "string",
+            description: "Directory to search in (default: .)",
+            default: ".",
+          },
+          is_regex: {
+            type: "boolean",
+            description: "Whether the query is a regular expression",
+            default: false,
+          },
         },
         required: ["query"],
       },
@@ -708,7 +821,10 @@ export const TOOLS_SCHEMA = [
               type: "object",
               properties: {
                 label: { type: "string", description: "Short label of the option" },
-                description: { type: "string", description: "Short description of the option (optional)" },
+                description: {
+                  type: "string",
+                  description: "Short description of the option (optional)",
+                },
               },
               required: ["label"],
             },
