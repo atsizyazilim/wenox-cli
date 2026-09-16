@@ -4,17 +4,50 @@ import cliHighlight from "cli-highlight";
 import Table from "cli-table3";
 import { t } from "./i18n/index.js";
 
-const highlight =
-  cliHighlight?.highlight ??
-  cliHighlight?.default?.highlight ??
-  ((code) => code);
+// cli-highlight'ın tip bildirimi yalnızca varsayılan dışa aktarımı tanımlıyor,
+// ama çalışma zamanında fonksiyon hem doğrudan hem `.default.highlight`
+// altında bulunabiliyor (CJS/ESM geçişi). Bu yüzden gevşek tip.
+const cliHighlightModule = cliHighlight as unknown as {
+  highlight?: (code: string, options?: HighlightOptions) => string;
+  default?: { highlight?: (code: string, options?: HighlightOptions) => string };
+};
 
-export function renderInline(tokens = []) {
+interface HighlightOptions {
+  language?: string;
+  theme?: string;
+  ignoreIllegals?: boolean;
+}
+
+const highlight: (code: string, options?: HighlightOptions) => string =
+  cliHighlightModule?.highlight ??
+  cliHighlightModule?.default?.highlight ??
+  ((code: string) => code);
+
+// marked'ın token birleşimi çok geniş ve burada her varyantın alanları tek tek
+// daraltılıyor olsa switch onlarca dala ayrılırdı. Davranış birebir kalsın diye
+// tüm alanları opsiyonel olan gevşek bir yapı kullanılıyor.
+interface MdToken {
+  type?: string;
+  raw?: string;
+  text?: string;
+  tokens?: MdToken[];
+  href?: string;
+  lang?: string;
+  depth?: number;
+  items?: MdToken[];
+  ordered?: boolean;
+  start?: number;
+  loose?: boolean;
+  header?: MdToken[];
+  rows?: MdToken[][];
+}
+
+export function renderInline(tokens?: MdToken[]): string {
   if (!Array.isArray(tokens)) return "";
   return tokens.map(renderInlineToken).join("");
 }
 
-function renderInlineToken(token) {
+function renderInlineToken(token: MdToken | null | undefined): string {
   if (!token) return "";
   switch (token.type) {
     case "text":
@@ -24,9 +57,7 @@ function renderInlineToken(token) {
     case "strong":
     case "em":
     case "del": {
-      const inner = token.tokens
-        ? renderInline(token.tokens)
-        : token.text ?? "";
+      const inner = token.tokens ? renderInline(token.tokens) : token.text ?? "";
       if (token.type === "strong") return chalk.bold(inner);
       if (token.type === "em") return chalk.italic(inner);
       return chalk.strikethrough(inner);
@@ -37,8 +68,8 @@ function renderInlineToken(token) {
       return "\n";
     case "link": {
       const label = renderInline(token.tokens) || token.text || token.href;
-      if (!token.href || token.href === label) return chalk.blue.underline(label);
-      return `${chalk.blue.underline(label)} ${chalk.dim(`(${token.href})`)}`;
+      if (!token.href || token.href === label) return chalk.blue.underline(label ?? "");
+      return `${chalk.blue.underline(label ?? "")} ${chalk.dim(`(${token.href})`)}`;
     }
     case "image":
       return chalk.dim(t("markdown.image", { alt: token.text || token.href || "" }));
@@ -49,7 +80,7 @@ function renderInlineToken(token) {
   }
 }
 
-export function highlightCode(code, language) {
+export function highlightCode(code: string, language?: string | null): string {
   try {
     return highlight(code, {
       language: language || undefined,
@@ -61,20 +92,22 @@ export function highlightCode(code, language) {
   }
 }
 
-function renderCode(token) {
+function renderCode(token: MdToken): string {
   const code = token.text ?? "";
   const body = highlightCode(code, token.lang);
   const lines = body.replace(/\n$/, "").split("\n");
   return lines.map((line) => `${chalk.dim("│ ")}${line}`).join("\n");
 }
 
-function renderTable(token) {
+function renderTable(token: MdToken): string {
   const table = new Table({
     style: { head: [], border: [] },
     wordWrap: true,
   });
   if (Array.isArray(token.header)) {
-    table.push(token.header.map((cell) => chalk.bold(renderInline(cell.tokens) || cell.text)));
+    table.push(
+      token.header.map((cell) => chalk.bold(renderInline(cell.tokens) || cell.text)),
+    );
   }
   for (const row of token.rows ?? []) {
     table.push(row.map((cell) => renderInline(cell.tokens) || cell.text));
@@ -82,11 +115,11 @@ function renderTable(token) {
   return table.toString();
 }
 
-function renderList(token, depth) {
+function renderList(token: MdToken, depth: number): string {
   const indent = "  ".repeat(depth);
-  const lines = [];
+  const lines: string[] = [];
   const items = token.items ?? [];
-  const start = Number.isInteger(token.start) ? token.start : 1;
+  const start = Number.isInteger(token.start) ? (token.start as number) : 1;
 
   items.forEach((item, index) => {
     const marker = token.ordered ? `${start + index}.` : "•";
@@ -103,8 +136,8 @@ function renderList(token, depth) {
   return lines.join("\n");
 }
 
-function renderBlocks(tokens, depth = 0) {
-  const out = [];
+function renderBlocks(tokens: MdToken[] | undefined, depth = 0): string[] {
+  const out: string[] = [];
   for (const token of tokens ?? []) {
     if (!token) continue;
     switch (token.type) {
@@ -112,12 +145,12 @@ function renderBlocks(tokens, depth = 0) {
         break;
       case "heading": {
         const text = renderInline(token.tokens) || token.text || "";
-        const styles = {
+        const styles: Record<number, (text: string) => string> = {
           1: chalk.bold.cyanBright,
           2: chalk.bold.cyan,
           3: chalk.bold,
         };
-        const style = styles[token.depth] ?? chalk.bold;
+        const style = styles[token.depth as number] ?? chalk.bold;
         out.push("");
         out.push(style(text));
         break;
@@ -127,9 +160,7 @@ function renderBlocks(tokens, depth = 0) {
         break;
       }
       case "text": {
-        out.push(
-          token.tokens ? renderInline(token.tokens) : token.text ?? "",
-        );
+        out.push(token.tokens ? renderInline(token.tokens) : token.text ?? "");
         break;
       }
       case "code":
@@ -166,26 +197,29 @@ function renderBlocks(tokens, depth = 0) {
   return out;
 }
 
-export function renderMarkdown(text) {
+function lex(text: string): MdToken[] {
+  return marked.lexer(text) as unknown as MdToken[];
+}
+
+export function renderMarkdown(text?: string | null): string {
   if (!text) return "";
   try {
-    const tokens = marked.lexer(text);
-    return renderBlocks(tokens).join("\n\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+    return renderBlocks(lex(text)).join("\n\n").replace(/\n{3,}/g, "\n\n").trimEnd();
   } catch {
     return String(text);
   }
 }
 
-export function renderMarkdownBlocks(text) {
+export function renderMarkdownBlocks(text?: string | null): string[] {
   if (!text) return [];
   try {
-    return renderBlocks(marked.lexer(text)).filter((block) => block.trim() !== "");
+    return renderBlocks(lex(text)).filter((block) => block.trim() !== "");
   } catch {
     return [String(text)];
   }
 }
 
-export function renderMarkdownPlain(text) {
+export function renderMarkdownPlain(text?: unknown): string {
   return String(text ?? "");
 }
 

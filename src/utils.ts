@@ -62,7 +62,8 @@ export function openUrl(url: MaybeText): boolean {
   }
 }
 
-export function resolvePath(input: MaybeText): string {
+// Araç argümanları doğrulanmamış geldiği için `unknown` kabul ediyor.
+export function resolvePath(input: unknown): string {
   let clean = String(input ?? "").replace(/\\/g, "/");
 
   if (clean === "/tmp" || clean.startsWith("/tmp/")) {

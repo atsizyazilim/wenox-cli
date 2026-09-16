@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -6,7 +7,15 @@ import { resolvePath } from "./utils.js";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
-const SERVERS = [
+export interface LspServer {
+  exts: string[];
+  command: string;
+  args: string[];
+  languageId: string;
+  hint: string;
+}
+
+const SERVERS: LspServer[] = [
   {
     exts: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
     command: "typescript-language-server",
@@ -39,25 +48,92 @@ const SERVERS = [
 
 const OPERATIONS = new Set(["definition", "references", "hover", "symbols"]);
 
-export function serverFor(filePath) {
+export function serverFor(filePath: string): LspServer | null {
   const ext = path.extname(filePath).toLowerCase();
   return SERVERS.find((server) => server.exts.includes(ext)) ?? null;
 }
 
-function fileUri(filePath) {
+function fileUri(filePath: string): string {
   return pathToFileURL(filePath).href;
 }
 
-function uriToPath(uri) {
+// Gelen konumlar sunucudan geldiği gibi; bozuk bir URI'de eski davranış
+// (girdiyi olduğu gibi döndürmek) korunuyor.
+function uriToPath(uri: unknown): string {
   try {
-    return fileURLToPath(uri);
+    return fileURLToPath(uri as string);
   } catch {
-    return uri;
+    return uri as string;
   }
 }
 
+interface LspRange {
+  start?: { line?: number; character?: number } | null;
+}
+
+interface LspLocation {
+  targetUri?: string;
+  uri?: string;
+  targetSelectionRange?: LspRange | null;
+  targetRange?: LspRange | null;
+  range?: LspRange | null;
+}
+
+interface LspSymbol {
+  name: string;
+  kind: number;
+  range?: LspRange | null;
+  selectionRange?: LspRange | null;
+  location?: { range?: LspRange | null } | null;
+  children?: LspSymbol[];
+}
+
+interface JsonRpcResponse {
+  id?: unknown;
+  result?: unknown;
+  error?: { message?: string } | null;
+}
+
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+}
+
+export interface SymbolEntry {
+  name: string;
+  kind: number;
+  line: number;
+}
+
+export interface LocationEntry {
+  file: string;
+  line: number;
+  character: number;
+}
+
+export interface CodeIntelResult {
+  success: boolean;
+  error?: string;
+  operation?: string;
+  path?: string;
+  count?: number;
+  symbols?: SymbolEntry[];
+  hover?: string;
+  locations?: LocationEntry[];
+}
+
 class LspClient {
-  constructor(server) {
+  readonly server: LspServer;
+  child: ChildProcess | null;
+  buffer: Buffer;
+  nextId: number;
+  pending: Map<number, PendingRequest>;
+  started: boolean;
+  opened: Set<string>;
+  starting: Promise<void> | null;
+
+  constructor(server: LspServer) {
     this.server = server;
     this.child = null;
     this.buffer = Buffer.alloc(0);
@@ -68,7 +144,7 @@ class LspClient {
     this.starting = null;
   }
 
-  async start() {
+  async start(): Promise<void> {
     if (this.started) return;
     if (this.starting) return this.starting;
     this.starting = this.#boot();
@@ -79,19 +155,22 @@ class LspClient {
     }
   }
 
-  async #boot() {
+  async #boot(): Promise<void> {
     const child = spawn(this.server.command, this.server.args, {
       stdio: ["pipe", "pipe", "pipe"],
       shell: process.platform === "win32",
     });
     this.child = child;
-    child.on("error", (error) => this.#failAll(error));
+    child.on("error", (error: Error) => this.#failAll(error));
     child.on("exit", () => this.#failAll(new Error("language server exited")));
-    child.stdout.on("data", (chunk) => this.#onData(chunk));
-    child.stderr.on("data", () => {});
+    child.stdout?.on("data", (chunk: Buffer) => this.#onData(chunk));
+    child.stderr?.on("data", () => {});
 
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("language server start timeout")), REQUEST_TIMEOUT_MS);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("language server start timeout")),
+        REQUEST_TIMEOUT_MS,
+      );
       child.once("error", (error) => {
         clearTimeout(timer);
         reject(error);
@@ -119,7 +198,7 @@ class LspClient {
     process.once("exit", () => this.kill());
   }
 
-  kill() {
+  kill(): void {
     try {
       this.#notify("exit", {});
       this.child?.kill();
@@ -130,19 +209,19 @@ class LspClient {
     this.started = false;
   }
 
-  #send(payload) {
+  #send(payload: unknown): void {
     if (!this.child?.stdin?.writable) throw new Error("language server is not running");
     const body = JSON.stringify(payload);
     this.child.stdin.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
   }
 
-  #notify(method, params) {
+  #notify(method: string, params?: unknown): void {
     this.#send({ jsonrpc: "2.0", method, params });
   }
 
-  #request(method, params) {
+  #request(method: string, params?: unknown): Promise<unknown> {
     const id = this.nextId++;
-    return new Promise((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`language server request timed out: ${method}`));
@@ -153,22 +232,27 @@ class LspClient {
       } catch (error) {
         clearTimeout(timer);
         this.pending.delete(id);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }
 
-  #dispatch(message) {
-    if (message.id != null && this.pending.has(message.id)) {
-      const entry = this.pending.get(message.id);
-      this.pending.delete(message.id);
+  #dispatch(message: JsonRpcResponse): void {
+    if (message.id != null && this.pending.has(message.id as number)) {
+      const id = message.id as number;
+      const entry = this.pending.get(id);
+      this.pending.delete(id);
+      if (!entry) return;
       clearTimeout(entry.timer);
-      if (message.error) entry.reject(new Error(message.error.message ?? "language server error"));
-      else entry.resolve(message.result);
+      if (message.error) {
+        entry.reject(new Error(message.error.message ?? "language server error"));
+      } else {
+        entry.resolve(message.result);
+      }
     }
   }
 
-  #failAll(error) {
+  #failAll(error: Error): void {
     for (const [, entry] of this.pending) {
       clearTimeout(entry.timer);
       entry.reject(error);
@@ -177,7 +261,7 @@ class LspClient {
     this.started = false;
   }
 
-  #onData(chunk) {
+  #onData(chunk: Buffer): void {
     this.buffer = Buffer.concat([this.buffer, chunk]);
     for (;;) {
       const sep = this.buffer.indexOf("\r\n\r\n");
@@ -194,14 +278,14 @@ class LspClient {
       const body = this.buffer.subarray(start, start + length).toString("utf8");
       this.buffer = this.buffer.subarray(start + length);
       try {
-        this.#dispatch(JSON.parse(body));
+        this.#dispatch(JSON.parse(body) as JsonRpcResponse);
       } catch {
         // bozuk mesajı yoksay
       }
     }
   }
 
-  async openDocument(filePath) {
+  async openDocument(filePath: string): Promise<string> {
     const uri = fileUri(filePath);
     if (this.opened.has(uri)) return uri;
     const text = fs.readFileSync(filePath, "utf8");
@@ -212,7 +296,7 @@ class LspClient {
     return uri;
   }
 
-  async definition(filePath, line, character) {
+  async definition(filePath: string, line: number, character: number): Promise<unknown> {
     const uri = await this.openDocument(filePath);
     return this.#request("textDocument/definition", {
       textDocument: { uri },
@@ -220,7 +304,7 @@ class LspClient {
     });
   }
 
-  async references(filePath, line, character) {
+  async references(filePath: string, line: number, character: number): Promise<unknown> {
     const uri = await this.openDocument(filePath);
     return this.#request("textDocument/references", {
       textDocument: { uri },
@@ -229,7 +313,7 @@ class LspClient {
     });
   }
 
-  async hover(filePath, line, character) {
+  async hover(filePath: string, line: number, character: number): Promise<unknown> {
     const uri = await this.openDocument(filePath);
     return this.#request("textDocument/hover", {
       textDocument: { uri },
@@ -237,23 +321,28 @@ class LspClient {
     });
   }
 
-  async symbols(filePath) {
+  async symbols(filePath: string): Promise<unknown> {
     const uri = await this.openDocument(filePath);
     return this.#request("textDocument/documentSymbol", { textDocument: { uri } });
   }
 }
 
-const clients = new Map();
+const clients = new Map<string, LspClient>();
 
-function getClient(server) {
+function getClient(server: LspServer): LspClient {
   const key = `${server.command}:${process.cwd()}`;
-  if (!clients.has(key)) clients.set(key, new LspClient(server));
-  return clients.get(key);
+  let client = clients.get(key);
+  if (!client) {
+    client = new LspClient(server);
+    clients.set(key, client);
+  }
+  return client;
 }
 
-function locationEntry(location) {
-  const target = location.targetUri ? location.targetUri : location.uri;
-  const range = location.targetSelectionRange ?? location.targetRange ?? location.range;
+function locationEntry(location: unknown): LocationEntry {
+  const entry = (location ?? {}) as LspLocation;
+  const target = entry.targetUri ? entry.targetUri : entry.uri;
+  const range = entry.targetSelectionRange ?? entry.targetRange ?? entry.range;
   return {
     file: uriToPath(target),
     line: (range?.start?.line ?? 0) + 1,
@@ -261,8 +350,8 @@ function locationEntry(location) {
   };
 }
 
-function flattenSymbols(symbols, out = []) {
-  for (const symbol of symbols ?? []) {
+function flattenSymbols(symbols: unknown, out: SymbolEntry[] = []): SymbolEntry[] {
+  for (const symbol of (symbols ?? []) as LspSymbol[]) {
     const range = symbol.selectionRange ?? symbol.range ?? symbol.location?.range;
     out.push({
       name: symbol.name,
@@ -274,10 +363,13 @@ function flattenSymbols(symbols, out = []) {
   return out;
 }
 
-export async function codeIntel(args = {}) {
+export async function codeIntel(args: Record<string, unknown> = {}): Promise<CodeIntelResult> {
   const operation = String(args.operation ?? "").trim();
   if (!OPERATIONS.has(operation)) {
-    return { success: false, error: `Unknown operation: ${operation}. Use one of: definition, references, hover, symbols.` };
+    return {
+      success: false,
+      error: `Unknown operation: ${operation}. Use one of: definition, references, hover, symbols.`,
+    };
   }
 
   const filePath = resolvePath(args.path);
@@ -287,13 +379,21 @@ export async function codeIntel(args = {}) {
 
   const server = serverFor(filePath);
   if (!server) {
-    return { success: false, error: `No language server configured for '${path.extname(filePath) || "unknown"}' files.` };
+    return {
+      success: false,
+      error: `No language server configured for '${
+        path.extname(filePath) || "unknown"
+      }' files.`,
+    };
   }
 
   const line = Number(args.line);
   const character = Number(args.character);
   const needsPosition = operation !== "symbols";
-  if (needsPosition && (!Number.isInteger(line) || line < 1 || !Number.isInteger(character) || character < 1)) {
+  if (
+    needsPosition &&
+    (!Number.isInteger(line) || line < 1 || !Number.isInteger(character) || character < 1)
+  ) {
     return { success: false, error: "This operation requires 'line' and 'character' (1-based)." };
   }
 
@@ -301,9 +401,10 @@ export async function codeIntel(args = {}) {
   try {
     await client.start();
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      error: `Language server "${server.command}" is not available (${error.message}). Install it with: ${server.hint}`,
+      error: `Language server "${server.command}" is not available (${message}). Install it with: ${server.hint}`,
     };
   }
 
@@ -311,26 +412,47 @@ export async function codeIntel(args = {}) {
     if (operation === "symbols") {
       const result = await client.symbols(filePath);
       const symbols = flattenSymbols(result);
-      return { success: true, operation, path: filePath, count: symbols.length, symbols: symbols.slice(0, 200) };
+      return {
+        success: true,
+        operation,
+        path: filePath,
+        count: symbols.length,
+        symbols: symbols.slice(0, 200),
+      };
     }
 
     if (operation === "hover") {
-      const result = await client.hover(filePath, line - 1, character - 1);
+      const result = (await client.hover(filePath, line - 1, character - 1)) as {
+        contents?: unknown;
+      } | null;
       const contents = result?.contents;
-      const text = typeof contents === "string"
-        ? contents
-        : Array.isArray(contents)
-          ? contents.map((part) => part.value ?? "").join("\n")
-          : contents?.value ?? "";
+      const text =
+        typeof contents === "string"
+          ? contents
+          : Array.isArray(contents)
+            ? contents.map((part) => (part as { value?: string })?.value ?? "").join("\n")
+            : ((contents as { value?: string } | null | undefined)?.value ?? "");
       return { success: true, operation, path: filePath, hover: text.trim() };
     }
 
-    const result = await client[operation](filePath, line - 1, character - 1);
+    // Buraya yalnızca definition/references kalıyor; eskiden dinamik
+    // `client[operation]` çağrısıyla yapılıyordu.
+    const result =
+      operation === "definition"
+        ? await client.definition(filePath, line - 1, character - 1)
+        : await client.references(filePath, line - 1, character - 1);
     const list = Array.isArray(result) ? result : result ? [result] : [];
     const locations = list.map(locationEntry);
-    return { success: true, operation, path: filePath, count: locations.length, locations: locations.slice(0, 100) };
+    return {
+      success: true,
+      operation,
+      path: filePath,
+      count: locations.length,
+      locations: locations.slice(0, 100),
+    };
   } catch (error) {
     client.kill();
-    return { success: false, error: `Language server error: ${error.message}` };
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `Language server error: ${message}` };
   }
 }
