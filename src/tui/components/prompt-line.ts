@@ -1,15 +1,22 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
+import type { ReactNode } from "react";
 import stringWidth from "string-width";
 import { theme } from "../theme.js";
+import type { InputSegment, InputView } from "../input-model.js";
 
-function renderLine(segs, cursorCol, cursorChar, blink) {
-  const nodes = [];
+function renderLine(
+  segs: InputSegment[],
+  cursorCol: number | null,
+  cursorChar: string,
+  blink: boolean,
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
   let placed = cursorCol === null;
   let width = 0;
   let buffer = "";
 
-  const flush = (key) => {
+  const flush = (key: string) => {
     if (buffer) {
       nodes.push(html`<${Text} key=${key}>${buffer}<//>`);
       buffer = "";
@@ -18,7 +25,7 @@ function renderLine(segs, cursorCol, cursorChar, blink) {
 
   segs.forEach((seg, si) => {
     if (seg.chip) {
-      if (!placed && width >= cursorCol) {
+      if (!placed && width >= (cursorCol ?? 0)) {
         flush(`f${si}`);
         nodes.push(html`<${Text} key=${`c${si}`} inverse=${blink}>${cursorChar}<//>`);
         width += 1;
@@ -37,7 +44,7 @@ function renderLine(segs, cursorCol, cursorChar, blink) {
     }
 
     for (const ch of seg.text) {
-      if (!placed && width >= cursorCol) {
+      if (!placed && width >= (cursorCol ?? 0)) {
         flush(`fc${si}${width}`);
         nodes.push(html`<${Text} key=${`cc${si}${width}`} inverse=${blink}>${ch}<//>`);
         width += stringWidth(ch);
@@ -58,7 +65,15 @@ function renderLine(segs, cursorCol, cursorChar, blink) {
   return nodes;
 }
 
-export function PromptLine({ view, blinkOn, disabled }) {
+export function PromptLine({
+  view,
+  blinkOn,
+  disabled,
+}: {
+  view: InputView;
+  blinkOn?: boolean;
+  disabled?: boolean;
+}) {
   const blink = disabled ? true : blinkOn;
 
   return html`
@@ -69,7 +84,7 @@ export function PromptLine({ view, blinkOn, disabled }) {
           segs,
           isCursorLine ? view.cursorCol : null,
           view.cursorChar,
-          blink,
+          blink ?? false,
         );
         return html`<${Text} key=${li}>${nodes.length > 0 ? nodes : " "}<//>`;
       })}

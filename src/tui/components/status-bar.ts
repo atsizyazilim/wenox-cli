@@ -6,7 +6,7 @@ import { formatTokens } from "../view.js";
 import { CONTEXT_WINDOW } from "../../config.js";
 import { t, localeTag } from "../../i18n/index.js";
 
-function shortCwd(cwd) {
+function shortCwd(cwd: string): string {
   const home = os.homedir();
   if (cwd.toLowerCase().startsWith(home.toLowerCase())) {
     return `~${cwd.slice(home.length)}`;
@@ -14,7 +14,17 @@ function shortCwd(cwd) {
   return cwd;
 }
 
-export function StatusRow({ modelName, mode = "build", autoApprove, premium }) {
+export function StatusRow({
+  modelName,
+  mode = "build",
+  autoApprove,
+  premium,
+}: {
+  modelName: string;
+  mode?: string;
+  autoApprove?: boolean;
+  premium?: boolean;
+}) {
   const modeLabel = mode === "plan" ? t("status.modePlan") : t("status.modeBuild");
   const modeColor = mode === "plan" ? theme.warn : theme.questionLink;
   return html`
@@ -34,9 +44,20 @@ export function StatusRow({ modelName, mode = "build", autoApprove, premium }) {
   `;
 }
 
-export function BottomBar({ cwd, tokens, credits, contextWindow = CONTEXT_WINDOW }) {
+export function BottomBar({
+  cwd,
+  tokens,
+  credits,
+  contextWindow = CONTEXT_WINDOW,
+}: {
+  cwd: string;
+  tokens?: number | null;
+  credits?: number | null;
+  contextWindow?: number;
+}) {
   const pct = tokens && contextWindow ? ((tokens / contextWindow) * 100).toFixed(1) : "0.0";
-  const creditText = typeof credits === "number" ? credits.toLocaleString(localeTag()) : t("status.noCredits");
+  const creditText =
+    typeof credits === "number" ? credits.toLocaleString(localeTag()) : t("status.noCredits");
   return html`
     <${Box} justifyContent="space-between" paddingX=${2} width="100%">
       <${Text} color=${theme.muted}>${shortCwd(cwd)}<//>

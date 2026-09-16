@@ -21,14 +21,45 @@ export type TranscriptRole =
   | "tool-call"
   | "tool-result";
 
+// Transkript satırları ekranda okunurken bu alanlara erişiliyor (view.ts).
+// Araç argümanları/sonuçları doğrulanmamış geldiği için hepsi opsiyonel.
+export interface TranscriptMeta {
+  durationMs?: number;
+  thinkingMs?: number;
+  modelName?: string;
+}
+
+export interface TranscriptToolArgs {
+  path?: string;
+  command?: string;
+  query?: string;
+  operation?: string;
+  start_line?: number;
+  end_line?: number;
+}
+
+export interface TranscriptToolResult {
+  success?: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+  returncode?: number;
+  diff?: string;
+  answer?: string;
+  count?: number;
+  total_lines?: number;
+  total_items?: number;
+  match_count?: number;
+}
+
 export interface TranscriptItem {
   id: string;
   role: TranscriptRole;
   text?: string;
-  meta?: unknown;
+  meta?: TranscriptMeta | null;
   name?: string;
-  args?: unknown;
-  result?: unknown;
+  args?: TranscriptToolArgs | null;
+  result?: TranscriptToolResult | null;
   queued?: boolean;
   expanded?: boolean;
   live?: boolean;

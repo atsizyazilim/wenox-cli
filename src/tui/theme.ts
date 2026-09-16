@@ -23,4 +23,4 @@ export const theme = {
   toastBg: "#262626",
   toastBar: "#4aa8c0",
   toastFg: "#ffffff",
-};
+} as const;

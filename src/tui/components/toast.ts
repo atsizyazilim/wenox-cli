@@ -1,9 +1,15 @@
 import { html } from "htm/react";
 import { Text } from "ink";
+import type { ReactNode } from "react";
 import stringWidth from "string-width";
 import { theme } from "../theme.js";
 
-function row(content, bold) {
+export interface ToastCard {
+  width: number;
+  rows: ReactNode[];
+}
+
+function row(content: string, bold: boolean): ReactNode {
   return html`
     <${Text} backgroundColor=${theme.toastBg}>
       <${Text} color=${theme.toastBar} bold>${"▌"}<//>
@@ -15,7 +21,7 @@ function row(content, bold) {
 
 // Sağa yaslı üç satırlık kompakt kart. Transkriptin üzerine bindirilir: sadece
 // kapladığı dikey şerit örtülür, satırın geri kalanı görünür kalır.
-export function toastCard(text) {
+export function toastCard(text: string): ToastCard {
   const label = `  ${text}  `;
   const blank = " ".repeat(label.length);
   return {

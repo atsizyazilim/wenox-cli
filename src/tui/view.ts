@@ -4,8 +4,13 @@ import stringWidth from "string-width";
 import { renderMarkdownBlocks } from "../markdown.js";
 import { theme } from "./theme.js";
 import { t } from "../i18n/index.js";
+import type {
+  TranscriptItem,
+  TranscriptToolArgs,
+  TranscriptToolResult,
+} from "../session.js";
 
-const TOOL_ICONS = {
+const TOOL_ICONS: Record<string, string> = {
   read_file: "📖",
   write_file: "💾",
   edit_file: "✏️",
@@ -17,26 +22,30 @@ const TOOL_ICONS = {
 
 // Komut bloğu: `$ komut` başlığı ve çıktısı, solda renkli şerit ile.
 // (Tam genişlik arka plan kullanmıyoruz: kırpma/taşmada hizası bozuluyordu.)
-function commandBar(text, colorName) {
+function commandBar(text: string, colorName: "green" | "red" | "cyan"): string {
   return `${chalk[colorName]("│")} ${text}`;
 }
 
 const MAX_COMMAND_LINES = 6;
 
-function commandOutput(result, width, expanded) {
+function commandOutput(
+  result: TranscriptToolResult,
+  width: number,
+  expanded: boolean,
+): string[] {
   const inner = Math.max(10, width - 4);
   const out = String(result.stdout ?? "").replace(/\n+$/, "");
   const err = String(result.stderr ?? "").replace(/\n+$/, "");
   const code = result.returncode ?? 0;
   const color = code === 0 ? theme.ok : theme.err;
 
-  const body = [];
+  const body: string[] = [];
   if (out) body.push(...wrapLines(out, inner));
   if (err) body.push(...wrapLines(err, inner).map((line) => chalk.red(line)));
   if (body.length === 0) body.push(chalk.dim(t("tool.noOutput")));
   if (code !== 0) body.push(chalk[color](t("tool.exitCode", { code })));
 
-  // Uzun çıktıyı varsayılan olarak kısalt; Ctrl+O ile tamamı görülebilir
+  // Uzun çıktıyı varsayılan olarak kısalt; karta tıklayınca tamamı görülebilir
   const hidden = Math.max(0, body.length - MAX_COMMAND_LINES);
   const visible = hidden > 0 && !expanded ? body.slice(0, MAX_COMMAND_LINES) : body;
 
@@ -49,20 +58,26 @@ function commandOutput(result, width, expanded) {
   return rows;
 }
 
-function wrapLines(text, width) {
+function wrapLines(text: string, width: number): string[] {
   return String(text)
     .split("\n")
     .flatMap((line) => {
       if (line === "") return [""];
-      return wrapAnsi(line, Math.max(8, width), { hard: true, trim: false, wordWrap: true }).split("\n");
+      return wrapAnsi(line, Math.max(8, width), {
+        hard: true,
+        trim: false,
+        wordWrap: true,
+      }).split("\n");
     });
 }
 
-function detailOf(name, args) {
+function detailOf(name: string, args: TranscriptToolArgs | null | undefined): string | undefined {
   if (!args) return "";
   switch (name) {
     case "read_file":
-      return args.start_line ? `${args.path} (${args.start_line}-${args.end_line ?? t("tool.rangeEnd")})` : args.path;
+      return args.start_line
+        ? `${args.path} (${args.start_line}-${args.end_line ?? t("tool.rangeEnd")})`
+        : args.path;
     case "search_code":
       return `'${args.query ?? ""}'`;
     case "list_dir":
@@ -76,7 +91,7 @@ function detailOf(name, args) {
   }
 }
 
-function summaryOf(name, result) {
+function summaryOf(name: string, result: TranscriptToolResult): string {
   switch (name) {
     case "read_file":
       return t("tool.read", { count: result.total_lines ?? 0 });
@@ -91,16 +106,22 @@ function summaryOf(name, result) {
     case "run_command":
       return t("tool.exitCode", { code: result.returncode ?? 0 });
     case "code_intel":
-      return typeof result.count === "number" ? t("tool.results", { count: result.count }) : t("tool.done");
+      return typeof result.count === "number"
+        ? t("tool.results", { count: result.count })
+        : t("tool.done");
     default:
       return t("tool.done");
   }
 }
 
-function itemLines(item, width, options = {}) {
+function itemLines(
+  item: TranscriptItem,
+  width: number,
+  options: { isLast?: boolean } = {},
+): string[] {
   switch (item.role) {
     case "user": {
-      const inner = wrapLines(item.text, Math.max(10, width - 4));
+      const inner = wrapLines(item.text ?? "", Math.max(10, width - 4));
       const bar = chalk.hex(theme.userAccent)("│");
       const bg = chalk.bgHex(theme.userBlockBg);
       const blank = bg(" ".repeat(width));
@@ -112,14 +133,18 @@ function itemLines(item, width, options = {}) {
         const label = t("view.queued");
         const used = 2 + label.length;
         body.push(
-          bg(`${bar} ${chalk.bgHex("#2f6fed").white.bold(label)}${" ".repeat(Math.max(0, width - used))}`),
+          bg(
+            `${bar} ${chalk.bgHex("#2f6fed").white.bold(label)}${" ".repeat(
+              Math.max(0, width - used),
+            )}`,
+          ),
         );
       }
       return [blank, ...body, blank, ""];
     }
 
     case "assistant": {
-      const lines = [];
+      const lines: string[] = [];
       const meta = item.meta ?? {};
       if (meta.thinkingMs) {
         lines.push(chalk.dim(t("view.thinking", { ms: meta.thinkingMs })), "");
@@ -129,7 +154,10 @@ function itemLines(item, width, options = {}) {
       }
       if (item.live) return lines;
       const seconds = meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : "";
-      lines.push(chalk.dim(t("view.build", { model: meta.modelName ?? "WenOX", seconds })), "");
+      lines.push(
+        chalk.dim(t("view.build", { model: meta.modelName ?? "WenOX", seconds })),
+        "",
+      );
       return lines;
     }
 
@@ -152,7 +180,9 @@ function itemLines(item, width, options = {}) {
         return rows;
       }
       return [
-        `${chalk.cyan(`${TOOL_ICONS[item.name] ?? "⚙️"} ${item.name}`)}  ${chalk.dim(detailOf(item.name, item.args))}`,
+        `${chalk.cyan(`${TOOL_ICONS[item.name ?? ""] ?? "⚙️"} ${item.name}`)}  ${chalk.dim(
+          detailOf(item.name ?? "", item.args),
+        )}`,
       ];
 
     case "tool-result": {
@@ -167,25 +197,27 @@ function itemLines(item, width, options = {}) {
       if (item.name === "run_command") {
         return [...commandOutput(result, width, Boolean(item.expanded)), ""];
       }
-      const lines = [chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name, result)}`)];
+      const resultLines = [
+        chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name ?? "", result)}`),
+      ];
       if (result.diff) {
         for (const line of String(result.diff).replace(/\n$/, "").split("\n").slice(0, 60)) {
           let color = chalk.dim;
           if (line.startsWith("+")) color = chalk.green;
           else if (line.startsWith("-")) color = chalk.red;
           else if (line.startsWith("@@")) color = chalk.cyan;
-          lines.push(`  ${color(line)}`);
+          resultLines.push(`  ${color(line)}`);
         }
       }
-      lines.push("");
-      return lines;
+      resultLines.push("");
+      return resultLines;
     }
 
     case "info":
-      return [...wrapLines(item.text, width).map((line) => chalk.hex(theme.menuDesc)(line)), ""];
+      return [...wrapLines(item.text ?? "", width).map((line) => chalk.hex(theme.menuDesc)(line)), ""];
 
     case "error":
-      return [...wrapLines(item.text, width).map((line) => chalk.red(line)), ""];
+      return [...wrapLines(item.text ?? "", width).map((line) => chalk.red(line)), ""];
 
     default:
       return [];
@@ -193,11 +225,18 @@ function itemLines(item, width, options = {}) {
 }
 
 // `owners`: her satırın hangi öğeye ait olduğu (tıklayınca aç/kapa için)
-export function buildTranscript(items, width, options = {}) {
-  const lines = [];
-  const owners = [];
+export function buildTranscript(
+  items: TranscriptItem[],
+  width: number,
+  options: { isLast?: boolean } = {},
+): { lines: string[]; owners: string[] } {
+  const lines: string[] = [];
+  const owners: string[] = [];
   items.forEach((item, index) => {
-    const block = itemLines(item, width, { ...options, isLast: index === items.length - 1 });
+    const block = itemLines(item, width, {
+      ...options,
+      isLast: index === items.length - 1,
+    });
     for (const line of block) {
       lines.push(line);
       owners.push(item.id);
@@ -206,7 +245,7 @@ export function buildTranscript(items, width, options = {}) {
   return { lines, owners };
 }
 
-export function formatTokens(value) {
+export function formatTokens(value: unknown): string {
   const n = Number(value) || 0;
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;

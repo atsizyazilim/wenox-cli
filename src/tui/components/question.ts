@@ -1,9 +1,10 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
+import type { ReactNode } from "react";
 import { theme } from "../theme.js";
 import { t } from "../../i18n/index.js";
 
-function Bar({ children }) {
+function Bar({ children }: { children?: ReactNode }) {
   return html`
     <${Box}>
       <${Text} color=${theme.questionBar}>${"│ "}<//>
@@ -12,7 +13,22 @@ function Bar({ children }) {
   `;
 }
 
-export function Question({ question, options, index, typing }) {
+export interface QuestionOption {
+  label?: string;
+  description?: string;
+}
+
+export function Question({
+  question,
+  options,
+  index,
+  typing,
+}: {
+  question: string;
+  options: QuestionOption[];
+  index: number;
+  typing?: boolean;
+}) {
   const items = [
     ...options.map((option) => ({
       label: option?.label ?? String(option),
@@ -43,9 +59,7 @@ export function Question({ question, options, index, typing }) {
       <${Bar}><${Text}>${" "}<//><//>
       <${Bar}>
         <${Text} color=${theme.muted}>
-          ${typing
-            ? t("question.hintType")
-            : t("question.hintSelect")}
+          ${typing ? t("question.hintType") : t("question.hintSelect")}
         <//>
       <//>
     <//>

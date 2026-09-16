@@ -8,7 +8,7 @@ const CELLS = 12;
 const TICK_MS = 90;
 const SHADES = ["#eaf2ff", "#9dc0ff", "#5f87ff", "#31508f", "#1e2a44"];
 
-export function WorkingIndicator({ hint = t("working.cancel") }) {
+export function WorkingIndicator({ hint = t("working.cancel") }: { hint?: string }) {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {

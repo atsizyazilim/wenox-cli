@@ -1,5 +1,5 @@
 import { html } from "htm/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { Logo } from "../components/logo.js";
 import { InputBar } from "../components/input-bar.js";
@@ -16,44 +16,53 @@ import {
   toText,
   MAX_INPUT_LINES,
 } from "../input-model.js";
+import type { Cursor, InputToken } from "../input-model.js";
 import { verifyApiKey, verifyFailureMessage } from "../../account.js";
+import type { AccountInfo } from "../../account.js";
 import { API_KEY_URL, saveConfig } from "../../config.js";
 import { openUrl } from "../../utils.js";
 import { welcomeMessage } from "../../ui.js";
 import { t, setLocale, getLocale, LANGUAGES } from "../../i18n/index.js";
 
-function Typewriter({ text, interval = 24 }) {
+type Step = "language" | "apikey" | "verifying" | "welcome";
+
+function Typewriter({ text, interval = 24 }: { text: string; interval?: number }) {
   const [shown, setShown] = useState(0);
   // Her tick bir Ink yeniden çizimi tetiklediği için çok uzun metinlerde parça
   // parça yazıyoruz; normal uzunlukta karakter karakter ilerliyor.
   const step = Math.max(1, Math.ceil(text.length / 150));
   useEffect(() => {
     if (shown >= text.length) return undefined;
-    const timer = setTimeout(() => setShown((value) => Math.min(text.length, value + step)), interval);
+    const timer = setTimeout(
+      () => setShown((value) => Math.min(text.length, value + step)),
+      interval,
+    );
     return () => clearTimeout(timer);
   }, [shown, text, interval, step]);
   return html`<${Text} color="white">${text.slice(0, shown)}<//>`;
 }
 
-export function Onboarding({ onComplete }) {
+export function Onboarding({ onComplete }: { onComplete: (key: string) => void }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
   const columns = stdout?.columns ?? 100;
   const blink = useBlink(530);
 
-  const [step, setStep] = useState("language");
+  const [step, setStep] = useState<Step>("language");
   const [langIndex, setLangIndex] = useState(() => {
     const index = LANGUAGES.findIndex((entry) => entry.code === getLocale());
     return index < 0 ? 0 : index;
   });
-  const [tokens, setTokens] = useState([]);
-  const [caret, setCaret] = useState({ i: 0, o: 0 });
+  const [tokens, setTokens] = useState<InputToken[]>([]);
+  const [caret, setCaret] = useState<Cursor>({ i: 0, o: 0 });
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
-  const [account, setAccount] = useState(null);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
 
-  const inputView = buildView(tokens, Math.max(12, columns - 14), caret, { maxLines: MAX_INPUT_LINES });
+  const inputView = buildView(tokens, Math.max(12, columns - 14), caret, {
+    maxLines: MAX_INPUT_LINES,
+  });
   const boxWidth = Math.min(72, Math.max(32, columns - 10));
 
   const chooseLanguage = () => {
@@ -88,7 +97,7 @@ export function Onboarding({ onComplete }) {
     // Fare takibi açık: tıklama/sürükleme dizilerini yoksay, input'a sızmasın
     if (parseMouse(char) || /^\[M/.test(char ?? "")) return;
 
-    const isEsc = key.escape || char === "";
+    const isEsc = key.escape || char === "\x1b";
 
     if (isEsc || (key.ctrl && char === "c")) {
       disableMouse();
@@ -105,7 +114,7 @@ export function Onboarding({ onComplete }) {
 
     if (step === "apikey") {
       if (key.return) {
-        submitKey();
+        void submitKey();
       } else if (key.leftArrow) {
         setCaret((current) => moveLeft(tokens, current));
       } else if (key.rightArrow) {

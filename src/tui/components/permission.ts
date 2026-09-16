@@ -1,9 +1,10 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
+import type { ReactNode } from "react";
 import { theme } from "../theme.js";
 import { t } from "../../i18n/index.js";
 
-function Bar({ children }) {
+function Bar({ children }: { children?: ReactNode }) {
   return html`
     <${Box}>
       <${Text} color=${theme.menuSelectedBg}>${"│ "}<//>
@@ -12,7 +13,7 @@ function Bar({ children }) {
   `;
 }
 
-function Option({ label, selected }) {
+function Option({ label, selected }: { label: string; selected: boolean }) {
   if (selected) {
     return html`
       <${Text} color=${theme.menuSelectedFg} backgroundColor=${theme.menuSelectedBg}>${`  ${label}  `}<//>
@@ -21,7 +22,15 @@ function Option({ label, selected }) {
   return html`<${Text} color=${theme.muted}>${`  ${label}  `}<//>`;
 }
 
-export function Permission({ path: target, pattern, choice = 0 }) {
+export function Permission({
+  path: target,
+  pattern,
+  choice = 0,
+}: {
+  path: string;
+  pattern: string;
+  choice?: number;
+}) {
   const options = [
     t("permission.allowOnce"),
     t("permission.allowAlways"),

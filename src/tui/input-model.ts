@@ -3,20 +3,59 @@ import { t } from "../i18n/index.js";
 
 export const MAX_INPUT_LINES = 6;
 
-export function pasteLabel(lines) {
+export interface TextToken {
+  type: "text";
+  value: string;
+}
+
+export interface PasteToken {
+  type: "paste";
+  value: string;
+  lines: number;
+}
+
+export type InputToken = TextToken | PasteToken;
+
+export interface Cursor {
+  i: number;
+  o: number;
+}
+
+export interface InputSegment {
+  text: string;
+  chip: boolean;
+}
+
+export interface InputView {
+  lines: InputSegment[][];
+  cursorLine: number;
+  cursorCol: number;
+  cursorChar: string;
+  totalLines: number;
+}
+
+export interface EditResult {
+  tokens: InputToken[];
+  cursor: Cursor;
+}
+
+export function pasteLabel(lines: number): string {
   return t("paste.label", { lines });
 }
 
-export function createTokens(text = "") {
+export function createTokens(text = ""): InputToken[] {
   return text ? [{ type: "text", value: text }] : [];
 }
 
-export function toText(tokens) {
+export function toText(tokens: InputToken[]): string {
   return tokens.map((token) => token.value).join("");
 }
 
-export function clampCursor(tokens, cursor) {
-  let i = Math.max(0, Math.min(tokens.length, cursor?.i ?? 0));
+export function clampCursor(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): Cursor {
+  const i = Math.max(0, Math.min(tokens.length, cursor?.i ?? 0));
   if (i === tokens.length) return { i, o: 0 };
   const token = tokens[i];
   if (token.type === "paste") return { i, o: 0 };
@@ -24,18 +63,18 @@ export function clampCursor(tokens, cursor) {
   return { i, o };
 }
 
-export function emptyCursor() {
+export function emptyCursor(): Cursor {
   return { i: 0, o: 0 };
 }
 
-export function endCursor(tokens) {
+export function endCursor(tokens: InputToken[]): Cursor {
   if (tokens.length === 0) return { i: 0, o: 0 };
   const last = tokens[tokens.length - 1];
   if (last.type === "paste") return { i: tokens.length, o: 0 };
   return { i: tokens.length - 1, o: last.value.length };
 }
 
-function splitAt(tokens, c, chip) {
+function splitAt(tokens: InputToken[], c: Cursor, chip: PasteToken): EditResult {
   const next = [...tokens];
   if (c.i === next.length) {
     next.push(chip);
@@ -45,7 +84,7 @@ function splitAt(tokens, c, chip) {
   if (token.type === "text") {
     const left = token.value.slice(0, c.o);
     const right = token.value.slice(c.o);
-    const parts = [];
+    const parts: InputToken[] = [];
     if (left) parts.push({ type: "text", value: left });
     parts.push(chip);
     if (right) parts.push({ type: "text", value: right });
@@ -57,8 +96,12 @@ function splitAt(tokens, c, chip) {
   return { tokens: next, cursor: { i: c.i + 1, o: 0 } };
 }
 
-export function insertText(tokens, cursor, text) {
-  if (!text) return { tokens, cursor };
+export function insertText(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+  text: string,
+): EditResult {
+  if (!text) return { tokens, cursor: clampCursor(tokens, cursor) };
   const next = [...tokens];
   const c = clampCursor(next, cursor);
   if (c.i === next.length) {
@@ -82,11 +125,19 @@ export function insertText(tokens, cursor, text) {
   return { tokens: next, cursor: { i: c.i, o: text.length } };
 }
 
-export function insertPaste(tokens, cursor, value, lines) {
+export function insertPaste(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+  value: string,
+  lines: number,
+): EditResult {
   return splitAt(tokens, clampCursor(tokens, cursor), { type: "paste", value, lines });
 }
 
-export function backspace(tokens, cursor) {
+export function backspace(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): EditResult {
   const next = [...tokens];
   const c = clampCursor(next, cursor);
   if (next.length === 0) return { tokens: next, cursor: c };
@@ -120,7 +171,10 @@ export function backspace(tokens, cursor) {
   return { tokens: next, cursor: { i: c.i - 1, o: prev.value.length - 1 } };
 }
 
-export function deleteForward(tokens, cursor) {
+export function deleteForward(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): EditResult {
   const next = [...tokens];
   const c = clampCursor(next, cursor);
   if (c.i === next.length) return { tokens: next, cursor: c };
@@ -147,7 +201,10 @@ export function deleteForward(tokens, cursor) {
   return { tokens: next, cursor: c };
 }
 
-export function moveLeft(tokens, cursor) {
+export function moveLeft(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): Cursor {
   const c = clampCursor(tokens, cursor);
   if (c.i === tokens.length) {
     if (tokens.length === 0) return c;
@@ -163,7 +220,10 @@ export function moveLeft(tokens, cursor) {
   return { i: c.i - 1, o: prev.value.length };
 }
 
-export function moveRight(tokens, cursor) {
+export function moveRight(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): Cursor {
   const c = clampCursor(tokens, cursor);
   if (c.i === tokens.length) return c;
   const token = tokens[c.i];
@@ -172,9 +232,14 @@ export function moveRight(tokens, cursor) {
   return { i: c.i + 1, o: 0 };
 }
 
-export function buildView(tokens, width, cursor, { mask, maxLines = MAX_INPUT_LINES } = {}) {
-  const units = [];
-  tokens.forEach((token, ti) => {
+export function buildView(
+  tokens: InputToken[],
+  width: number,
+  cursor: Cursor | null | undefined,
+  { mask, maxLines = MAX_INPUT_LINES }: { mask?: string; maxLines?: number } = {},
+): InputView {
+  const units: { kind: "chip" | "char"; display: string }[] = [];
+  tokens.forEach((token) => {
     if (token.type === "paste") {
       units.push({ kind: "chip", display: pasteLabel(token.lines ?? 1) });
       return;
@@ -191,8 +256,8 @@ export function buildView(tokens, width, cursor, { mask, maxLines = MAX_INPUT_LI
   }
   if (c.i < tokens.length && tokens[c.i].type === "text") cursorUnit += c.o;
 
-  const lines = [];
-  let segs = [];
+  const lines: InputSegment[][] = [];
+  let segs: InputSegment[] = [];
   let lineWidth = 0;
   let cursorLine = 0;
   let cursorCol = 0;

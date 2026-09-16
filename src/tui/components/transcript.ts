@@ -1,10 +1,22 @@
 import { html } from "htm/react";
 import { Box, Text } from "ink";
+import type { ReactNode } from "react";
 import { padTo, sliceByWidth, textWidth } from "../../utils.js";
 import { theme } from "../theme.js";
 import { toastCard } from "./toast.js";
 
-function rangeFor(selection, lineIndex, width) {
+export interface TextSelection {
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+}
+
+function rangeFor(
+  selection: TextSelection | null | undefined,
+  lineIndex: number,
+  width: number,
+): [number, number] | null {
   if (!selection) return null;
   const { startLine, startCol, endLine, endCol } = selection;
   if (lineIndex < startLine || lineIndex > endLine) return null;
@@ -14,7 +26,11 @@ function rangeFor(selection, lineIndex, width) {
   return [Math.max(0, from), Math.min(width, to)];
 }
 
-function renderLine(line, range, key) {
+function renderLine(
+  line: string,
+  range: [number, number] | null,
+  key: number,
+): ReactNode {
   const text = line === "" ? " " : line;
   if (!range) return html`<${Text} key=${key}>${text}<//>`;
 
@@ -31,7 +47,21 @@ function renderLine(line, range, key) {
   `;
 }
 
-export function Transcript({ lines, offset, height, selection, toast, contentWidth }) {
+export function Transcript({
+  lines,
+  offset,
+  height,
+  selection,
+  toast,
+  contentWidth,
+}: {
+  lines: string[];
+  offset: number;
+  height: number;
+  selection?: TextSelection | null;
+  toast?: string | null;
+  contentWidth: number;
+}) {
   const visible = lines.slice(offset, offset + height);
   const card = toast ? toastCard(toast) : null;
   const leftWidth = card ? Math.max(1, contentWidth - card.width) : 0;

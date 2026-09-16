@@ -5,7 +5,13 @@ import { theme } from "../theme.js";
 import { UPGRADE_COMMAND } from "../../update.js";
 import { t } from "../../i18n/index.js";
 
-export function UpdateRequired({ current, latest }) {
+export function UpdateRequired({
+  current,
+  latest,
+}: {
+  current: string;
+  latest: string;
+}) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;

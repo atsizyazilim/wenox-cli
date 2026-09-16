@@ -4,13 +4,32 @@ import { theme } from "../theme.js";
 
 const MAX_VISIBLE = 10;
 
-export function Menu({ items, index, nameWidth = 16, hint }) {
+export interface MenuItem {
+  value: string;
+  left: string;
+  right?: string;
+}
+
+export function Menu({
+  items,
+  index,
+  nameWidth = 16,
+  hint,
+}: {
+  items: MenuItem[];
+  index: number;
+  nameWidth?: number;
+  hint?: string | null;
+}) {
   if (items.length === 0) return null;
 
   const total = items.length;
   let start = 0;
   if (total > MAX_VISIBLE) {
-    start = Math.min(Math.max(0, index - Math.floor(MAX_VISIBLE / 2)), total - MAX_VISIBLE);
+    start = Math.min(
+      Math.max(0, index - Math.floor(MAX_VISIBLE / 2)),
+      total - MAX_VISIBLE,
+    );
   }
   const visible = items.slice(start, start + MAX_VISIBLE);
 
