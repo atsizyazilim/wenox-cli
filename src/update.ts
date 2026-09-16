@@ -12,11 +12,11 @@ export const UPGRADE_COMMAND = "npm i -g @wenox/cli";
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const TIMEOUT_MS = 1500;
 
-export function updateCacheFile() {
+export function updateCacheFile(): string {
   return path.join(configDir(), "update.json");
 }
 
-function parseVersion(value) {
+function parseVersion(value: unknown): [number, number, number] | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(value ?? "").trim());
   if (!match) return null;
   return [Number(match[1]), Number(match[2]), Number(match[3])];
@@ -24,7 +24,7 @@ function parseVersion(value) {
 
 // Ön sürüm ve derleme meta verisi yok sayılır; yalnızca sayısal çekirdek
 // karşılaştırılır. Çözümlenemeyen bir sürüm asla güncelleme zorlamaz.
-export function isNewer(candidate, current) {
+export function isNewer(candidate: unknown, current: unknown): boolean {
   const next = parseVersion(candidate);
   const here = parseVersion(current);
   if (!next || !here) return false;
@@ -34,16 +34,21 @@ export function isNewer(candidate, current) {
   return false;
 }
 
-function readCache() {
+interface UpdateCache {
+  latest?: string | null;
+  checkedAt?: number;
+}
+
+function readCache(): UpdateCache | null {
   try {
-    const data = JSON.parse(fs.readFileSync(updateCacheFile(), "utf8"));
-    return data && typeof data === "object" ? data : null;
+    const data: unknown = JSON.parse(fs.readFileSync(updateCacheFile(), "utf8"));
+    return data && typeof data === "object" ? (data as UpdateCache) : null;
   } catch {
     return null;
   }
 }
 
-function writeCache(latest, checkedAt) {
+function writeCache(latest: string | null, checkedAt: number): void {
   try {
     fs.mkdirSync(configDir(), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
@@ -56,7 +61,12 @@ function writeCache(latest, checkedAt) {
   }
 }
 
-export async function fetchLatestVersion({ timeoutMs = TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
+export async function fetchLatestVersion(
+  { timeoutMs = TIMEOUT_MS, fetchImpl = globalThis.fetch }: {
+    timeoutMs?: number;
+    fetchImpl?: typeof fetch;
+  } = {},
+): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -65,7 +75,7 @@ export async function fetchLatestVersion({ timeoutMs = TIMEOUT_MS, fetchImpl = g
       headers: { accept: "application/json" },
     });
     if (!response?.ok) return null;
-    const data = await response.json();
+    const data = (await response.json()) as { version?: unknown };
     return typeof data?.version === "string" ? data.version : null;
   } catch {
     return null;
@@ -74,7 +84,21 @@ export async function fetchLatestVersion({ timeoutMs = TIMEOUT_MS, fetchImpl = g
   }
 }
 
-export async function checkForUpdate({ current, fetchImpl, now = Date.now() } = {}) {
+export interface UpdateCheckResult {
+  outdated: boolean;
+  skipped?: boolean;
+  unknown?: boolean;
+  current?: string;
+  latest?: string;
+}
+
+export async function checkForUpdate(
+  { current, fetchImpl, now = Date.now() }: {
+    current?: string;
+    fetchImpl?: typeof fetch;
+    now?: number;
+  } = {},
+): Promise<UpdateCheckResult> {
   if (process.env.WENOX_SKIP_UPDATE_CHECK) {
     return { outdated: false, skipped: true };
   }
@@ -83,7 +107,7 @@ export async function checkForUpdate({ current, fetchImpl, now = Date.now() } = 
   const checkedAt = Number(cached?.checkedAt ?? 0);
   const fresh = Number.isFinite(checkedAt) && now - checkedAt < CHECK_INTERVAL_MS;
 
-  let latest = fresh ? cached.latest ?? null : null;
+  let latest = fresh ? (cached?.latest ?? null) : null;
 
   if (!fresh) {
     latest = await fetchLatestVersion({ fetchImpl });

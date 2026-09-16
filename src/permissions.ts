@@ -4,16 +4,23 @@ import { configDir } from "./config.js";
 
 const STORE_VERSION = 1;
 
-function permissionsFile() {
+interface PermissionStore {
+  version: number;
+  projects: Record<string, string[]>;
+}
+
+function permissionsFile(): string {
   return path.join(configDir(), "permissions.json");
 }
 
-function readStore() {
-  const empty = { version: STORE_VERSION, projects: {} };
+function readStore(): PermissionStore {
+  const empty: PermissionStore = { version: STORE_VERSION, projects: {} };
   try {
     const file = permissionsFile();
     if (!fs.existsSync(file)) return empty;
-    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    const data = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      projects?: Record<string, string[]>;
+    } | null;
     if (!data || typeof data.projects !== "object" || data.projects === null) return empty;
     return { version: STORE_VERSION, projects: data.projects };
   } catch {
@@ -21,7 +28,7 @@ function readStore() {
   }
 }
 
-function writeStore(store) {
+function writeStore(store: PermissionStore): void {
   try {
     fs.mkdirSync(configDir(), { recursive: true, mode: 0o700 });
     fs.writeFileSync(permissionsFile(), `${JSON.stringify(store, null, 2)}\n`, {
@@ -33,13 +40,16 @@ function writeStore(store) {
   }
 }
 
-export function loadGrants(projectRoot) {
+export function loadGrants(projectRoot: string | null | undefined): string[] {
   if (!projectRoot) return [];
   const list = readStore().projects[projectRoot];
   return Array.isArray(list) ? list.filter((entry) => typeof entry === "string") : [];
 }
 
-export function addGrant(projectRoot, dir) {
+export function addGrant(
+  projectRoot: string | null | undefined,
+  dir: string | null | undefined,
+): void {
   if (!projectRoot || !dir) return;
   const store = readStore();
   const granted = new Set(store.projects[projectRoot] ?? []);
