@@ -6,7 +6,6 @@ import * as ui from "./ui.js";
 import {
   API_BASE_URL,
   getModelInfo,
-  loadConfig,
   saveConfig,
   maskKey,
 } from "./config.js";
@@ -21,7 +20,20 @@ const COMMANDS = [
   "/history", "/exit", "/quit",
 ];
 
-function createCompleter() {
+// REPL'in ajan üzerinde kullandığı yüzey. Sınıfın tamamı burada gerekmiyor;
+// yapısal tip yeterli (ve test edilebilir kalıyor).
+export interface ReplAgent {
+  apiKey: string;
+  modelId: string;
+  messageCount: number;
+  setModel(id: string): void;
+  setApiKey(key: string): void;
+  clearHistory(): void;
+  compact(): Promise<unknown>;
+  chatStep(input: string, sink: unknown): Promise<unknown>;
+}
+
+function createCompleter(): (line: string) => [string[], string] {
   return (line) => {
     const trimmed = line ?? "";
     if (!trimmed.includes(" ") && trimmed.startsWith("/")) {
@@ -34,7 +46,7 @@ function createCompleter() {
     const dirPart = /[/\\]/.test(last) ? path.dirname(last) : ".";
     const base = path.basename(last);
 
-    let entries = [];
+    let entries: string[] = [];
     try {
       entries = fs
         .readdirSync(resolvePath(dirPart), { withFileTypes: true })
@@ -47,7 +59,15 @@ function createCompleter() {
   };
 }
 
-export async function runRepl({ agent }) {
+// Fırlatılan değer Error olmak zorunda değil; eski kod da `error?.name` /
+// `error?.message` şeklinde doğrudan okuyordu, aynı erişim korunuyor.
+function errorProp(error: unknown, key: string): unknown {
+  return error && typeof error === "object"
+    ? (error as Record<string, unknown>)[key]
+    : undefined;
+}
+
+export async function runRepl({ agent }: { agent: ReplAgent }): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -56,11 +76,11 @@ export async function runRepl({ agent }) {
     terminal: Boolean(process.stdin.isTTY),
   });
 
-  const queue = [];
-  let waiter = null;
+  const queue: (string | null)[] = [];
+  let waiter: ((value: string | null) => void) | null = null;
   let closed = false;
 
-  const settle = (value) => {
+  const settle = (value: string | null): void => {
     if (waiter) {
       const resolve = waiter;
       waiter = null;
@@ -84,26 +104,26 @@ export async function runRepl({ agent }) {
     settle("__interrupt__");
   });
 
-  const nextLine = (prompt) => {
+  const nextLine = (prompt: string): Promise<string | null> => {
     if (queue.length > 0) {
-      return Promise.resolve(queue.shift());
+      return Promise.resolve(queue.shift() ?? null);
     }
     if (closed) return Promise.resolve(null);
-    return new Promise((resolve) => {
+    return new Promise<string | null>((resolve) => {
       waiter = resolve;
       rl.setPrompt(prompt);
       rl.prompt();
     });
   };
 
-  const ask = async (question) => {
+  const ask = async (question: string): Promise<string> => {
     const answer = await nextLine(question);
     return answer ?? "";
   };
 
   const sink = ui.createPlainSink({ ask });
 
-  const handleModelSwitch = async () => {
+  const handleModelSwitch = async (): Promise<void> => {
     ui.printModelsTable(agent.modelId);
     const choice = (await ask(t("repl.modelPrompt"))).trim();
     if (!choice) return;
@@ -113,7 +133,7 @@ export async function runRepl({ agent }) {
     ui.printSuccess(t("repl.modelChanged", { name: info.name, id: info.id }));
   };
 
-  const handleLanguageSwitch = async () => {
+  const handleLanguageSwitch = async (): Promise<void> => {
     console.log(chalk.bold(t("lang.title")));
     LANGUAGES.forEach((lang, index) => {
       const active = lang.code === getLocale();
@@ -127,7 +147,7 @@ export async function runRepl({ agent }) {
     ui.printSuccess(t("lang.selected", { name: picked.label }));
   };
 
-  const handleKeyUpdate = async () => {
+  const handleKeyUpdate = async (): Promise<void> => {
     console.log(t("repl.currentKey", { key: chalk.yellow(maskKey(agent.apiKey)) }));
     const newKey = (await ask(t("repl.newKey"))).trim();
     if (!newKey) return;
@@ -140,7 +160,9 @@ export async function runRepl({ agent }) {
     agent.setApiKey(newKey);
     saveConfig({ apiKey: newKey });
     ui.printSuccess(t("repl.keyUpdated"));
-    if (result.account?.name) ui.printDim(t("notices.apiKeyAccount", { name: result.account.name }));
+    if (result.account?.name) {
+      ui.printDim(t("notices.apiKeyAccount", { name: result.account.name }));
+    }
   };
 
   while (true) {
@@ -174,7 +196,9 @@ export async function runRepl({ agent }) {
       ui.printDim(t("session.past"));
       all.slice(0, 15).forEach((item, index) => {
         ui.printDim(
-          `  ${index + 1}. ${item.title || t("session.untitled")}  ·  ${new Date(item.updatedAt ?? Date.now()).toLocaleString(localeTag())}  ·  ${item.id}`,
+          `  ${index + 1}. ${item.title || t("session.untitled")}  ·  ${new Date(
+            item.updatedAt ?? Date.now(),
+          ).toLocaleString(localeTag())}  ·  ${item.id}`,
         );
       });
       ui.printDim(t("session.pastHint"));
@@ -206,9 +230,11 @@ export async function runRepl({ agent }) {
         await agent.compact();
         ui.printSuccess(t("compact.summarized"));
       } catch (error) {
-        const aborted = error?.name === "AbortError" || /abort/i.test(error?.message ?? "");
+        const aborted =
+          errorProp(error, "name") === "AbortError" ||
+          /abort/i.test(String(errorProp(error, "message") ?? ""));
         if (aborted) ui.printDim(t("agent.cancelled"));
-        else ui.printError(t("compact.failed", { message: error.message }));
+        else ui.printError(t("compact.failed", { message: String(errorProp(error, "message")) }));
       }
       continue;
     }
@@ -228,7 +254,9 @@ export async function runRepl({ agent }) {
     }
 
     if (input.startsWith("/")) {
-      ui.printError(t("notices.unknownCommand", { cmd: input.split(/\s+/)[0].replace(/^\//, "") }));
+      ui.printError(
+        t("notices.unknownCommand", { cmd: input.split(/\s+/)[0].replace(/^\//, "") }),
+      );
       continue;
     }
 
@@ -236,7 +264,9 @@ export async function runRepl({ agent }) {
     try {
       await agent.chatStep(input, sink);
     } catch (error) {
-      ui.printError(t("notices.errorPrefix", { message: error.message }));
+      ui.printError(
+        t("notices.errorPrefix", { message: String(errorProp(error, "message")) }),
+      );
     } finally {
       stopCancelScope();
     }
