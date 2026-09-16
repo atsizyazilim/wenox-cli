@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import { padTo, sliceByWidth, textWidth } from "../../utils.js";
@@ -32,19 +31,21 @@ function renderLine(
   key: number,
 ): ReactNode {
   const text = line === "" ? " " : line;
-  if (!range) return html`<${Text} key=${key}>${text}<//>`;
+  if (!range) return <Text key={key}>{text}</Text>;
 
   const before = sliceByWidth(text, 0, range[0]);
   const selected = sliceByWidth(text, range[0], range[1]);
   const after = sliceByWidth(text, range[1], textWidth(text));
 
-  return html`
-    <${Text} key=${key}>
-      <${Text}>${before}<//>
-      <${Text} backgroundColor=${theme.selectionBg} color=${theme.selectionFg}>${selected}<//>
-      <${Text}>${after}<//>
-    <//>
-  `;
+  return (
+    <Text key={key}>
+      <Text>{before}</Text>
+      <Text backgroundColor={theme.selectionBg} color={theme.selectionFg}>
+        {selected}
+      </Text>
+      <Text>{after}</Text>
+    </Text>
+  );
 }
 
 export function Transcript({
@@ -66,25 +67,25 @@ export function Transcript({
   const card = toast ? toastCard(toast) : null;
   const leftWidth = card ? Math.max(1, contentWidth - card.width) : 0;
 
-  return html`
-    <${Box} flexDirection="column" height=${height} overflow="hidden">
-      ${visible.map((line, i) => {
+  return (
+    <Box flexDirection="column" height={height} overflow="hidden">
+      {visible.map((line, i) => {
         const lineIndex = offset + i;
 
         // Kart üstteki satırların üzerine binler: satırın kart dışında kalan
         // sol kısmı görünür kalır, kart kaybolunca satırın tamamı geri gelir.
         if (card && i < card.rows.length) {
           const left = padTo(sliceByWidth(line, 0, leftWidth), leftWidth);
-          return html`
-            <${Box} key=${lineIndex} flexShrink=${0} width=${contentWidth}>
-              <${Text} flexShrink=${0}>${left}<//>
-              ${card.rows[i]}
-            <//>
-          `;
+          return (
+            <Box key={lineIndex} flexShrink={0} width={contentWidth}>
+              <Text>{left}</Text>
+              {card.rows[i]}
+            </Box>
+          );
         }
 
         return renderLine(line, rangeFor(selection, lineIndex, textWidth(line)), lineIndex);
       })}
-    <//>
-  `;
+    </Box>
+  );
 }

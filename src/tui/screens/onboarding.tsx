@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { useEffect, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { Logo } from "../components/logo.js";
@@ -39,7 +38,7 @@ function Typewriter({ text, interval = 24 }: { text: string; interval?: number }
     );
     return () => clearTimeout(timer);
   }, [shown, text, interval, step]);
-  return html`<${Text} color="white">${text.slice(0, shown)}<//>`;
+  return <Text color="white">{text.slice(0, shown)}</Text>;
 }
 
 export function Onboarding({ onComplete }: { onComplete: (key: string) => void }) {
@@ -149,64 +148,83 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
           ? t("onboarding.continueHint")
           : "";
 
-  return html`
-    <${Box} height=${rows} width=${columns} flexDirection="column" alignItems="center" justifyContent="center">
-      <${Logo} />
+  return (
+    <Box
+      height={rows}
+      width={columns}
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Logo />
 
-      <${Box} marginTop=${1} flexDirection="column" alignItems="center">
-        ${step === "language"
-          ? html`
-              <${Text} key="langTitle" bold color=${theme.questionLink}>${t("onboarding.chooseLanguage")}<//>
-              <${Box} key="langList" marginTop=${1} flexDirection="column">
-                ${LANGUAGES.map(
-                  (entry, index) => html`
-                    <${Box} key=${entry.code}>
-                      <${Text} bold=${index === langIndex} color=${index === langIndex ? theme.questionLink : theme.muted}>
-                        ${`${index === langIndex ? "❯ " : "  "}${entry.label}`}
-                      <//>
-                    <//>
-                  `,
-                )}
-              <//>
-            `
-          : null}
+      <Box marginTop={1} flexDirection="column" alignItems="center">
+        {step === "language" ? (
+          <>
+            <Text bold color={theme.questionLink}>
+              {t("onboarding.chooseLanguage")}
+            </Text>
+            <Box marginTop={1} flexDirection="column">
+              {LANGUAGES.map((entry, index) => (
+                <Box key={entry.code}>
+                  <Text
+                    bold={index === langIndex}
+                    color={index === langIndex ? theme.questionLink : theme.muted}
+                  >
+                    {`${index === langIndex ? "❯ " : "  "}${entry.label}`}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          </>
+        ) : null}
 
-        ${step === "apikey" || step === "verifying"
-          ? html`
-              <${Text} key="need" color=${theme.muted}>${t("onboarding.needKey")}<//>
-              <${Box} key="input" marginTop=${1} width=${boxWidth}>
-                <${InputBar}
-                  view=${inputView}
-                  disabled=${step === "verifying"}
-                  blinkOn=${blink}
-                  width=${boxWidth}
-                  boxed=${true}
-                />
-              <//>
-              <${Box} key="link" marginTop=${1}>
-                <${Text} color=${theme.menuDesc}>${t("onboarding.getKeyHere", { url: API_KEY_URL })}<//>
-              <//>
-              <${Box} key="openHint" marginTop=${1}>
-                <${Text} color=${theme.muted}>${t("onboarding.openHint")}<//>
-              <//>
-            `
-          : null}
+        {step === "apikey" || step === "verifying" ? (
+          <>
+            <Text color={theme.muted}>{t("onboarding.needKey")}</Text>
+            <Box marginTop={1} width={boxWidth}>
+              <InputBar
+                view={inputView}
+                disabled={step === "verifying"}
+                blinkOn={blink}
+                width={boxWidth}
+                boxed={true}
+              />
+            </Box>
+            <Box marginTop={1}>
+              <Text color={theme.menuDesc}>
+                {t("onboarding.getKeyHere", { url: API_KEY_URL })}
+              </Text>
+            </Box>
+            <Box marginTop={1}>
+              <Text color={theme.muted}>{t("onboarding.openHint")}</Text>
+            </Box>
+          </>
+        ) : null}
 
-        ${step === "welcome"
-          ? html`<${Box} flexDirection="column"><${Typewriter} text=${welcomeMessage(account)} /><//>`
-          : null}
-      <//>
+        {step === "welcome" ? (
+          <Box flexDirection="column">
+            <Typewriter text={welcomeMessage(account)} />
+          </Box>
+        ) : null}
+      </Box>
 
-      ${note
-        ? html`<${Box} marginTop=${1}><${Text} color=${theme.menuDesc}>${note}<//><//>`
-        : null}
-      ${error
-        ? html`<${Box} marginTop=${1}><${Text} color=${theme.err}>✗ ${error}<//><//>`
-        : null}
+      {note ? (
+        <Box marginTop={1}>
+          <Text color={theme.menuDesc}>{note}</Text>
+        </Box>
+      ) : null}
+      {error ? (
+        <Box marginTop={1}>
+          <Text color={theme.err}>✗ {error}</Text>
+        </Box>
+      ) : null}
 
-      ${hint
-        ? html`<${Box} marginTop=${2}><${Text} color=${theme.muted}>${hint}<//><//>`
-        : null}
-    <//>
-  `;
+      {hint ? (
+        <Box marginTop={2}>
+          <Text color={theme.muted}>{hint}</Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }

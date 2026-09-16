@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import { theme } from "../theme.js";
@@ -18,18 +17,24 @@ export function WorkingIndicator({ hint = t("working.cancel") }: { hint?: string
 
   const head = frame % CELLS;
 
-  return html`
-    <${Box} paddingX=${2} width="100%">
-      <${Text}>
-        ${Array.from({ length: CELLS }, (_, i) => {
+  return (
+    <Box paddingX={2} width="100%">
+      <Text>
+        {Array.from({ length: CELLS }, (_, i) => {
           const distance = (head - i + CELLS) % CELLS;
           const color = SHADES[Math.min(distance, SHADES.length - 1)];
-          return html`<${Text} key=${i} color=${color}>${"▪"}<//>`;
+          return (
+            <Text key={i} color={color}>
+              {"▪"}
+            </Text>
+          );
         })}
-      <//>
-      <${Text} color=${theme.muted}>${"   ·   "}<//>
-      <${Text} bold color=${theme.warn}>${"esc"}<//>
-      <${Text} color=${theme.muted}>${`  ${hint}`}<//>
-    <//>
-  `;
+      </Text>
+      <Text color={theme.muted}>{"   ·   "}</Text>
+      <Text bold color={theme.warn}>
+        {"esc"}
+      </Text>
+      <Text color={theme.muted}>{`  ${hint}`}</Text>
+    </Box>
+  );
 }

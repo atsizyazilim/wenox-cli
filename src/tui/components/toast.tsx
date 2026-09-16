@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { Text } from "ink";
 import type { ReactNode } from "react";
 import stringWidth from "string-width";
@@ -10,13 +9,19 @@ export interface ToastCard {
 }
 
 function row(content: string, bold: boolean): ReactNode {
-  return html`
-    <${Text} backgroundColor=${theme.toastBg}>
-      <${Text} color=${theme.toastBar} bold>${"▌"}<//>
-      <${Text} color=${theme.toastFg} bold=${bold}>${content}<//>
-      <${Text} color=${theme.toastBar} bold>${"▌"}<//>
-    <//>
-  `;
+  return (
+    <Text backgroundColor={theme.toastBg}>
+      <Text color={theme.toastBar} bold>
+        {"▌"}
+      </Text>
+      <Text color={theme.toastFg} bold={bold}>
+        {content}
+      </Text>
+      <Text color={theme.toastBar} bold>
+        {"▌"}
+      </Text>
+    </Text>
+  );
 }
 
 // Sağa yaslı üç satırlık kompakt kart. Transkriptin üzerine bindirilir: sadece

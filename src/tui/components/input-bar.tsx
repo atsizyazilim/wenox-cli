@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { Box, Text } from "ink";
 import { PromptLine } from "./prompt-line.js";
 import { theme } from "../theme.js";
@@ -22,21 +21,21 @@ export function InputBar({
   const markerColor = disabled ? theme.muted : theme.accentBright;
   const barColor = disabled ? theme.muted : theme.userAccent;
 
-  return html`
-    <${Box}
+  return (
+    <Box
       borderStyle="bold"
-      borderTop=${false}
-      borderBottom=${false}
-      borderRight=${boxed}
-      borderColor=${barColor}
-      paddingX=${2}
-      paddingY=${1}
-      backgroundColor=${theme.inputBg}
-      width=${width}
+      borderTop={false}
+      borderBottom={false}
+      borderRight={boxed}
+      borderColor={barColor}
+      paddingX={2}
+      paddingY={1}
+      backgroundColor={theme.inputBg}
+      width={width}
     >
-      <${Text} color=${markerColor}>${"❯ "}<//>
-      ${prefix ? html`<${Text} color=${theme.warn}>${`${prefix}   `}<//>` : null}
-      <${PromptLine} view=${view} blinkOn=${blinkOn} disabled=${disabled} />
-    <//>
-  `;
+      <Text color={markerColor}>{"❯ "}</Text>
+      {prefix ? <Text color={theme.warn}>{`${prefix}   `}</Text> : null}
+      <PromptLine view={view} blinkOn={blinkOn} disabled={disabled} />
+    </Box>
+  );
 }

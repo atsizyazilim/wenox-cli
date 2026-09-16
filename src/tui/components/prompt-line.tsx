@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import stringWidth from "string-width";
@@ -18,7 +17,9 @@ function renderLine(
 
   const flush = (key: string) => {
     if (buffer) {
-      nodes.push(html`<${Text} key=${key}>${buffer}<//>`);
+      nodes.push(
+        <Text key={key}>{buffer}</Text>,
+      );
       buffer = "";
     }
   };
@@ -27,18 +28,24 @@ function renderLine(
     if (seg.chip) {
       if (!placed && width >= (cursorCol ?? 0)) {
         flush(`f${si}`);
-        nodes.push(html`<${Text} key=${`c${si}`} inverse=${blink}>${cursorChar}<//>`);
+        nodes.push(
+          <Text key={`c${si}`} inverse={blink}>
+            {cursorChar}
+          </Text>,
+        );
         width += 1;
         placed = true;
       }
       flush(`p${si}`);
-      nodes.push(html`
-        <${Text}
-          key=${`s${si}`}
-          backgroundColor=${theme.menuSelectedBg}
-          color=${theme.menuSelectedFg}
-        >${seg.text}<//>
-      `);
+      nodes.push(
+        <Text
+          key={`s${si}`}
+          backgroundColor={theme.menuSelectedBg}
+          color={theme.menuSelectedFg}
+        >
+          {seg.text}
+        </Text>,
+      );
       width += stringWidth(seg.text);
       return;
     }
@@ -46,7 +53,11 @@ function renderLine(
     for (const ch of seg.text) {
       if (!placed && width >= (cursorCol ?? 0)) {
         flush(`fc${si}${width}`);
-        nodes.push(html`<${Text} key=${`cc${si}${width}`} inverse=${blink}>${ch}<//>`);
+        nodes.push(
+          <Text key={`cc${si}${width}`} inverse={blink}>
+            {ch}
+          </Text>,
+        );
         width += stringWidth(ch);
         placed = true;
         continue;
@@ -58,7 +69,11 @@ function renderLine(
 
   if (!placed) {
     flush("fz");
-    nodes.push(html`<${Text} key="cz" inverse=${blink}>${cursorChar}<//>`);
+    nodes.push(
+      <Text key="cz" inverse={blink}>
+        {cursorChar}
+      </Text>,
+    );
   }
   flush("fend");
 
@@ -76,9 +91,9 @@ export function PromptLine({
 }) {
   const blink = disabled ? true : blinkOn;
 
-  return html`
-    <${Box} flexDirection="column">
-      ${view.lines.map((segs, li) => {
+  return (
+    <Box flexDirection="column">
+      {view.lines.map((segs, li) => {
         const isCursorLine = li === view.cursorLine;
         const nodes = renderLine(
           segs,
@@ -86,8 +101,10 @@ export function PromptLine({
           view.cursorChar,
           blink ?? false,
         );
-        return html`<${Text} key=${li}>${nodes.length > 0 ? nodes : " "}<//>`;
+        return (
+          <Text key={li}>{nodes.length > 0 ? nodes : " "}</Text>
+        );
       })}
-    <//>
-  `;
+    </Box>
+  );
 }

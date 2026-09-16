@@ -1,4 +1,3 @@
-import { html } from "htm/react";
 import { Box, Text } from "ink";
 import { theme } from "../theme.js";
 
@@ -33,29 +32,31 @@ export function Menu({
   }
   const visible = items.slice(start, start + MAX_VISIBLE);
 
-  return html`
-    <${Box} flexDirection="column" width="100%" flexShrink=${0}>
-      ${visible.map((item, offset) => {
+  return (
+    <Box flexDirection="column" width="100%" flexShrink={0}>
+      {visible.map((item, offset) => {
         const i = start + offset;
         const active = i === index;
         const fg = active ? theme.menuSelectedFg : undefined;
-        return html`
-          <${Box}
-            key=${item.value}
+        return (
+          <Box
+            key={item.value}
             width="100%"
-            paddingX=${2}
-            backgroundColor=${active ? theme.menuSelectedBg : undefined}
+            paddingX={2}
+            backgroundColor={active ? theme.menuSelectedBg : undefined}
           >
-            <${Text} color=${active ? fg : theme.menuText}>${String(item.left).padEnd(nameWidth)}<//>
-            <${Text} color=${active ? fg : theme.menuDesc}>${item.right}<//>
-          <//>
-        `;
+            <Text color={active ? fg : theme.menuText}>
+              {String(item.left).padEnd(nameWidth)}
+            </Text>
+            <Text color={active ? fg : theme.menuDesc}>{item.right}</Text>
+          </Box>
+        );
       })}
-      ${hint
-        ? html`<${Box} paddingX=${2} marginTop=${1}>
-            <${Text} color=${theme.muted}>${hint}<//>
-          <//>`
-        : null}
-    <//>
-  `;
+      {hint ? (
+        <Box paddingX={2} marginTop={1}>
+          <Text color={theme.muted}>{hint}</Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }

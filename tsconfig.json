@@ -6,6 +6,7 @@
     "moduleResolution": "nodenext",
     "moduleDetection": "force",
     "types": ["node"],
+    "jsx": "react-jsx",
 
     "rootDir": ".",
     "outDir": "dist",
