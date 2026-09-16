@@ -1,23 +1,24 @@
 import readline from "node:readline";
+import type { Key } from "node:readline";
 
 let cancelled = false;
 let listening = false;
-let onCancel = null;
-let abortHandler = null;
+let onCancel: (() => void) | null = null;
+let abortHandler: (() => void) | null = null;
 
-export function isCancelled() {
+export function isCancelled(): boolean {
   return cancelled;
 }
 
-export function setAbortHandler(handler) {
+export function setAbortHandler(handler: (() => void) | null): void {
   abortHandler = handler;
 }
 
-export function clearAbortHandler() {
+export function clearAbortHandler(): void {
   abortHandler = null;
 }
 
-export function requestCancel() {
+export function requestCancel(): void {
   if (cancelled) return;
   cancelled = true;
   try {
@@ -28,11 +29,12 @@ export function requestCancel() {
   onCancel?.();
 }
 
-export function resetCancel() {
+export function resetCancel(): void {
   cancelled = false;
 }
 
-function handleKeypress(_str, key) {
+// keypress olayı bazı durumlarda key olmadan da tetikleniyor, o yüzden opsiyonel.
+function handleKeypress(_str: string, key: Key | undefined): void {
   if (!key) return;
   const isCtrlC = key.ctrl && key.name === "c";
   if (key.name === "escape" || isCtrlC) {
@@ -40,7 +42,7 @@ function handleKeypress(_str, key) {
   }
 }
 
-export function startCancelScope(callback) {
+export function startCancelScope(callback?: (() => void) | null): () => void {
   resetCancel();
   onCancel = callback ?? null;
 
@@ -59,7 +61,7 @@ export function startCancelScope(callback) {
   return stopCancelScope;
 }
 
-export function stopCancelScope() {
+export function stopCancelScope(): void {
   if (listening) {
     process.stdin.off("keypress", handleKeypress);
     try {

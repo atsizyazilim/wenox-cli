@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-export function copyToClipboard(text) {
+export function copyToClipboard(text: string): boolean {
   if (!text) return false;
 
   try {
@@ -19,8 +19,9 @@ export function copyToClipboard(text) {
     const args = process.platform === "darwin" ? [] : ["-selection", "clipboard"];
     const child = spawn(command, args, { stdio: ["pipe", "ignore", "ignore"] });
     child.on("error", () => {});
-    child.stdin.on("error", () => {});
-    child.stdin.end(text);
+    // stdio "pipe" olduğu için stdin her zaman var; `?.` yalnızca tip daraltması için.
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(text);
     return true;
   } catch {
     return false;

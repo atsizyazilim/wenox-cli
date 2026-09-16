@@ -2,7 +2,15 @@ import stringWidth from "string-width";
 
 const ESC = "\x1b[";
 
-function measureLines(text, columns) {
+// Yalnızca ihtiyaç duyulan yüzey: terminal çıktısı taklit edilebilir kalsın diye
+// NodeJS.WriteStream yerine yapısal bir tip kullanılıyor.
+export interface LiveOut {
+  isTTY?: boolean;
+  columns?: number;
+  write(chunk: string): unknown;
+}
+
+function measureLines(text: string, columns: number): number {
   if (!text) return 0;
   const normalized = text.endsWith("\n") ? text : `${text}\n`;
   const logical = normalized.split("\n");
@@ -17,24 +25,28 @@ function measureLines(text, columns) {
 }
 
 export class LiveWriter {
-  constructor(out = process.stdout) {
+  readonly out: LiveOut;
+  renderedLines: number;
+  active: boolean;
+
+  constructor(out: LiveOut = process.stdout) {
     this.out = out;
     this.renderedLines = 0;
     this.active = Boolean(out.isTTY);
   }
 
-  get columns() {
+  get columns(): number {
     return this.out.columns || 80;
   }
 
-  #clear() {
+  #clear(): void {
     if (this.renderedLines <= 0) return;
     this.out.write(`${ESC}${this.renderedLines}A`);
     this.out.write(`${ESC}0J`);
     this.renderedLines = 0;
   }
 
-  update(text) {
+  update(text: string): void {
     if (!this.active) return;
     this.#clear();
     const block = text.endsWith("\n") ? text : `${text}\n`;
@@ -42,7 +54,7 @@ export class LiveWriter {
     this.renderedLines = measureLines(block, this.columns);
   }
 
-  finish(text) {
+  finish(text: string): void {
     if (!this.active) {
       if (text) this.out.write(text.endsWith("\n") ? text : `${text}\n`);
       return;
@@ -51,7 +63,7 @@ export class LiveWriter {
     if (text) this.out.write(text.endsWith("\n") ? text : `${text}\n`);
   }
 
-  clear() {
+  clear(): void {
     if (!this.active) return;
     this.#clear();
   }

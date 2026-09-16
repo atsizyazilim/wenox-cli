@@ -12,7 +12,7 @@ let active = false;
 // Çıkış dizileri SENKRON yazılmalı: process.stdout.write asenkron olduğu için
 // süreç kapanınca kaybolabiliyor ve terminal fare modunda kalıyordu (fare
 // hareketleri kabuğa escape dizisi olarak dökülüyordu).
-function writeSync(sequence) {
+function writeSync(sequence: string): void {
   try {
     fs.writeSync(1, sequence);
   } catch {
@@ -28,7 +28,7 @@ function writeSync(sequence) {
 // kendi yapar (native scrollback). Sorun çıkarsa kaçış yolu.
 const MOUSE_ENABLED = !process.env.WENOX_NO_MOUSE;
 
-export function enterFullScreen() {
+export function enterFullScreen(): void {
   if (active || !process.stdout.isTTY) return;
   const mouse = MOUSE_ENABLED ? MOUSE_ON : "";
   process.stdout.write(`${ALT_SCREEN_ON}\x1b[2J\x1b[H${HIDE_CURSOR}${mouse}`);
@@ -37,12 +37,12 @@ export function enterFullScreen() {
 
 // Ink raw mode'u kapatmadan ÖNCE fareyi kapat: aradaki boşlukta gelen fare
 // olayları echo ile kabuğa escape dizisi olarak dökülüyordu.
-export function disableMouse() {
+export function disableMouse(): void {
   if (!process.stdout.isTTY) return;
   writeSync(MOUSE_OFF);
 }
 
-export function leaveFullScreen() {
+export function leaveFullScreen(): void {
   if (!active) return;
   writeSync(`${MOUSE_OFF}${SHOW_CURSOR}${ALT_SCREEN_OFF}`);
   active = false;
@@ -50,7 +50,14 @@ export function leaveFullScreen() {
 
 const MOUSE_SGR = /^\[<(\d+);(\d+);(\d+)([Mm])$/;
 
-export function parseMouse(input) {
+export type MouseEvent =
+  | { type: "wheel-up"; x: number; y: number }
+  | { type: "wheel-down"; x: number; y: number }
+  | { type: "press"; button: number; x: number; y: number }
+  | { type: "release"; button: number; x: number; y: number }
+  | { type: "motion"; button: number; x: number; y: number };
+
+export function parseMouse(input: string | null | undefined): MouseEvent | null {
   if (!input) return null;
   const match = MOUSE_SGR.exec(input);
   if (!match) return null;
@@ -61,8 +68,7 @@ export function parseMouse(input) {
   const suffix = match[4];
 
   if ((code & 64) === 64) {
-    const wheel = code & 1 ? "wheel-down" : "wheel-up";
-    return { type: wheel, x, y };
+    return code & 1 ? { type: "wheel-down", x, y } : { type: "wheel-up", x, y };
   }
 
   const button = code & 3;
@@ -71,7 +77,7 @@ export function parseMouse(input) {
   return { type: "press", button, x, y };
 }
 
-export function setTitle(text) {
+export function setTitle(text: string): void {
   if (!process.stdout.isTTY) return;
   process.stdout.write(`\x1b]0;${text}\x07`);
 }

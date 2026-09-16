@@ -5,21 +5,26 @@ import { spawn } from "node:child_process";
 import stripAnsi from "strip-ansi";
 import stringWidth from "string-width";
 
-export function plain(text) {
+// Bu yardımcılar çalışma zamanında da savunmacı (`String(x ?? "")`), bu yüzden
+// metin parametreleri gevşek tipleniyor: çağrı yerlerini kırmadan gerçek
+// davranışı yansıtsın.
+type MaybeText = string | null | undefined;
+
+export function plain(text: MaybeText): string {
   return stripAnsi(String(text ?? ""));
 }
 
-export function textWidth(text) {
+export function textWidth(text: MaybeText): number {
   return stringWidth(plain(text));
 }
 
-export function padTo(text, width) {
+export function padTo(text: string, width: number): string {
   const current = textWidth(text);
   if (current >= width) return text;
   return text + " ".repeat(width - current);
 }
 
-export function sliceByWidth(text, from, to) {
+export function sliceByWidth(text: MaybeText, from: number, to: number): string {
   const source = plain(text);
   let column = 0;
   let out = "";
@@ -37,7 +42,7 @@ export function sliceByWidth(text, from, to) {
   return out;
 }
 
-export function openUrl(url) {
+export function openUrl(url: MaybeText): boolean {
   const target = String(url ?? "").trim();
   if (!/^https?:\/\//i.test(target)) return false;
   try {
@@ -57,7 +62,7 @@ export function openUrl(url) {
   }
 }
 
-export function resolvePath(input) {
+export function resolvePath(input: MaybeText): string {
   let clean = String(input ?? "").replace(/\\/g, "/");
 
   if (clean === "/tmp" || clean.startsWith("/tmp/")) {
@@ -79,7 +84,10 @@ export function resolvePath(input) {
 
 // package.json'ı verilen dizinden yukarı doğru arar. Derinliğe bağlı olmadığı için
 // kaynak ağacında (src/), derlenmiş çıktıda (dist/src/) ve global kurulumda aynı çalışır.
-export function findPackageJson(startDir, expectedName) {
+export function findPackageJson(
+  startDir: MaybeText,
+  expectedName?: string,
+): string | null {
   let dir = path.resolve(String(startDir ?? "."));
   for (;;) {
     const candidate = path.join(dir, "package.json");
@@ -98,7 +106,7 @@ export function findPackageJson(startDir, expectedName) {
   }
 }
 
-export function formatBytes(bytes) {
+export function formatBytes(bytes: number | string | null | undefined): string {
   const n = Number(bytes) || 0;
   if (n < 1024) return `${n} B`;
   const units = ["KB", "MB", "GB", "TB"];
@@ -111,12 +119,12 @@ export function formatBytes(bytes) {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
-export function truncate(text, maxLength) {
+export function truncate(text: MaybeText, maxLength: number): string {
   const s = String(text ?? "");
   return s.length <= maxLength ? s : `${s.slice(0, maxLength - 1)}…`;
 }
 
-const GARBAGE_PATTERNS = [
+const GARBAGE_PATTERNS: RegExp[] = [
   /(?:\b\d{7,8}\b[ \t]*){4,}/g,
   /(?:\b[01]{7,8}\b[ \t]*){4,}/g,
   /\b[01]{5,}(?:[ \t]+[01]{5,})+\b/g,
@@ -125,7 +133,7 @@ const GARBAGE_PATTERNS = [
   /\((?:UTF-8|ASCII)[^)]*\)/gi,
 ];
 
-export function sanitizeOutput(text) {
+export function sanitizeOutput(text: MaybeText): string {
   if (!text) return "";
   let out = String(text);
   for (const pattern of GARBAGE_PATTERNS) {
