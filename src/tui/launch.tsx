@@ -1,21 +1,23 @@
 import { render } from "ink";
-import { html } from "htm/react";
+import type { ReactElement } from "react";
 import { Root } from "./root.js";
+import type { AppAgent } from "./app.js";
 import { UpdateRequired } from "./screens/update.js";
 import { resetCancel } from "../cancel.js";
 import { saveSession } from "../session.js";
+import type { Session } from "../session.js";
 import { enterFullScreen, leaveFullScreen, setTitle } from "./screen.js";
 
 // Çıkışta konsol girdi tamponunda bekleyen fare/klavye dizilerini tüket.
 // Aksi halde kabuk bunları komut sanıp hata veriyordu (Windows'ta fare
 // hareketleri ekrana dökülüyordu).
-function drainStdin(ms = 120) {
+function drainStdin(ms = 120): Promise<void> {
   return new Promise((resolve) => {
     if (!process.stdin.isTTY) {
       resolve();
       return;
     }
-    const discard = () => {};
+    const discard = (): void => {};
     try {
       process.stdin.on("data", discard);
       process.stdin.resume();
@@ -34,18 +36,18 @@ function drainStdin(ms = 120) {
   });
 }
 
-async function runTui(node, title) {
+async function runTui(node: ReactElement, title?: string): Promise<void> {
   resetCancel();
   enterFullScreen();
   setTitle(title ?? "WenOX CLI");
 
   let cleaned = false;
-  const cleanup = () => {
+  const cleanup = (): void => {
     if (cleaned) return;
     cleaned = true;
     leaveFullScreen();
   };
-  const onSignal = () => {
+  const onSignal = (): void => {
     cleanup();
     process.exit(130);
   };
@@ -69,17 +71,29 @@ async function runTui(node, title) {
   }
 }
 
-export async function launchTui({ agent, version, modelId, autoApprove = false, session }) {
+export async function launchTui({
+  agent,
+  version,
+  modelId,
+  autoApprove = false,
+  session,
+}: {
+  agent: AppAgent;
+  version: string;
+  modelId: string;
+  autoApprove?: boolean;
+  session?: Session | null;
+}): Promise<Session | null | undefined> {
   const title = session?.title ? `WenOX CLI | ${session.title}` : "WenOX CLI";
   try {
     await runTui(
-      html`<${Root}
-        agent=${agent}
-        version=${version}
-        initialModelId=${modelId}
-        initialAutoApprove=${autoApprove}
-        session=${session}
-      />`,
+      <Root
+        agent={agent}
+        version={version}
+        initialModelId={modelId}
+        initialAutoApprove={autoApprove}
+        session={session}
+      />,
       title,
     );
   } finally {
@@ -89,10 +103,16 @@ export async function launchTui({ agent, version, modelId, autoApprove = false, 
   return session;
 }
 
-export async function launchUpdateScreen({ current, latest }) {
-  await runTui(html`<${UpdateRequired} current=${current} latest=${latest} />`);
+export async function launchUpdateScreen({
+  current,
+  latest,
+}: {
+  current: string;
+  latest: string;
+}): Promise<void> {
+  await runTui(<UpdateRequired current={current} latest={latest} />);
 }
 
-function itemsExist(session) {
+function itemsExist(session: Session): boolean {
   return Boolean((session.items ?? []).length || (session.messages ?? []).length);
 }

@@ -1,15 +1,31 @@
 import fs from "node:fs";
-import { html } from "htm/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
+import type { Key } from "ink";
 import { AVAILABLE_MODELS, CONTEXT_WINDOW, getModelInfo, saveConfig } from "../config.js";
 import { getSystemPrompt } from "../agent.js";
 import { listSessions, saveSession } from "../session.js";
-import { fetchAccount, formatAccount, verifyApiKey, verifyFailureMessage } from "../account.js";
+import type {
+  ChatMessage,
+  ItemId,
+  Session,
+  TranscriptItem,
+  TranscriptMeta,
+  TranscriptToolArgs,
+  TranscriptToolResult,
+} from "../session.js";
+import {
+  fetchAccount,
+  formatAccount,
+  verifyApiKey,
+  verifyFailureMessage,
+} from "../account.js";
+import type { AccountInfo } from "../account.js";
 import { copyToClipboard } from "../clipboard.js";
-import { plain, sliceByWidth } from "../utils.js";
+import { plain, sliceByWidth, errorProp } from "../utils.js";
 import { isUnsafeWorkspace } from "../workspace.js";
 import { t, setLocale, getLocale, localeTag, LANGUAGES } from "../i18n/index.js";
+import type { LanguageCode } from "../i18n/index.js";
 import { requestCancel } from "../cancel.js";
 import { useBlink } from "./hooks.js";
 import { theme } from "./theme.js";
@@ -28,29 +44,106 @@ import {
   moveRight,
   MAX_INPUT_LINES,
 } from "./input-model.js";
+import type { Cursor, InputToken } from "./input-model.js";
 import { Home } from "./screens/home.js";
 import { Transcript } from "./components/transcript.js";
+import type { TextSelection } from "./components/transcript.js";
 import { InputBar } from "./components/input-bar.js";
 import { WorkingIndicator } from "./components/working.js";
 import { StatusRow, BottomBar } from "./components/status-bar.js";
 import { Approval } from "./components/approval.js";
 import { Permission } from "./components/permission.js";
 import { Question } from "./components/question.js";
+import type { QuestionOption } from "./components/question.js";
 import { Menu } from "./components/menu.js";
+import type { MenuItem } from "./components/menu.js";
+import type {
+  AskPermissionRequest,
+  AskUserAnswer,
+  AskUserRequest,
+  PermissionDecision,
+} from "../ui.js";
 
-const MODEL_ITEMS = Object.values(AVAILABLE_MODELS).map((model) => ({
+// Ajanın App'te kullanılan yüzeyi. Sınıfın tamamı gerekmiyor; yapısal tip
+// yeterli, böylece testler de sahte bir ajan verebiliyor.
+interface RemoteModel {
+  id?: string;
+  name?: string;
+  context_window?: number;
+  owned_by?: string;
+}
+
+export interface AppAgent {
+  apiKey: string;
+  messages: ChatMessage[];
+  modelId: string;
+  mode?: string;
+  messageCount: number;
+  client: { models: { list(): Promise<{ data?: RemoteModel[] }> } };
+  setApiKey(key: string): void;
+  setModel(id: string): void;
+  setMode(mode: string): void;
+  clearHistory(): void;
+  updateCwd(): void;
+  compact(): Promise<{ summary?: string; tokens?: number } | null | undefined>;
+  generateTitle(): Promise<string>;
+  chatStep(input: string, sink: unknown): Promise<unknown>;
+}
+
+interface ModelMeta {
+  contextWindow: number | null;
+}
+
+interface OverlayItem extends MenuItem {
+  session?: Session | null;
+}
+
+type OverlayKind = "palette" | "lang" | "models" | "sessions";
+
+interface OverlayState {
+  kind: OverlayKind;
+  query: string;
+  index: number;
+  items?: OverlayItem[];
+}
+
+interface ApprovalState {
+  command: string;
+  allow: boolean;
+  resolve: (allowed: boolean) => void;
+}
+
+interface PermissionState {
+  tool?: string;
+  path?: string;
+  resolved?: string;
+  grant?: string;
+  pattern?: string;
+  choice: number;
+  resolve: (decision: PermissionDecision) => void;
+}
+
+interface QuestionState {
+  question: string;
+  options: QuestionOption[];
+  index: number;
+  typing: boolean;
+  resolve: (answer: AskUserAnswer) => void;
+}
+
+const MODEL_ITEMS: OverlayItem[] = Object.values(AVAILABLE_MODELS).map((model) => ({
   value: model.id,
   left: model.name,
   right: model.id,
 }));
 
-const LANG_ITEMS = LANGUAGES.map((lang) => ({
+const LANG_ITEMS: OverlayItem[] = LANGUAGES.map((lang) => ({
   value: lang.code,
   left: lang.label,
   right: lang.code,
 }));
 
-function commandItems() {
+function commandItems(): OverlayItem[] {
   return [
     { value: "auto", desc: t("commands.auto") },
     { value: "compact", desc: t("commands.compact") },
@@ -74,7 +167,7 @@ const TRANSCRIPT_TOP = 2; // transkriptin ilk satırının ekran satırı (1 tab
 const TRANSCRIPT_LEFT = 3; // transkriptin ilk kolonunun ekran kolonu (1 tabanlı)
 const AUTO_COMPACT_RATIO = 0.85;
 
-function normalizeSelection(selection) {
+function normalizeSelection(selection: TextSelection): TextSelection {
   const { startLine, startCol, endLine, endCol } = selection;
   if (startLine < endLine || (startLine === endLine && startCol <= endCol)) {
     return { startLine, startCol, endLine, endCol };
@@ -82,20 +175,29 @@ function normalizeSelection(selection) {
   return { startLine: endLine, startCol: endCol, endLine: startLine, endCol: startCol };
 }
 
-function rebuildItems(messages) {
-  const out = [];
+function rebuildItems(messages: ChatMessage[]): TranscriptItem[] {
+  const out: TranscriptItem[] = [];
   let id = 0;
   for (const message of messages) {
     if (message.role === "user" && typeof message.content === "string" && message.content.trim()) {
       out.push({ id: (id += 1), role: "user", text: message.content });
-    } else if (message.role === "assistant" && typeof message.content === "string" && message.content.trim()) {
-      out.push({ id: (id += 1), role: "assistant", text: message.content, meta: { modelName: "" } });
+    } else if (
+      message.role === "assistant" &&
+      typeof message.content === "string" &&
+      message.content.trim()
+    ) {
+      out.push({
+        id: (id += 1),
+        role: "assistant",
+        text: message.content,
+        meta: { modelName: "" },
+      });
     }
   }
   return out;
 }
 
-function filterBy(items, query) {
+function filterBy(items: OverlayItem[], query: string): OverlayItem[] {
   if (!query) return items;
   const q = query.toLowerCase();
   return items.filter((item) =>
@@ -103,7 +205,20 @@ function filterBy(items, query) {
   );
 }
 
-export function App({ agent, version, initialModelId, initialAutoApprove = false, session }) {
+export function App({
+  agent,
+  version,
+  initialModelId,
+  initialAutoApprove = false,
+  session,
+}: {
+  agent: AppAgent;
+  version: string;
+  initialModelId: string;
+  initialAutoApprove?: boolean;
+  session?: Session | null;
+}) {
+  void version;
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
@@ -117,69 +232,73 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     return base.map((entry, index) => ({ ...entry, id: index + 1 }));
   }, [session]);
 
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<TranscriptItem[]>(initialItems);
   const [liveText, setLiveText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [inputTokens, setInputTokens] = useState([]);
-  const [caret, setCaret] = useState({ i: 0, o: 0 });
+  const [inputTokens, setInputTokens] = useState<InputToken[]>([]);
+  const [caret, setCaret] = useState<Cursor>({ i: 0, o: 0 });
   const [slashIndex, setSlashIndex] = useState(0);
   const [started, setStarted] = useState(initialItems.length > 0);
   const [sessionName, setSessionName] = useState("WenOX");
   const [sessionTitle, setSessionTitle] = useState(session?.title ?? "");
-  const [account, setAccount] = useState(null);
-  const [credits, setCredits] = useState(null);
-  const [remoteModels, setRemoteModels] = useState(null);
-  const [modelMeta, setModelMeta] = useState({});
-  const [selection, setSelection] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [lang, setLang] = useState(getLocale());
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [remoteModels, setRemoteModels] = useState<OverlayItem[] | null>(null);
+  const [modelMeta, setModelMeta] = useState<Record<string, ModelMeta>>({});
+  const [selection, setSelection] = useState<TextSelection | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [lang, setLang] = useState<LanguageCode>(getLocale());
   const [mode, setMode] = useState(agent.mode ?? "plan");
   const [modelId, setModelId] = useState(initialModelId);
   const [autoApprove, setAutoApprove] = useState(initialAutoApprove);
-  const [overlay, setOverlay] = useState(null);
-  const [approval, setApproval] = useState(null);
-  const [permission, setPermission] = useState(null);
-  const [question, setQuestion] = useState(null);
+  const [overlay, setOverlay] = useState<OverlayState | null>(null);
+  const [approval, setApproval] = useState<ApprovalState | null>(null);
+  const [permission, setPermission] = useState<PermissionState | null>(null);
+  const [question, setQuestion] = useState<QuestionState | null>(null);
   const [keyMode, setKeyMode] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tokens, setTokens] = useState(session?.tokens ?? 0);
-  const selectionRef = useRef(null);
+  const selectionRef = useRef<TextSelection | null>(null);
   const draggingRef = useRef(false);
-  const ownersRef = useRef([]);
+  const ownersRef = useRef<ItemId[]>([]);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [follow, setFollow] = useState(true);
   const offsetRef = useRef(0);
   const maxOffsetRef = useRef(0);
 
   const idRef = useRef(initialItems.length);
-  const itemsRef = useRef(initialItems);
-  const queuedRef = useRef([]);
+  const itemsRef = useRef<TranscriptItem[]>(initialItems);
+  const queuedRef = useRef<{ id: number; text: string }[]>([]);
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
   const tokensRef = useRef(session?.tokens ?? 0);
   const contextWindowRef = useRef(CONTEXT_WINDOW);
   const warnedRef = useRef(false);
-  const push = useCallback((item) => {
+  const push = useCallback((item: Omit<TranscriptItem, "id">) => {
     idRef.current += 1;
     const id = idRef.current;
     itemsRef.current = [...itemsRef.current, { ...item, id }];
     setItems(itemsRef.current);
   }, []);
 
-  const loadRemoteModels = useCallback(async () => {
+  const loadRemoteModels = useCallback(async (): Promise<OverlayItem[] | null> => {
     try {
       const page = await agent.client.models.list();
       const list = Array.isArray(page?.data) ? page.data : [];
       if (list.length === 0) return null;
 
-      const metas = {};
+      const metas: Record<string, ModelMeta> = {};
       const items = list.map((model) => {
         const id = model?.id ?? String(model);
         const name = model?.name && model.name !== id ? model.name : id;
-        const extras = [];
+        const extras: string[] = [];
         if (name !== id) extras.push(id);
-        if (model?.context_window) extras.push(t("models.contextWindow", { k: Math.round(model.context_window / 1000) }));
+        if (model?.context_window) {
+          extras.push(
+            t("models.contextWindow", { k: Math.round(model.context_window / 1000) }),
+          );
+        }
         if (model?.owned_by) extras.push(model.owned_by);
         metas[id] = {
           contextWindow: Number(model?.context_window) || null,
@@ -241,7 +360,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   }, [agent, session, syncSession]);
 
   const resume = useCallback(
-    (loaded) => {
+    (loaded: Session | null | undefined) => {
       if (!loaded) return;
       try {
         agent.messages = [
@@ -260,7 +379,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         // eksik/bozuk oturum alanları sorun çıkarmasın
       }
 
-      let restored = (loaded.items ?? []).map((entry, index) => ({ ...entry, id: index + 1 }));
+      let restored: TranscriptItem[] = (loaded.items ?? []).map((entry, index) => ({
+        ...entry,
+        id: index + 1,
+      }));
       if (restored.length === 0 && (loaded.messages ?? []).length > 0) {
         restored = rebuildItems(loaded.messages);
       }
@@ -287,7 +409,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       push({ role: "info", text: t("session.loaded", { name: loaded.title || loaded.id }) });
       refreshUnsafeWorkspace();
     },
-    [agent, push, session],
+    [agent, push, session, refreshUnsafeWorkspace],
   );
 
   const sink = useMemo(
@@ -296,10 +418,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         setBusy(true);
         busyRef.current = true;
       },
-      assistantUpdate: (text) => {
+      assistantUpdate: (text: string) => {
         setLiveText(text);
       },
-      assistantEnd: (text, meta) => {
+      assistantEnd: (text: string, meta?: TranscriptMeta) => {
         setLiveText("");
         if (meta?.usage?.total_tokens) {
           tokensRef.current += meta.usage.total_tokens;
@@ -318,26 +440,27 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       assistantClear: () => {
         setLiveText("");
       },
-      toolCall: (name, args) => {
+      toolCall: (name: string, args: TranscriptToolArgs) => {
         setLiveText("");
         push({ role: "tool-call", name, args });
       },
-      toolResult: (name, result) => push({ role: "tool-result", name, result }),
-      info: (text) => push({ role: "info", text }),
-      error: (text) => {
+      toolResult: (name: string, result: TranscriptToolResult) =>
+        push({ role: "tool-result", name, result }),
+      info: (text: string) => push({ role: "info", text }),
+      error: (text: string) => {
         setLiveText("");
         push({ role: "error", text });
       },
-      askApproval: (command) =>
-        new Promise((resolve) => {
+      askApproval: (command: string) =>
+        new Promise<boolean>((resolve) => {
           setApproval({ command, resolve, allow: true });
         }),
-      askPermission: ({ tool, path: target, resolved, grant, pattern }) =>
-        new Promise((resolve) => {
+      askPermission: ({ tool, path: target, resolved, grant, pattern }: AskPermissionRequest) =>
+        new Promise<PermissionDecision>((resolve) => {
           setPermission({ tool, path: target, resolved, grant, pattern, choice: 0, resolve });
         }),
-      askUser: ({ question: promptText, options }) =>
-        new Promise((resolve) => {
+      askUser: ({ question: promptText, options }: AskUserRequest) =>
+        new Promise<AskUserAnswer>((resolve) => {
           setQuestion({
             question: promptText,
             options: options ?? [],
@@ -351,9 +474,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   );
 
   const runCommand = useCallback(
-    async (raw) => {
+    async (raw: string): Promise<void> => {
       const [cmd, ...rest] = raw.slice(1).split(/\s+/);
       const arg = rest.join(" ");
+      void arg;
       switch ((cmd ?? "").toLowerCase()) {
         case "exit":
         case "quit":
@@ -393,10 +517,14 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
             const shown = summary.length > 600 ? `${summary.slice(0, 600)}…` : summary;
             push({ role: "info", text: t("compact.done", { summary: shown }) });
           } catch (error) {
-            const aborted = error?.name === "AbortError" || /abort/i.test(error?.message ?? "");
+            const aborted =
+              errorProp(error, "name") === "AbortError" ||
+              /abort/i.test(String(errorProp(error, "message") ?? ""));
             push({
               role: aborted ? "info" : "error",
-              text: aborted ? t("agent.cancelled") : t("compact.failed", { message: error.message }),
+              text: aborted
+                ? t("agent.cancelled")
+                : t("compact.failed", { message: String(errorProp(error, "message")) }),
             });
           }
           return;
@@ -442,7 +570,9 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
             items: all.map((item) => ({
               value: item.id,
               left: item.title || t("session.untitled"),
-              right: `${new Date(item.updatedAt ?? Date.now()).toLocaleString(localeTag())}  ·  ${item.cwd ?? ""}`,
+              right: `${new Date(item.updatedAt ?? Date.now()).toLocaleString(localeTag())}  ·  ${
+                item.cwd ?? ""
+              }`,
               session: item,
             })),
           });
@@ -466,14 +596,14 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
           });
           return;
         default:
-          push({ role: "error", text: t("notices.unknownCommand", { cmd }) });
+          push({ role: "error", text: t("notices.unknownCommand", { cmd: cmd ?? "" }) });
       }
     },
-    [agent, autoApprove, exit, modelId, push],
+    [agent, autoApprove, exit, loadRemoteModels, modelId, push],
   );
 
   const applyKey = useCallback(
-    async (value) => {
+    async (value: string): Promise<void> => {
       const key = value.trim();
       if (!key) return;
       push({ role: "info", text: t("onboarding.verifying") });
@@ -486,7 +616,9 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       saveConfig({ apiKey: key });
       if (result.account) {
         setAccount(result.account);
-        if (typeof result.account.credits_remaining === "number") setCredits(result.account.credits_remaining);
+        if (typeof result.account.credits_remaining === "number") {
+          setCredits(result.account.credits_remaining);
+        }
       }
       push({ role: "info", text: t("notices.apiKeyUpdated") });
       if (result.account?.name) {
@@ -502,7 +634,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     setSlashIndex(0);
   }, []);
 
-  const drive = useCallback(async () => {
+  const drive = useCallback(async (): Promise<void> => {
     if (drivingRef.current) return;
     drivingRef.current = true;
     setBusy(true);
@@ -520,7 +652,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         try {
           await agent.chatStep(item.text, sink);
         } catch (error) {
-          push({ role: "error", text: t("notices.errorPrefix", { message: error.message }) });
+          push({
+            role: "error",
+            text: t("notices.errorPrefix", { message: String(errorProp(error, "message")) }),
+          });
         }
       }
 
@@ -548,13 +683,13 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       setBusy(false);
       setLiveText("");
       syncSession();
-      maybeTitle();
-      refreshAccount();
+      void maybeTitle();
+      void refreshAccount();
     }
   }, [agent, maybeTitle, push, refreshAccount, sink, syncSession]);
 
   const handleSubmit = useCallback(
-    async (raw) => {
+    async (raw: string): Promise<void> => {
       const text = (raw ?? "").trim();
       if (!text || approval) return;
       resetInput();
@@ -586,28 +721,28 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     [approval, drive, resetInput, runCommand, started],
   );
 
-  const resolveApproval = (allowed) => {
+  const resolveApproval = (allowed: boolean): void => {
     if (!approval) return;
     approval.resolve(allowed);
     setApproval(null);
     if (!allowed) push({ role: "info", text: t("notices.commandRejected") });
   };
 
-  const resolvePermission = (decision) => {
+  const resolvePermission = (decision: PermissionDecision): void => {
     const resolve = permission?.resolve;
     setPermission(null);
     resolve?.(decision);
   };
 
   // Komut kartına tıklayınca aç/kapa (opencode'daki "click to expand")
-  const toggleCardAt = useCallback((lineIndex) => {
+  const toggleCardAt = useCallback((lineIndex: number): void => {
     const id = ownersRef.current[lineIndex];
     if (id == null) return;
     const items = itemsRef.current;
     const clicked = items.find((entry) => entry.id === id);
     if (!clicked) return;
 
-    let target = clicked;
+    let target: TranscriptItem | undefined = clicked;
     if (clicked.role === "tool-call" && clicked.name === "run_command") {
       const index = items.indexOf(clicked);
       target = items
@@ -623,35 +758,35 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   }, []);
 
   // İptal: çalışan isteği durdur + kuyruktaki bekleyen mesajları da bırak
-  const cancelWork = useCallback(() => {
+  const cancelWork = useCallback((): void => {
     requestCancel();
     if (queuedRef.current.length > 0) {
       const ids = new Set(queuedRef.current.map((item) => item.id));
       queuedRef.current = [];
       itemsRef.current = itemsRef.current.map((entry) =>
-        ids.has(entry.id) ? { ...entry, queued: false } : entry,
+        ids.has(entry.id as number) ? { ...entry, queued: false } : entry,
       );
       setItems(itemsRef.current);
       push({ role: "info", text: t("notices.queueCleared") });
     }
   }, [push]);
 
-  const selectModel = (value) => {
+  const selectModel = (value: string): void => {
     agent.setModel(value);
     setModelId(value);
     saveConfig({ currentModel: value });
     push({ role: "info", text: t("notices.modelSelected", { name: getModelInfo(value).name }) });
   };
 
-  const selectLanguage = (code) => {
+  const selectLanguage = (code: string): void => {
     setLocale(code);
-    setLang(code);
+    setLang(getLocale());
     saveConfig({ language: code });
     const name = LANGUAGES.find((entry) => entry.code === code)?.label ?? code;
     push({ role: "info", text: t("lang.selected", { name }) });
   };
 
-  const toggleMode = () => {
+  const toggleMode = (): void => {
     const next = mode === "build" ? "plan" : "build";
     agent.setMode(next);
     setMode(next);
@@ -685,7 +820,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
 
   const commands = useMemo(() => commandItems(), [lang]);
 
-  const activeMeta = modelMeta[modelId] ?? {};
+  const activeMeta = modelMeta[modelId] ?? { contextWindow: null };
   const contextWindow = activeMeta.contextWindow || CONTEXT_WINDOW;
   contextWindowRef.current = contextWindow;
 
@@ -728,11 +863,11 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
   }, [maxOffset, follow]);
 
   useEffect(() => {
-    refreshAccount();
+    void refreshAccount();
   }, [refreshAccount]);
 
   useEffect(() => {
-    loadRemoteModels();
+    void loadRemoteModels();
   }, [loadRemoteModels]);
 
   useEffect(() => {
@@ -740,12 +875,16 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     setTitle(started ? `WenOX CLI | ${name}` : "WenOX CLI");
   }, [started, sessionName, sessionTitle]);
 
-  const setSel = (value) => {
+  const setSel = (value: TextSelection | null): void => {
     selectionRef.current = value;
     setSelection(value);
   };
 
-  const toTranscriptPos = (x, y, clamp = false) => {
+  const toTranscriptPos = (
+    x: number,
+    y: number,
+    clamp = false,
+  ): { line: number; col: number } | null => {
     if (!started || lines.length === 0) return null;
     const rel = y - TRANSCRIPT_TOP;
     if (!clamp && (rel < 0 || rel >= viewportHeight)) return null;
@@ -756,9 +895,9 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     };
   };
 
-  const selectionText = (sel) => {
+  const selectionText = (sel: TextSelection): string => {
     const { startLine, startCol, endLine, endCol } = normalizeSelection(sel);
-    const out = [];
+    const out: string[] = [];
     for (let i = startLine; i <= endLine; i += 1) {
       const line = lines[i] ?? "";
       if (i === startLine && i === endLine) out.push(sliceByWidth(line, startCol, endCol));
@@ -768,17 +907,22 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
     return out
       .map((line) => line.replace(/^\s*│ ?/, "").replace(/[ \t]+$/, ""))
-      .filter((line) => !/^(▣ Build|✎|❓|\+ (Düşünen|Thinking):|→ (Soru soruldu|Question asked))/.test(line.trim()))
+      .filter(
+        (line) =>
+          !/^(▣ Build|✎|❓|\+ (Düşünen|Thinking):|→ (Soru soruldu|Question asked))/.test(
+            line.trim(),
+          ),
+      )
       .join("\n");
   };
 
-  const cleanCopy = (text) =>
+  const cleanCopy = (text: string): string =>
     text
       .replace(/[ \t]+$/gm, "")
       .replace(/\n{2,}/g, "\n")
       .replace(/^\n+|\n+$/g, "");
 
-  const copySelection = () => {
+  const copySelection = (): boolean => {
     const sel = selectionRef.current;
     if (!sel) return false;
     setSel(null);
@@ -795,16 +939,16 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const scrollBy = (delta) => {
+  const scrollBy = (delta: number): void => {
     const next = Math.max(0, Math.min(maxOffsetRef.current, offsetRef.current + delta));
     offsetRef.current = next;
     setScrollOffset(next);
     setFollow(next >= maxOffsetRef.current);
   };
 
-  const selectOverlay = (state, selected) => {
+  const selectOverlay = (state: OverlayState, selected: OverlayItem): void => {
     if (state.kind === "palette") {
-      handleSubmit(`/${selected.value}`);
+      void handleSubmit(`/${selected.value}`);
       return;
     }
     if (state.kind === "sessions") {
@@ -818,7 +962,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     selectModel(selected.value);
   };
 
-  const editInput = (char, key) => {
+  const editInput = (char: string | undefined, key: Key): void => {
     if (key.leftArrow) {
       setCaret((current) => moveLeft(inputTokens, current));
       return;
@@ -842,9 +986,9 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
       return;
     }
     if (char && !key.ctrl && !key.meta) {
-      const lines = char.split("\n").length;
-      if (lines > 2 || char.length > 120) {
-        const next = insertPaste(inputTokens, caret, char, lines);
+      const charLines = char.split("\n").length;
+      if (charLines > 2 || char.length > 120) {
+        const next = insertPaste(inputTokens, caret, char, charLines);
         setInputTokens(next.tokens);
         setCaret(next.cursor);
       } else {
@@ -856,20 +1000,20 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
   };
 
-  const recall = (text) => {
+  const recall = (text: string): void => {
     const restored = createTokens(text);
     setInputTokens(restored);
     setCaret(endCursor(restored));
   };
 
-  const historyPrev = () => {
+  const historyPrev = (): void => {
     if (history.length === 0) return;
     const next = historyIndex <= 0 ? history.length - 1 : historyIndex - 1;
     setHistoryIndex(next);
     recall(history[next]);
   };
 
-  const historyNext = () => {
+  const historyNext = (): void => {
     if (historyIndex >= history.length - 1) {
       setHistoryIndex(-1);
       resetInput();
@@ -895,7 +1039,12 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         const pos = toTranscriptPos(mouse.x, mouse.y);
         if (pos) {
           draggingRef.current = true;
-          setSel({ startLine: pos.line, startCol: pos.col, endLine: pos.line, endCol: pos.col });
+          setSel({
+            startLine: pos.line,
+            startCol: pos.col,
+            endLine: pos.line,
+            endCol: pos.col,
+          });
         } else {
           setSel(null);
         }
@@ -925,7 +1074,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     if (/^\[M/.test(char ?? "")) return;
 
     // Bazı terminaller ESC'yi isEsc olmadan ham karakter olarak gönderir
-    const isEsc = key.escape || char === "";
+    const isEsc = key.escape || char === "\x1b";
 
     // Evrensel kaçış: Ctrl+C her durumda çalışır — açık paneli kapatır, meşgulken
     // iptal eder, boştaysa çıkar. Böylece hiçbir durumda kilitli kalınmaz.
@@ -972,7 +1121,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         return;
       }
       if (key.return) {
-        resolvePermission(["once", "always", "reject"][permission.choice]);
+        resolvePermission((["once", "always", "reject"] as PermissionDecision[])[permission.choice]);
         return;
       }
       if (isEsc) {
@@ -1042,7 +1191,8 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         return;
       }
       if (key.return || (char && /^[1-9]$/.test(char))) {
-        const picked = char && /^[1-9]$/.test(char) ? Number(char) - 1 : question.index;
+        const picked =
+          char && /^[1-9]$/.test(char) ? Number(char) - 1 : question.index;
         if (picked >= question.options.length || picked < 0) {
           setQuestion({ ...question, typing: true, index: question.options.length });
           return;
@@ -1099,7 +1249,7 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
         const value = inputText;
         setKeyMode(false);
         resetInput();
-        applyKey(value);
+        void applyKey(value);
         return;
       }
       editInput(char, key);
@@ -1150,10 +1300,10 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     }
     if (key.return) {
       if (slashOpen && slashItems.length > 0) {
-        handleSubmit(`/${slashItems[slashActive].value}`);
+        void handleSubmit(`/${slashItems[slashActive].value}`);
         return;
       }
-      handleSubmit(inputText);
+      void handleSubmit(inputText);
       return;
     }
     if (slashOpen && slashItems.length > 0 && (key.upArrow || key.downArrow)) {
@@ -1170,80 +1320,101 @@ export function App({ agent, version, initialModelId, initialAutoApprove = false
     editInput(char, key);
   });
 
-  const disabled = Boolean(approval) || Boolean(permission) || Boolean(overlay) || Boolean(question && !question.typing);
-  const prefix = keyMode ? t("input.keyPrefix") : question?.typing ? t("input.answerPrefix") : undefined;
+  const disabled =
+    Boolean(approval) ||
+    Boolean(permission) ||
+    Boolean(overlay) ||
+    Boolean(question && !question.typing);
+  const prefix = keyMode
+    ? t("input.keyPrefix")
+    : question?.typing
+      ? t("input.answerPrefix")
+      : undefined;
 
-  return html`
-    <${Box} flexDirection="column" height=${Math.max(10, rows - 1)} width=${columns}>
-      <${Box} flexGrow=${1} flexShrink=${1} overflow="hidden" flexDirection="column" paddingX=${2} paddingTop=${1}>
-        ${unsafeWorkspace
-          ? html`<${Box} marginBottom=${1}>
-              <${Text} color=${theme.warn}>${t("notices.unsafeDir", { cwd: process.cwd() })}<//>
-            <//>`
-          : null}
-        ${started
-          ? html`<${Transcript}
-              lines=${lines}
-              offset=${scrollOffset}
-              height=${viewportHeight}
-              selection=${selection}
-              toast=${toast}
-              contentWidth=${Math.max(10, columns - 4)}
-            />`
-          : html`<${Home} height=${viewportHeight} />`}
-      <//>
+  return (
+    <Box flexDirection="column" height={Math.max(10, rows - 1)} width={columns}>
+      <Box
+        flexGrow={1}
+        flexShrink={1}
+        overflow="hidden"
+        flexDirection="column"
+        paddingX={2}
+        paddingTop={1}
+      >
+        {unsafeWorkspace ? (
+          <Box marginBottom={1}>
+            <Text color={theme.warn}>{t("notices.unsafeDir", { cwd: process.cwd() })}</Text>
+          </Box>
+        ) : null}
+        {started ? (
+          <Transcript
+            lines={lines}
+            offset={scrollOffset}
+            height={viewportHeight}
+            selection={selection}
+            toast={toast}
+            contentWidth={Math.max(10, columns - 4)}
+          />
+        ) : (
+          <Home height={viewportHeight} />
+        )}
+      </Box>
 
-      ${overlay
-        ? html`<${Menu}
-            items=${overlayList}
-            index=${overlay.index}
-            nameWidth=${overlay.kind === "palette" ? 14 : 24}
-            hint=${t("menu.hint")}
-          />`
-        : null}
-
-      ${approval
-        ? html`<${Approval} command=${approval.command} allow=${approval.allow} />`
-        : null}
-
-      ${permission
-        ? html`<${Permission} path=${permission.path} pattern=${permission.pattern} choice=${permission.choice} />`
-        : null}
-
-      ${question
-        ? html`<${Question}
-            question=${question.question}
-            options=${question.options}
-            index=${question.index}
-            typing=${question.typing}
-          />`
-        : null}
-
-      ${slashOpen ? html`<${Menu} items=${slashItems} index=${slashActive} nameWidth=${14} />` : null}
-
-      <${Box} flexDirection="column" flexShrink=${0} paddingX=${1}>
-        <${InputBar} view=${inputView} prefix=${prefix} disabled=${disabled} blinkOn=${blink} />
-        <${StatusRow}
-          modelName=${getModelInfo(modelId).name}
-          mode=${mode}
-          autoApprove=${autoApprove}
-          premium=${Boolean(account?.premium)}
+      {overlay ? (
+        <Menu
+          items={overlayList}
+          index={overlay.index}
+          nameWidth={overlay.kind === "palette" ? 14 : 24}
+          hint={t("menu.hint")}
         />
-      <//>
+      ) : null}
 
-      <${Box} flexShrink=${0} paddingX=${2}>
-        <${Text} color=${theme.muted}>${"─".repeat(Math.max(10, columns - 4))}<//>
-      <//>
-      <${Box} flexShrink=${0}>
-        ${busy
-          ? html`<${WorkingIndicator} />`
-          : html`<${BottomBar}
-              cwd=${process.cwd()}
-              tokens=${tokens}
-              credits=${credits}
-              contextWindow=${contextWindow}
-            />`}
-      <//>
-    <//>
-  `;
+      {approval ? <Approval command={approval.command} allow={approval.allow} /> : null}
+
+      {permission ? (
+        <Permission
+          path={permission.path ?? ""}
+          pattern={permission.pattern ?? ""}
+          choice={permission.choice}
+        />
+      ) : null}
+
+      {question ? (
+        <Question
+          question={question.question}
+          options={question.options}
+          index={question.index}
+          typing={question.typing}
+        />
+      ) : null}
+
+      {slashOpen ? <Menu items={slashItems} index={slashActive} nameWidth={14} /> : null}
+
+      <Box flexDirection="column" flexShrink={0} paddingX={1}>
+        <InputBar view={inputView} prefix={prefix} disabled={disabled} blinkOn={blink} />
+        <StatusRow
+          modelName={getModelInfo(modelId).name}
+          mode={mode}
+          autoApprove={autoApprove}
+          premium={Boolean(account?.premium)}
+        />
+      </Box>
+
+      <Box flexShrink={0} paddingX={2}>
+        <Text color={theme.muted}>{"─".repeat(Math.max(10, columns - 4))}</Text>
+      </Box>
+      <Box flexShrink={0}>
+        {busy ? (
+          <WorkingIndicator />
+        ) : (
+          <BottomBar
+            cwd={process.cwd()}
+            tokens={tokens}
+            credits={credits}
+            contextWindow={contextWindow}
+          />
+        )}
+      </Box>
+    </Box>
+  );
 }

@@ -120,6 +120,14 @@ export function formatBytes(bytes: number | string | null | undefined): string {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
+// Fırlatılan değer Error olmak zorunda değil; eski kod `error?.name` /
+// `error?.message` diye doğrudan okuyordu, aynı erişim korunuyor.
+export function errorProp(error: unknown, key: string): unknown {
+  return error && typeof error === "object"
+    ? (error as Record<string, unknown>)[key]
+    : undefined;
+}
+
 export function truncate(text: MaybeText, maxLength: number): string {
   const s = String(text ?? "");
   return s.length <= maxLength ? s : `${s.slice(0, maxLength - 1)}…`;

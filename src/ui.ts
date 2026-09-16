@@ -9,6 +9,7 @@ import { AVAILABLE_MODELS, API_BASE_URL } from "./config.js";
 import { formatBytes } from "./utils.js";
 import { t, localeTag } from "./i18n/index.js";
 import type { AccountInfo } from "./account.js";
+import type { TranscriptToolArgs, TranscriptToolResult } from "./session.js";
 
 const LOGO = [
   " ██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗  ██╗",
@@ -228,7 +229,7 @@ export function printModelsTable(currentId: string): void {
 
 export function printToolCall(
   toolName: string,
-  args: Record<string, unknown> = {},
+  args: TranscriptToolArgs = {},
 ): void {
   switch (toolName) {
     case "read_file": {
@@ -295,7 +296,7 @@ export function printToolCall(
 
 export function printToolResult(
   toolName: string,
-  result: Record<string, unknown> = {},
+  result: TranscriptToolResult = {},
 ): void {
   if (!result.success) {
     printError(String(result.error || t("common.unknownError")));
@@ -467,11 +468,11 @@ export function createPlainSink({
       stopSpinner();
       stream.clear();
     },
-    toolCall(name: string, args: Record<string, unknown>): void {
+    toolCall(name: string, args: TranscriptToolArgs): void {
       stopSpinner();
       printToolCall(name, args);
     },
-    toolResult(name: string, result: Record<string, unknown>): void {
+    toolResult(name: string, result: TranscriptToolResult): void {
       printToolResult(name, result);
     },
     info(text: string): void {

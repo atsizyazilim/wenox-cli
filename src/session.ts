@@ -23,15 +23,26 @@ export type TranscriptRole =
 
 // Transkript satırları ekranda okunurken bu alanlara erişiliyor (view.ts).
 // Araç argümanları/sonuçları doğrulanmamış geldiği için hepsi opsiyonel.
+//
+// Kimlik hem sıralı sayı (yeni satırlar) hem metin ("live") olabiliyor.
+export type ItemId = string | number;
+
 export interface TranscriptMeta {
   durationMs?: number;
   thinkingMs?: number;
   modelName?: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    estimated?: boolean;
+  };
 }
 
 export interface TranscriptToolArgs {
   path?: string;
   command?: string;
+  content?: string;
   query?: string;
   operation?: string;
   start_line?: number;
@@ -41,6 +52,7 @@ export interface TranscriptToolArgs {
 export interface TranscriptToolResult {
   success?: boolean;
   error?: string;
+  path?: string;
   stdout?: string;
   stderr?: string;
   returncode?: number;
@@ -53,7 +65,7 @@ export interface TranscriptToolResult {
 }
 
 export interface TranscriptItem {
-  id: string;
+  id: ItemId;
   role: TranscriptRole;
   text?: string;
   meta?: TranscriptMeta | null;

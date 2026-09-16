@@ -5,6 +5,7 @@ import { renderMarkdownBlocks } from "../markdown.js";
 import { theme } from "./theme.js";
 import { t } from "../i18n/index.js";
 import type {
+  ItemId,
   TranscriptItem,
   TranscriptToolArgs,
   TranscriptToolResult,
@@ -229,9 +230,9 @@ export function buildTranscript(
   items: TranscriptItem[],
   width: number,
   options: { isLast?: boolean } = {},
-): { lines: string[]; owners: string[] } {
+): { lines: string[]; owners: ItemId[] } {
   const lines: string[] = [];
-  const owners: string[] = [];
+  const owners: ItemId[] = [];
   items.forEach((item, index) => {
     const block = itemLines(item, width, {
       ...options,

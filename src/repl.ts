@@ -9,7 +9,7 @@ import {
   saveConfig,
   maskKey,
 } from "./config.js";
-import { resolvePath } from "./utils.js";
+import { resolvePath, errorProp } from "./utils.js";
 import { verifyApiKey, verifyFailureMessage } from "./account.js";
 import { listSessions } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
@@ -57,14 +57,6 @@ function createCompleter(): (line: string) => [string[], string] {
     }
     return [entries, last];
   };
-}
-
-// Fırlatılan değer Error olmak zorunda değil; eski kod da `error?.name` /
-// `error?.message` şeklinde doğrudan okuyordu, aynı erişim korunuyor.
-function errorProp(error: unknown, key: string): unknown {
-  return error && typeof error === "object"
-    ? (error as Record<string, unknown>)[key]
-    : undefined;
 }
 
 export async function runRepl({ agent }: { agent: ReplAgent }): Promise<void> {
