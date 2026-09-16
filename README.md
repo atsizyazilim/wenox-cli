@@ -223,10 +223,14 @@ through environment variables: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`,
 
 ## 🛠️ Development
 
+Written in TypeScript and compiled with `tsc`. The published package ships
+the compiled output, so installing it needs nothing extra.
+
 ```bash
 npm install
-npm test        # node --test
-npm start       # node bin/wenox.js
+npm run build   # compile
+npm test        # compile, then run the tests
+npm start       # compile, then run the CLI
 ```
 
 <img src="slimbanner.png" width="100%">

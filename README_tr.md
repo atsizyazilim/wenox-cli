@@ -225,10 +225,14 @@ hesabı görün, bağlamı düzenleyin. Ayarlar ortam değişkenleriyle de veril
 
 ## 🛠️ Geliştirme
 
+TypeScript ile yazıldı ve `tsc` ile derleniyor. Yayınlanan paket derlenmiş
+çıktıyı taşıdığı için kurulumda ek bir adım gerekmiyor.
+
 ```bash
 npm install
-npm test        # node --test
-npm start       # node bin/wenox.js
+npm run build   # derle
+npm test        # derle, sonra testleri koş
+npm start       # derle, sonra CLI'ı çalıştır
 ```
 
 <img src="slimbanner.png" width="100%">
