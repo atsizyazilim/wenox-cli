@@ -4,12 +4,8 @@ import stringWidth from "string-width";
 import { renderMarkdownBlocks } from "../markdown.js";
 import { theme } from "./theme.js";
 import { t } from "../i18n/index.js";
-import type {
-  ItemId,
-  TranscriptItem,
-  TranscriptToolArgs,
-  TranscriptToolResult,
-} from "../session.js";
+import type { ItemId, TranscriptItem } from "../session.js";
+import type { ToolArgs, ToolResult } from "../tools.js";
 
 const TOOL_ICONS: Record<string, string> = {
   read_file: "📖",
@@ -30,7 +26,7 @@ function commandBar(text: string, colorName: "green" | "red" | "cyan"): string {
 const MAX_COMMAND_LINES = 6;
 
 function commandOutput(
-  result: TranscriptToolResult,
+  result: ToolResult,
   width: number,
   expanded: boolean,
 ): string[] {
@@ -72,7 +68,7 @@ function wrapLines(text: string, width: number): string[] {
     });
 }
 
-function detailOf(name: string, args: TranscriptToolArgs | null | undefined): string | undefined {
+function detailOf(name: string, args: ToolArgs | null | undefined): string | undefined {
   if (!args) return "";
   switch (name) {
     case "read_file":
@@ -92,7 +88,7 @@ function detailOf(name: string, args: TranscriptToolArgs | null | undefined): st
   }
 }
 
-function summaryOf(name: string, result: TranscriptToolResult): string {
+function summaryOf(name: string, result: ToolResult): string {
   switch (name) {
     case "read_file":
       return t("tool.read", { count: result.total_lines ?? 0 });
@@ -187,7 +183,7 @@ function itemLines(
       ];
 
     case "tool-result": {
-      const result = item.result ?? {};
+      const result = item.result ?? { success: false };
       if (item.name === "ask_user") {
         const answer = result.answer ?? "";
         return [chalk.hex(theme.menuDesc)(t("view.answer", { answer })), ""];

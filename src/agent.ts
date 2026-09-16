@@ -2,10 +2,13 @@ import path from "node:path";
 import OpenAI from "openai";
 import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
-import { sanitizeOutput } from "./utils.js";
+import type { ToolArgs } from "./tools.js";
+import { sanitizeOutput, errorProp } from "./utils.js";
 import { t } from "./i18n/index.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { isUnsafeWorkspace } from "./workspace.js";
+import type { ChatMessage, TranscriptMeta } from "./session.js";
+import type { Sink } from "./sink.js";
 import {
   isCancelled,
   resetCancel,
@@ -15,12 +18,17 @@ import {
 
 const MAX_TURNS = 100;
 const RENDER_INTERVAL_MS = 50;
-const FALLBACK_RESPONSE = () => t("agent.fallback");
+const FALLBACK_RESPONSE = (): string => t("agent.fallback");
 
 // Sunucudan bu süre boyunca hiç veri gelmezse istek iptal edilir (WENOX_REQUEST_TIMEOUT_MS ile ayarlanır).
 const REQUEST_TIMEOUT_MS = Number(process.env.WENOX_REQUEST_TIMEOUT_MS) || 120_000;
 
-class RequestTimeoutError extends Error {
+// Sohbet mesajları SDK'nın dar birleşimine değil, kendi yapımıza göre tutuluyor:
+// oturum dosyasından doğrulanmadan okunuyorlar ve alanları elle kuruluyor.
+// SDK sınırında tek bir daraltma yapılıyor (bkz. #sdkMessages).
+type SdkMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
+
+export class RequestTimeoutError extends Error {
   constructor() {
     super("Request timed out");
     this.name = "RequestTimeoutError";
@@ -33,13 +41,25 @@ const PLAN_BLOCKED_TOOLS = new Set(["write_file", "edit_file", "run_command", "c
 const PLAN_BLOCKED_ERROR =
   "Blocked: the agent is in PLAN mode (read-only). Switch to Build mode (Tab) to modify files or run commands.";
 
-function withinProject(targetPath, root) {
+interface ToolCallAccumulator {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+interface StreamResult {
+  content: string;
+  toolCalls: ToolCallAccumulator[];
+  meta: TranscriptMeta;
+}
+
+function withinProject(targetPath: unknown, root: string): boolean {
   const abs = path.resolve(root, String(targetPath));
   const rel = path.relative(root, abs);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
-export function getSystemPrompt(mode = "build") {
+export function getSystemPrompt(mode = "build"): string {
   const cwd = process.cwd();
   const modeLine =
     mode === "plan"
@@ -81,17 +101,38 @@ Your Working Principles:
 - Always write characters correctly in UTF-8, never produce garbled characters (including Turkish characters such as ı, İ, ş, ğ, ü, ö, ç when replying in Turkish).`;
 }
 
-function parseToolArgs(raw) {
+function parseToolArgs(raw: unknown): ToolArgs {
   if (!raw) return {};
   try {
-    return JSON.parse(raw);
+    return JSON.parse(String(raw)) as ToolArgs;
   } catch {
     return {};
   }
 }
 
 export class WenOXAgent {
-  constructor({ apiKey, modelId = DEFAULT_MODEL_ID, autoApprove = false }) {
+  apiKey: string;
+  modelId: string;
+  autoApprove: boolean;
+  clientInstance: OpenAI | null;
+  mode: string;
+  messages: ChatMessage[];
+  projectRoot: string;
+  unsafeRoot: boolean;
+  allowedExternal: Set<string>;
+  // Kasıtlı olarak başlatılmıyor: `undefined`, "stream_options destekleniyor
+  // varsay" demek. Yalnızca 400 alındığında false'a çekiliyor.
+  supportsUsage?: boolean;
+
+  constructor({
+    apiKey,
+    modelId = DEFAULT_MODEL_ID,
+    autoApprove = false,
+  }: {
+    apiKey?: string;
+    modelId?: string;
+    autoApprove?: boolean;
+  }) {
     this.apiKey = apiKey ?? "";
     this.modelId = modelId;
     this.autoApprove = autoApprove;
@@ -105,22 +146,26 @@ export class WenOXAgent {
 
   // OpenAI istemcisi tembel kurulur: anahtar onboarding ekranında alınacağı için
   // başlangıçta boş olabilir ve SDK boş anahtarla kurulmaya izin vermez.
-  get client() {
+  get client(): OpenAI {
     if (!this.clientInstance) {
       this.clientInstance = new OpenAI({ apiKey: this.apiKey, baseURL: API_BASE_URL });
     }
     return this.clientInstance;
   }
 
-  set client(value) {
+  set client(value: OpenAI) {
     this.clientInstance = value;
   }
 
-  setModel(modelId) {
+  #sdkMessages(): SdkMessage[] {
+    return this.messages as unknown as SdkMessage[];
+  }
+
+  setModel(modelId: string): void {
     this.modelId = modelId;
   }
 
-  setMode(mode) {
+  setMode(mode: string): string {
     const next = mode === "plan" ? "plan" : "build";
     if (this.mode !== next) {
       this.mode = next;
@@ -129,40 +174,44 @@ export class WenOXAgent {
     return this.mode;
   }
 
-  #refreshSystem() {
+  #refreshSystem(): void {
     if (this.messages[0]?.role === "system") {
       this.messages[0] = { role: "system", content: getSystemPrompt(this.mode) };
     }
   }
 
-  setApiKey(apiKey) {
+  setApiKey(apiKey: string): void {
     this.apiKey = apiKey;
     this.clientInstance = null;
   }
 
-  clearHistory() {
+  clearHistory(): void {
     this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
   }
 
-  updateCwd() {
+  updateCwd(): void {
     this.#refreshSystem();
     this.projectRoot = process.cwd();
     this.unsafeRoot = isUnsafeWorkspace(this.projectRoot);
     this.allowedExternal = new Set(loadGrants(this.projectRoot));
   }
 
-  get messageCount() {
+  get messageCount(): number {
     return Math.max(0, this.messages.length - 1);
   }
 
-  #isExternalAllowed(abs) {
+  #isExternalAllowed(abs: string): boolean {
     for (const root of this.allowedExternal) {
       if (abs === root || abs.startsWith(root + path.sep)) return true;
     }
     return false;
   }
 
-  async #ensurePathAccess(toolName, args, sink) {
+  async #ensurePathAccess(
+    toolName: string,
+    args: ToolArgs | null | undefined,
+    sink: Sink,
+  ): Promise<boolean> {
     if (!PATH_TOOLS.has(toolName)) return true;
     const targetPath = args?.path ?? ".";
     const root = this.projectRoot;
@@ -178,7 +227,13 @@ export class WenOXAgent {
     const pattern = `${grant}${path.sep}*`;
 
     const decision = sink.askPermission
-      ? await sink.askPermission({ tool: toolName, path: args.path, resolved: abs, grant, pattern })
+      ? await sink.askPermission({
+          tool: toolName,
+          path: args?.path,
+          resolved: abs,
+          grant,
+          pattern,
+        })
       : "reject";
 
     if (decision === "always") {
@@ -189,12 +244,12 @@ export class WenOXAgent {
     return decision === "once";
   }
 
-  async #streamCompletion(sink, modelName) {
+  async #streamCompletion(sink: Sink, modelName: string): Promise<StreamResult> {
     sink.thinking?.(t("agent.thinking", { model: modelName }));
 
-    const params = {
+    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
       model: this.modelId,
-      messages: this.messages,
+      messages: this.#sdkMessages(),
       tools: TOOLS_SCHEMA,
       tool_choice: "auto",
       temperature: 0.3,
@@ -207,9 +262,9 @@ export class WenOXAgent {
 
     const startedAt = Date.now();
     let timedOut = false;
-    let idleTimer = null;
-    const armIdle = () => {
-      clearTimeout(idleTimer);
+    let idleTimer: NodeJS.Timeout | null = null;
+    const armIdle = (): void => {
+      if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         timedOut = true;
         try {
@@ -223,7 +278,6 @@ export class WenOXAgent {
 
     try {
       let stream;
-
       if (this.supportsUsage === false) {
         stream = await this.client.chat.completions.create(params, requestOptions);
       } else {
@@ -233,7 +287,10 @@ export class WenOXAgent {
             requestOptions,
           );
         } catch (error) {
-          if (error?.status === 400 || /stream_options/i.test(error?.message ?? "")) {
+          if (
+            errorProp(error, "status") === 400 ||
+            /stream_options/i.test(String(errorProp(error, "message") ?? ""))
+          ) {
             this.supportsUsage = false;
             stream = await this.client.chat.completions.create(params, requestOptions);
           } else {
@@ -243,9 +300,9 @@ export class WenOXAgent {
       }
 
       let content = "";
-      let usage = null;
-      let firstTokenAt = null;
-      const toolCalls = [];
+      let usage: OpenAI.CompletionUsage | null = null;
+      let firstTokenAt: number | null = null;
+      const toolCalls: ToolCallAccumulator[] = [];
       let lastRender = 0;
 
       for await (const chunk of stream) {
@@ -296,7 +353,7 @@ export class WenOXAgent {
         (sum, message) => sum + String(message.content ?? "").length,
         0,
       );
-      const meta = {
+      const meta: TranscriptMeta = {
         durationMs: Date.now() - startedAt,
         thinkingMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
         modelName,
@@ -315,13 +372,16 @@ export class WenOXAgent {
       if (timedOut) throw new RequestTimeoutError();
       throw error;
     } finally {
-      clearTimeout(idleTimer);
+      if (idleTimer) clearTimeout(idleTimer);
       clearAbortHandler();
     }
   }
 
   // compact/title gibi yardımcı istekler: iptal edilebilir + zaman aşımlı
-  async #request(params, timeoutMs = REQUEST_TIMEOUT_MS) {
+  async #request(
+    params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       try {
@@ -332,14 +392,16 @@ export class WenOXAgent {
     }, timeoutMs);
     setAbortHandler(() => controller.abort());
     try {
-      return await this.client.chat.completions.create(params, { signal: controller.signal });
+      return await this.client.chat.completions.create(params, {
+        signal: controller.signal,
+      });
     } finally {
       clearTimeout(timer);
       clearAbortHandler();
     }
   }
 
-  async chatStep(userPrompt, sink = {}) {
+  async chatStep(userPrompt: string, sink: Sink = {}): Promise<void> {
     resetCancel();
     this.messages.push({ role: "user", content: userPrompt });
 
@@ -351,7 +413,7 @@ export class WenOXAgent {
       }
 
       const modelInfo = getModelInfo(this.modelId);
-      let result;
+      let result: StreamResult;
       try {
         result = await this.#streamCompletion(sink, modelInfo.name);
       } catch (error) {
@@ -409,15 +471,17 @@ export class WenOXAgent {
                 if (call.name === "ask_user") {
                   const options = Array.isArray(args.options) ? args.options : [];
                   const response = sink.askUser
-                    ? await sink.askUser({ question: args.question ?? "", options })
+                    ? await sink.askUser({ question: String(args.question ?? ""), options })
                     : { answer: t("ask.noInterface") };
                   toolResult = {
                     success: !response.cancelled,
-                    question: args.question ?? "",
+                    question: String(args.question ?? ""),
                     answer: response.answer,
                   };
                 } else if (call.name === "run_command" && !this.autoApprove) {
-                  const approved = sink.askApproval ? await sink.askApproval(args.command ?? "") : false;
+                  const approved = sink.askApproval
+                    ? await sink.askApproval(String(args.command ?? ""))
+                    : false;
                   toolResult = approved
                     ? await executeTool("run_command", args)
                     : { success: false, error: "User rejected running this command." };
@@ -425,7 +489,7 @@ export class WenOXAgent {
                   toolResult = await executeTool(call.name, args);
                 }
               } catch (error) {
-                toolResult = { success: false, error: error.message };
+                toolResult = { success: false, error: String(errorProp(error, "message")) };
               }
             }
           }
@@ -451,7 +515,7 @@ export class WenOXAgent {
     sink.info?.(t("agent.turnLimit", { max: MAX_TURNS }));
   }
 
-  async generateTitle() {
+  async generateTitle(): Promise<string> {
     const history = this.messages
       .slice(1)
       .filter(
@@ -473,7 +537,7 @@ export class WenOXAgent {
           content:
             "Give the following conversation a short, descriptive title of 2-4 words. Write only the title; do not use quotes, periods, or extra explanation.",
         },
-        ...history,
+        ...(history as unknown as SdkMessage[]),
         { role: "user", content: "Title for this conversation:" },
       ],
     });
@@ -487,7 +551,7 @@ export class WenOXAgent {
       .slice(0, 40);
   }
 
-  async compact() {
+  async compact(): Promise<{ summary: string; tokens: number }> {
     const history = this.messages
       .slice(1)
       .filter(
@@ -508,7 +572,7 @@ export class WenOXAgent {
           content:
             "Summarize the following conversation history concisely, preserving all information useful for next steps (file paths, decisions made, changes applied, open tasks, user preferences). Write only the summary.",
         },
-        ...history,
+        ...(history as unknown as SdkMessage[]),
         { role: "user", content: "Now summarize this conversation." },
       ],
     });
@@ -518,18 +582,27 @@ export class WenOXAgent {
 
     this.messages = [
       { role: "system", content: getSystemPrompt(this.mode) },
-      { role: "user", content: `[SUMMARY] Summary of the previous conversation:\n${summary}` },
-      { role: "assistant", content: "I've got the summary. We can continue where we left off." },
+      {
+        role: "user",
+        content: `[SUMMARY] Summary of the previous conversation:\n${summary}`,
+      },
+      {
+        role: "assistant",
+        content: "I've got the summary. We can continue where we left off.",
+      },
     ];
 
     const tokens = Math.ceil(
-      this.messages.reduce((sum, message) => sum + String(message.content ?? "").length, 0) / 4,
+      this.messages.reduce(
+        (sum, message) => sum + String(message.content ?? "").length,
+        0,
+      ) / 4,
     );
 
     return { summary, tokens };
   }
 
-  #reportError(error, sink) {
+  #reportError(error: unknown, sink: Sink): void {
     if (isCancelled()) {
       sink.info?.(t("agent.cancelled"));
     } else if (error instanceof OpenAI.AuthenticationError) {
@@ -540,11 +613,13 @@ export class WenOXAgent {
     } else if (error instanceof OpenAI.APIConnectionError) {
       sink.error?.(t("agent.connection", { url: API_BASE_URL }));
     } else if (error instanceof OpenAI.APIError) {
-      sink.error?.(t("agent.apiError", { status: error.status ?? "?", message: error.message }));
+      sink.error?.(
+        t("agent.apiError", { status: error.status ?? "?", message: error.message }),
+      );
     } else if (error instanceof RequestTimeoutError) {
       sink.error?.(t("agent.timeout", { seconds: Math.round(REQUEST_TIMEOUT_MS / 1000) }));
     } else {
-      sink.error?.(t("agent.unknownError", { message: error.message }));
+      sink.error?.(t("agent.unknownError", { message: String(errorProp(error, "message")) }));
     }
   }
 }

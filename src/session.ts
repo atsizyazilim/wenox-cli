@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { configDir } from "./config.js";
+import type { ToolArgs, ToolResult } from "./tools.js";
 
 // Sohbet geçmişi ve ekranda gösterilen satırlar. İkisi de oturum dosyasına
 // yazılıp diskten okunuyor; okuma sırasında doğrulanmıyor (kendi yazdığımız
@@ -22,8 +23,6 @@ export type TranscriptRole =
   | "tool-result";
 
 // Transkript satırları ekranda okunurken bu alanlara erişiliyor (view.ts).
-// Araç argümanları/sonuçları doğrulanmamış geldiği için hepsi opsiyonel.
-//
 // Kimlik hem sıralı sayı (yeni satırlar) hem metin ("live") olabiliyor.
 export type ItemId = string | number;
 
@@ -39,39 +38,14 @@ export interface TranscriptMeta {
   };
 }
 
-export interface TranscriptToolArgs {
-  path?: string;
-  command?: string;
-  content?: string;
-  query?: string;
-  operation?: string;
-  start_line?: number;
-  end_line?: number;
-}
-
-export interface TranscriptToolResult {
-  success?: boolean;
-  error?: string;
-  path?: string;
-  stdout?: string;
-  stderr?: string;
-  returncode?: number;
-  diff?: string;
-  answer?: string;
-  count?: number;
-  total_lines?: number;
-  total_items?: number;
-  match_count?: number;
-}
-
 export interface TranscriptItem {
   id: ItemId;
   role: TranscriptRole;
   text?: string;
   meta?: TranscriptMeta | null;
   name?: string;
-  args?: TranscriptToolArgs | null;
-  result?: TranscriptToolResult | null;
+  args?: ToolArgs | null;
+  result?: ToolResult | null;
   queued?: boolean;
   expanded?: boolean;
   live?: boolean;

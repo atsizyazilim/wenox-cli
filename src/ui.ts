@@ -9,7 +9,14 @@ import { AVAILABLE_MODELS, API_BASE_URL } from "./config.js";
 import { formatBytes } from "./utils.js";
 import { t, localeTag } from "./i18n/index.js";
 import type { AccountInfo } from "./account.js";
-import type { TranscriptToolArgs, TranscriptToolResult } from "./session.js";
+import type { ToolArgs, ToolResult } from "./tools.js";
+import type {
+  AskPermissionRequest,
+  AskUserAnswer,
+  AskUserRequest,
+  PermissionDecision,
+  Sink,
+} from "./sink.js";
 
 const LOGO = [
   " ██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗  ██╗",
@@ -227,10 +234,7 @@ export function printModelsTable(currentId: string): void {
   console.log(table.toString());
 }
 
-export function printToolCall(
-  toolName: string,
-  args: TranscriptToolArgs = {},
-): void {
+export function printToolCall(toolName: string, args: ToolArgs = {}): void {
   switch (toolName) {
     case "read_file": {
       const range = args.start_line
@@ -294,9 +298,11 @@ export function printToolCall(
   }
 }
 
+// Varsayılan `{ success: false }`: sonuç verilmezse eskiden de `!result.success`
+// dalına düşüp "bilinmeyen hata" basıyordu.
 export function printToolResult(
   toolName: string,
-  result: TranscriptToolResult = {},
+  result: ToolResult = { success: false },
 ): void {
   if (!result.success) {
     printError(String(result.error || t("common.unknownError")));
@@ -414,31 +420,11 @@ export function printStats(items: [string, unknown][]): void {
   console.log(chalk.dim(items.map(([key, value]) => `${key}: ${value}`).join("  •  ")));
 }
 
-export interface AskUserRequest {
-  question: string;
-  options: { label?: string; description?: string }[];
-}
-
-export interface AskUserAnswer {
-  answer: string;
-  cancelled?: boolean;
-}
-
-export interface AskPermissionRequest {
-  tool?: string;
-  path?: string;
-  resolved?: string;
-  grant?: string;
-  pattern?: string;
-}
-
-export type PermissionDecision = "once" | "always" | "reject";
-
 export function createPlainSink({
   ask,
 }: {
   ask?: (question: string) => Promise<string>;
-} = {}) {
+} = {}): Sink {
   const stream = createAssistantStream();
   let spinner: Ora | null = null;
 
@@ -468,11 +454,11 @@ export function createPlainSink({
       stopSpinner();
       stream.clear();
     },
-    toolCall(name: string, args: TranscriptToolArgs): void {
+    toolCall(name: string, args: ToolArgs): void {
       stopSpinner();
       printToolCall(name, args);
     },
-    toolResult(name: string, result: TranscriptToolResult): void {
+    toolResult(name: string, result: ToolResult): void {
       printToolResult(name, result);
     },
     info(text: string): void {

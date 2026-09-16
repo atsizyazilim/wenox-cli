@@ -11,9 +11,8 @@ import type {
   Session,
   TranscriptItem,
   TranscriptMeta,
-  TranscriptToolArgs,
-  TranscriptToolResult,
 } from "../session.js";
+import type { ToolArgs, ToolResult } from "../tools.js";
 import {
   fetchAccount,
   formatAccount,
@@ -62,7 +61,8 @@ import type {
   AskUserAnswer,
   AskUserRequest,
   PermissionDecision,
-} from "../ui.js";
+  Sink,
+} from "../sink.js";
 
 // Ajanın App'te kullanılan yüzeyi. Sınıfın tamamı gerekmiyor; yapısal tip
 // yeterli, böylece testler de sahte bir ajan verebiliyor.
@@ -115,7 +115,7 @@ interface ApprovalState {
 
 interface PermissionState {
   tool?: string;
-  path?: string;
+  path?: unknown;
   resolved?: string;
   grant?: string;
   pattern?: string;
@@ -412,7 +412,7 @@ export function App({
     [agent, push, session, refreshUnsafeWorkspace],
   );
 
-  const sink = useMemo(
+  const sink = useMemo<Sink>(
     () => ({
       thinking: () => {
         setBusy(true);
@@ -440,11 +440,11 @@ export function App({
       assistantClear: () => {
         setLiveText("");
       },
-      toolCall: (name: string, args: TranscriptToolArgs) => {
+      toolCall: (name: string, args: ToolArgs) => {
         setLiveText("");
         push({ role: "tool-call", name, args });
       },
-      toolResult: (name: string, result: TranscriptToolResult) =>
+      toolResult: (name: string, result: ToolResult) =>
         push({ role: "tool-result", name, result }),
       info: (text: string) => push({ role: "info", text }),
       error: (text: string) => {
@@ -1373,7 +1373,7 @@ export function App({
 
       {permission ? (
         <Permission
-          path={permission.path ?? ""}
+          path={String(permission.path ?? "")}
           pattern={permission.pattern ?? ""}
           choice={permission.choice}
         />

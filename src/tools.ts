@@ -31,9 +31,27 @@ const MAX_ITEMS = 80;
 const MAX_MATCHES = 50;
 const COMMAND_TIMEOUT_MS = 120_000;
 
-// Araç argümanları modelden doğrulanmamış JSON olarak geliyor; her alan
-// savunmacı okunuyor ve varsayılanlar çağrı yerinde veriliyor.
-export type ToolArgs = Record<string, unknown>;
+// Araç argümanları modelden doğrulanmamış JSON olarak geliyor; alanlar
+// TOOLS_SCHEMA'nın bildirdiği tiplerle yazılıyor, okuma ise yine savunmacı
+// (varsayılanlar çağrı yerinde). Index signature, indekslenebilir kalsın diye.
+export interface ToolArgs {
+  path?: string;
+  content?: string;
+  target?: string;
+  replacement?: string;
+  query?: string;
+  command?: string;
+  operation?: string;
+  question?: string;
+  options?: unknown;
+  start_line?: number;
+  end_line?: number;
+  max_depth?: number;
+  is_regex?: boolean;
+  line?: number;
+  character?: number;
+  [key: string]: unknown;
+}
 
 export interface ToolListItem {
   name: string;
@@ -74,6 +92,8 @@ export interface ToolResult {
   symbols?: SymbolEntry[];
   hover?: string;
   locations?: LocationEntry[];
+  question?: string;
+  answer?: string;
 }
 
 // Fırlatılan değer Error olmak zorunda değil; eski kod `${error.message}`
