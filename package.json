@@ -8,15 +8,20 @@
   },
   "files": [
     "bin",
-    "src",
+    "dist/src",
     "README_tr.md"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pretest": "npm run build",
+    "test": "node scripts/run-tests.mjs",
+    "prestart": "npm run build",
     "start": "node bin/wenox.js",
-    "test": "node --test"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "wenox",
@@ -34,7 +39,6 @@
   "author": "ATSIZ YAZILIM LTD",
   "license": "MIT",
   "dependencies": {
-    "@inkjs/ui": "^2.0.0",
     "boxen": "^8.0.1",
     "chalk": "^6.0.0",
     "cli-highlight": "^2.1.11",
@@ -47,11 +51,13 @@
     "ora": "^9.4.1",
     "react": "^19.3.0",
     "string-width": "^8.2.2",
+    "strip-ansi": "^7.1.0",
     "wrap-ansi": "^10.0.1"
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.2.0",
     "ink-testing-library": "^4.0.0",
-    "strip-ansi": "^7.1.0",
     "typescript": "^5.9.3"
   }
 }

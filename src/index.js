@@ -1,6 +1,7 @@
 import fs from "node:fs";
+import path from "node:path";
 import { parseArgs } from "node:util";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import readline from "node:readline/promises";
 import chalk from "chalk";
 import boxen from "boxen";
@@ -21,9 +22,18 @@ import { isUnsafeWorkspace } from "./workspace.js";
 import { checkForUpdate, UPGRADE_COMMAND } from "./update.js";
 import { t, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
+import { findPackageJson } from "./utils.js";
 
-const require = createRequire(import.meta.url);
-const pkg = require("../package.json");
+// Manifest derinliğe bağlı olmadan bulunur: kaynak ağacında (src/), derlenmiş
+// çıktıda (dist/src/) ve global kurulumda aynı şekilde çalışır.
+const manifestPath = findPackageJson(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "@wenox/cli",
+);
+if (!manifestPath) {
+  throw new Error("Could not locate the @wenox/cli package manifest.");
+}
+const pkg = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
 function helpText() {
   return `${chalk.bold.cyan("WenOX AI CLI")} ${chalk.dim(`v${pkg.version}`)} ${t("help.cliSubtitle")}

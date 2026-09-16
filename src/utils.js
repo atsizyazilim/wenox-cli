@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -74,6 +75,27 @@ export function resolvePath(input) {
     return path.resolve(process.cwd(), native);
   }
   return path.resolve(native);
+}
+
+// package.json'ı verilen dizinden yukarı doğru arar. Derinliğe bağlı olmadığı için
+// kaynak ağacında (src/), derlenmiş çıktıda (dist/src/) ve global kurulumda aynı çalışır.
+export function findPackageJson(startDir, expectedName) {
+  let dir = path.resolve(String(startDir ?? "."));
+  for (;;) {
+    const candidate = path.join(dir, "package.json");
+    if (fs.existsSync(candidate)) {
+      if (!expectedName) return candidate;
+      try {
+        const parsed = JSON.parse(fs.readFileSync(candidate, "utf8"));
+        if (parsed && parsed.name === expectedName) return candidate;
+      } catch {
+        // bozuk manifest: yukarı devam
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 export function formatBytes(bytes) {

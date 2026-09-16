@@ -11,3 +11,7 @@ config.json
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Derlenmiş çıktı
+/dist/
+*.tsbuildinfo

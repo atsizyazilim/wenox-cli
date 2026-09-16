@@ -1,7 +1,28 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { openUrl, resolvePath, truncate, formatBytes } = await import("../src/utils.js");
+const { findPackageJson, openUrl, resolvePath, truncate, formatBytes } = await import(
+  "../src/utils.js"
+);
+
+// Test dosyasının kendi konumundan türetilir; process.cwd() kullanılırsa sonuç
+// testin nereden çalıştırıldığına göre değişir.
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+test("findPackageJson derinlikten bağımsız olarak aynı manifesti bulur", () => {
+  const fromHere = findPackageJson(here, "@wenox/cli");
+  const fromDeep = findPackageJson(path.join(here, "a", "b", "c"), "@wenox/cli");
+  assert.ok(fromHere, "manifest bulunmalı");
+  assert.equal(fromDeep, fromHere);
+  assert.equal(JSON.parse(fs.readFileSync(fromHere, "utf8")).name, "@wenox/cli");
+});
+
+test("findPackageJson isim eşleşmezse yukarı devam eder, bulamazsa null döner", () => {
+  assert.equal(findPackageJson(here, "boyle-bir-paket-yok"), null);
+});
 
 test("openUrl yalnızca http(s) kabul eder (komut enjeksiyonu engeli)", () => {
   assert.equal(openUrl("file:///etc/passwd"), false);
