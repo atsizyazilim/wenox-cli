@@ -7,7 +7,6 @@ import chalk from "chalk";
 import boxen from "boxen";
 import {
   API_BASE_URL,
-  AVAILABLE_MODELS,
   DEFAULT_MODEL_ID,
   getModelInfo,
   loadConfig,
@@ -17,12 +16,13 @@ import { WenOXAgent, getSystemPrompt } from "./agent.js";
 import { runRepl } from "./repl.js";
 import { changeDirectory } from "./tools.js";
 import { createSession, loadSession, saveSession } from "./session.js";
+import type { Session } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { isUnsafeWorkspace } from "./workspace.js";
 import { checkForUpdate, UPGRADE_COMMAND } from "./update.js";
-import { t, setLocale, detectLanguage } from "./i18n/index.js";
+import { t, tList, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
-import { findPackageJson } from "./utils.js";
+import { findPackageJson, errorProp } from "./utils.js";
 
 // Manifest derinliğe bağlı olmadan bulunur: kaynak ağacında (src/), derlenmiş
 // çıktıda (dist/src/) ve global kurulumda aynı şekilde çalışır.
@@ -33,22 +33,22 @@ const manifestPath = findPackageJson(
 if (!manifestPath) {
   throw new Error("Could not locate the @wenox/cli package manifest.");
 }
-const pkg = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+const pkg = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { version: string };
 
-function helpText() {
+function helpText(): string {
   return `${chalk.bold.cyan("WenOX AI CLI")} ${chalk.dim(`v${pkg.version}`)} ${t("help.cliSubtitle")}
 
 ${chalk.bold(t("help.usage"))}
   ${t("help.usageLine")}
 
 ${chalk.bold(t("help.options"))}
-${t("help.optionLines").map((line) => `  ${line}`).join("\n")}
+${tList("help.optionLines").map((line) => `  ${line}`).join("\n")}
 
 ${chalk.bold(t("help.examples"))}
-${t("help.exampleLines").map((line) => `  ${line}`).join("\n")}`;
+${tList("help.exampleLines").map((line) => `  ${line}`).join("\n")}`;
 }
 
-function parseCliArgs(argv) {
+function parseCliArgs(argv: string[]) {
   try {
     return parseArgs({
       args: argv,
@@ -66,18 +66,23 @@ function parseCliArgs(argv) {
       },
     });
   } catch (error) {
-    console.error(chalk.red(t("cli.argError", { message: error.message })));
+    console.error(chalk.red(t("cli.argError", { message: String(errorProp(error, "message")) })));
     console.log(helpText());
     process.exit(1);
   }
 }
 
-// Anahtar yoksa onboarding, TUI içindeki Onboarding ekranında tamamlanır (src/tui/root.js)
+// Anahtar yoksa onboarding, TUI içindeki Onboarding ekranında tamamlanır (src/tui/root.tsx)
 
-function createLineReader() {
+interface LineReader {
+  ask(prompt: string): Promise<string>;
+  close(): void;
+}
+
+function createLineReader(): LineReader {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const queue = [];
-  let waiter = null;
+  const queue: string[] = [];
+  let waiter: ((line: string) => void) | null = null;
   let closed = false;
 
   rl.on("line", (line) => {
@@ -100,9 +105,9 @@ function createLineReader() {
 
   return {
     ask: (prompt) => {
-      if (queue.length > 0) return Promise.resolve(queue.shift());
+      if (queue.length > 0) return Promise.resolve(queue.shift() ?? "");
       if (closed) return Promise.resolve("");
-      return new Promise((resolve) => {
+      return new Promise<string>((resolve) => {
         waiter = resolve;
         rl.setPrompt(prompt);
         rl.prompt();
@@ -112,7 +117,7 @@ function createLineReader() {
   };
 }
 
-function printSessionFooter(session) {
+function printSessionFooter(session: Session | null | undefined): void {
   if (!session) return;
   const hasContent = (session.items ?? []).length > 0 || (session.messages ?? []).length > 0;
   if (!hasContent) return;
@@ -125,7 +130,13 @@ function printSessionFooter(session) {
   console.log("");
 }
 
-function printUpdateRequired({ current, latest }) {
+function printUpdateRequired({
+  current,
+  latest,
+}: {
+  current?: string;
+  latest?: string;
+}): void {
   console.error(
     boxen(
       `${t("update.forced", { current, latest })}
@@ -142,7 +153,7 @@ function printUpdateRequired({ current, latest }) {
   );
 }
 
-async function resolveApiKey(values) {
+async function resolveApiKey(values: { key?: string }): Promise<string> {
   const provided = values.key?.trim();
   if (provided) {
     saveConfig({ apiKey: provided });
@@ -161,18 +172,20 @@ async function resolveApiKey(values) {
   return "";
 }
 
-async function main() {
+async function main(): Promise<void> {
   setLocale(detectLanguage(loadConfig().language));
   const { values } = parseCliArgs(process.argv.slice(2));
 
   if (values.help) {
-    console.log(boxen(helpText(), {
-      padding: { top: 1, bottom: 1, left: 2, right: 2 },
-      borderStyle: "round",
-      borderColor: "cyan",
-      title: chalk.bold.white("W E N O X"),
-      titleAlignment: "center",
-    }));
+    console.log(
+      boxen(helpText(), {
+        padding: { top: 1, bottom: 1, left: 2, right: 2 },
+        borderStyle: "round",
+        borderColor: "cyan",
+        title: chalk.bold.white("W E N O X"),
+        titleAlignment: "center",
+      }),
+    );
     return;
   }
 
@@ -185,7 +198,10 @@ async function main() {
   if (update.outdated) {
     if (process.stdout.isTTY && process.stdin.isTTY) {
       const { launchUpdateScreen } = await import("./tui/launch.js");
-      await launchUpdateScreen({ current: update.current, latest: update.latest });
+      await launchUpdateScreen({
+        current: update.current ?? "",
+        latest: update.latest ?? "",
+      });
     } else {
       printUpdateRequired(update);
       process.exitCode = 1;
@@ -223,7 +239,7 @@ async function main() {
 
   if (values.cwd) {
     const result = changeDirectory(values.cwd);
-    if (!result.success) ui.printError(result.error);
+    if (!result.success) ui.printError(result.error ?? "");
   }
 
   if (!session) {
@@ -235,7 +251,7 @@ async function main() {
   if (values.prompt) {
     const reader = createLineReader();
     const sink = ui.createPlainSink({ ask: (question) => reader.ask(question) });
-    const stopScope = startCancelScope();
+    startCancelScope();
     try {
       await agent.chatStep(values.prompt, sink);
     } finally {
@@ -271,7 +287,13 @@ async function main() {
   printSessionFooter(session);
 }
 
-main().catch((error) => {
-  console.error(chalk.red(t("cli.unexpectedError", { message: error?.stack ?? error })));
+main().catch((error: unknown) => {
+  console.error(
+    chalk.red(
+      t("cli.unexpectedError", {
+        message: String(errorProp(error, "stack") ?? error),
+      }),
+    ),
+  );
   process.exitCode = 1;
 });

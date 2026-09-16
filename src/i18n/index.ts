@@ -70,3 +70,14 @@ export function t(key: string, params?: Record<string, unknown>): string {
   // daraltma yapılıyor; yanlış anahtar verilirse zaten bir hata işareti.
   return interpolate(value, params) as string;
 }
+
+// Sözlükteki bazı anahtarlar metin değil satır listesi tutuyor (`boot.steps`
+// string[], `help.commandRows` string[][]). `t()` metin döndürdüğü için burada
+// daraltılıyor — eksik anahtar davranışı `t()` ile aynı kalıyor.
+export function tList(key: string): string[] {
+  return t(key) as unknown as string[];
+}
+
+export function tRows(key: string): string[][] {
+  return t(key) as unknown as string[][];
+}

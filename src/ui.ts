@@ -7,7 +7,7 @@ import { LiveWriter } from "./live.js";
 import { renderMarkdown, highlightCode } from "./markdown.js";
 import { AVAILABLE_MODELS, API_BASE_URL } from "./config.js";
 import { formatBytes } from "./utils.js";
-import { t, localeTag } from "./i18n/index.js";
+import { t, tList, tRows, localeTag } from "./i18n/index.js";
 import type { AccountInfo } from "./account.js";
 import type { ToolArgs, ToolResult } from "./tools.js";
 import type {
@@ -36,12 +36,6 @@ const YELLOW = "yellow";
 // var, yani açılış ekranının model satırı ve banner'ın pencere alt başlığı hiç
 // çizilmiyordu. Etkisiz bir seçenek geçirmemek için kaldırıldı; alt başlık
 // istenirse boxen içeriğine ya da title'a eklenmeli.
-
-// Sözlükteki bazı anahtarlar metin değil satır listesi tutuyor (`boot.steps`
-// string[], `banner.commandRows` string[][]). `t()` metin döndürdüğü için bu
-// değerler çağrı yerinde daraltılıyor; değerler aynen eskisi gibi kullanılıyor.
-const list = (key: string): string[] => t(key) as unknown as string[];
-const rows = (key: string): string[][] => t(key) as unknown as string[][];
 
 function termColumns(): number {
   return process.stdout.columns || 80;
@@ -119,7 +113,7 @@ export async function showBootScreen(
 
   const width = panelWidth();
   const barWidth = Math.max(20, width - 26);
-  const steps = list("boot.steps");
+  const steps = tList("boot.steps");
 
   process.stdout.write(
     `${boxen(chalk.bold.cyan(LOGO), {
@@ -176,7 +170,7 @@ export function printBanner({
     )}`,
     chalk.dim("─".repeat(42)),
     chalk.bold.yellow(t("banner.commandsTitle")),
-    ...rows("banner.commandRows").map(([cmd, desc]) => commandLine(cmd, desc)),
+    ...tRows("banner.commandRows").map(([cmd, desc]) => commandLine(cmd, desc)),
     "",
     chalk.bold.cyan(t("banner.hint")),
   ].join("\n");
@@ -202,7 +196,7 @@ export function printHelp(): void {
     colWidths: [22, 62],
     wordWrap: true,
   });
-  table.push(...rows("help.commandRows"));
+  table.push(...tRows("help.commandRows"));
   console.log(table.toString());
 }
 
@@ -215,7 +209,7 @@ export function printModelsTable(currentId: string): void {
     chalk.bold.yellow,
   ];
   const table = new Table({
-    head: list("models.head").map((label, i) => headColors[i](label)),
+    head: tList("models.head").map((label, i) => headColors[i](label)),
     style: { head: [], border: [GREEN] },
     colWidths: [4, 16, 20, 46, 10],
     wordWrap: true,
