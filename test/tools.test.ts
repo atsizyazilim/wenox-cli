@@ -16,14 +16,14 @@ test("write_file + read_file satır numaralı okur", () => {
   const r = tools.readFile(p);
   assert.equal(r.success, true);
   assert.equal(r.total_lines, 3);
-  assert.match(r.content, /1 \| l1/);
-  assert.match(r.content, /3 \| l3/);
+  assert.match(r.content ?? "", /1 \| l1/);
+  assert.match(r.content ?? "", /3 \| l3/);
 });
 
 test("read_file olmayan dosyada nazik hata", () => {
   const r = tools.readFile(path.join(dir, "yok.txt"));
   assert.equal(r.success, false);
-  assert.match(r.error, /not found/i);
+  assert.match(r.error ?? "", /not found/i);
 });
 
 test("read_file start_line/end_line aralığı", () => {
@@ -32,7 +32,7 @@ test("read_file start_line/end_line aralığı", () => {
   const r = tools.readFile(p, 3, 5);
   assert.equal(r.success, true);
   assert.equal(r.viewing_range, "3-5");
-  assert.match(r.content, /3 \| satir3/);
+  assert.match(r.content ?? "", /3 \| satir3/);
 });
 
 test("edit_file tekil eşleşmeyi değiştirir ve diff döner", () => {
@@ -40,7 +40,7 @@ test("edit_file tekil eşleşmeyi değiştirir ve diff döner", () => {
   tools.writeFile(p, "foo\nbar\nbaz\n");
   const r = tools.editFile(p, "bar", "BAR");
   assert.equal(r.success, true);
-  assert.ok(r.diff.includes("BAR"));
+  assert.ok((r.diff ?? "").includes("BAR"));
   assert.equal(fs.readFileSync(p, "utf8"), "foo\nBAR\nbaz\n");
 });
 
@@ -57,10 +57,10 @@ test("list_dir ve search_code", () => {
   tools.writeFile(path.join(base, "sub", "z.txt"), "needle here\n");
   const list = tools.listDir(base, 2);
   assert.equal(list.success, true);
-  assert.ok(list.total_items >= 1);
+  assert.ok((list.total_items ?? 0) >= 1);
   const search = tools.searchCode("needle", base, false);
   assert.equal(search.success, true);
-  assert.ok(search.match_count >= 1);
+  assert.ok((search.match_count ?? 0) >= 1);
 });
 
 test("search_code boş sorguda hata verir", () => {
@@ -71,7 +71,7 @@ test("search_code boş sorguda hata verir", () => {
 test("run_command çıktı ve çıkış kodu döner", async () => {
   const r = await tools.runCommand("node --version");
   assert.equal(r.success, true);
-  assert.match(r.stdout, /v\d+\./);
+  assert.match(r.stdout ?? "", /v\d+\./);
 });
 
 test("iptal edilince çalışan komut durdurulur", async () => {
@@ -87,7 +87,7 @@ test("iptal edilince çalışan komut durdurulur", async () => {
   const result = await pending;
   resetCancel();
   assert.equal(result.success, false);
-  assert.match(result.error, /cancel/i);
+  assert.match(result.error ?? "", /cancel/i);
 });
 
 test("kendi sürecini öldürecek komutlar tespit edilir", () => {
@@ -119,13 +119,13 @@ test("kendi sürecini öldürecek komutlar tespit edilir", () => {
 test("kendi sürecini öldüren komut reddedilir", async () => {
   const result = await tools.runCommand("taskkill /F /IM node.exe");
   assert.equal(result.success, false);
-  assert.match(result.error, /refused/i);
+  assert.match(result.error ?? "", /refused/i);
 });
 
 test("executeTool bilinmeyen araçta hata döner", async () => {
   const r = await tools.executeTool("boyle_bir_arac_yok");
   assert.equal(r.success, false);
-  assert.match(r.error, /unknown tool/i);
+  assert.match(r.error ?? "", /unknown tool/i);
 });
 
 test("araç şeması İngilizce — Türkçe karakter içermez", () => {
@@ -135,7 +135,16 @@ test("araç şeması İngilizce — Türkçe karakter içermez", () => {
 
 test("araç şeması beklenen araçları içerir", () => {
   const names = tools.TOOLS_SCHEMA.map((t) => t.function.name);
-  for (const name of ["read_file", "write_file", "edit_file", "list_dir", "search_code", "run_command", "code_intel", "ask_user"]) {
+  for (const name of [
+    "read_file",
+    "write_file",
+    "edit_file",
+    "list_dir",
+    "search_code",
+    "run_command",
+    "code_intel",
+    "ask_user",
+  ]) {
     assert.ok(names.includes(name), `${name} eksik`);
   }
 });

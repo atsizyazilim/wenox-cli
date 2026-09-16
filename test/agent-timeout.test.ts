@@ -3,13 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type OpenAI from "openai";
 
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-timeout-"));
 process.env.WENOX_REQUEST_TIMEOUT_MS = "200";
 
 const { WenOXAgent } = await import("../src/agent.js");
+import type { Sink } from "../src/sink.js";
 
-function silentSink(extra = {}) {
+function silentSink(extra: Sink = {}): Sink {
   return {
     thinking: () => {},
     assistantUpdate: () => {},
@@ -33,11 +35,21 @@ test("yanıt gelmezse istek zaman aşımına uğrar", async () => {
           })(),
       },
     },
-  };
+  } as unknown as OpenAI;
 
-  const errors = [];
-  await agent.chatStep("selam", silentSink({ error: (text) => errors.push(text) }));
-  assert.ok(errors.some((line) => /timed out/i.test(line)), `timeout hatası beklenirdi: ${errors.join(" | ")}`);
+  const errors: string[] = [];
+  await agent.chatStep(
+    "selam",
+    silentSink({
+      error: (text: string) => {
+        errors.push(text);
+      },
+    }),
+  );
+  assert.ok(
+    errors.some((line) => /timed out/i.test(line)),
+    `timeout hatası beklenirdi: ${errors.join(" | ")}`,
+  );
 });
 
 test("compact iptal edilebilir bir istek kullanır", async () => {
@@ -49,13 +61,13 @@ test("compact iptal edilebilir bir istek kullanır", async () => {
   agent.client = {
     chat: {
       completions: {
-        create: async (_params, options) => {
+        create: async (_params: unknown, options?: { signal?: unknown }) => {
           sawSignal = Boolean(options?.signal);
           return { choices: [{ message: { content: "kisa ozet" } }] };
         },
       },
     },
-  };
+  } as unknown as OpenAI;
 
   const result = await agent.compact();
   assert.equal(sawSignal, true, "compact isteğine AbortSignal geçilmeli");

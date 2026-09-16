@@ -13,9 +13,6 @@
     "noEmit": true,
     "noEmitOnError": true,
 
-    "allowJs": true,
-    "checkJs": false,
-
     "strict": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

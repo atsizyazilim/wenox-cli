@@ -10,9 +10,9 @@ const tr = (await import("../src/i18n/tr.js")).default;
 const en = (await import("../src/i18n/en.js")).default;
 const i18n = await import("../src/i18n/index.js");
 
-const keyPaths = (obj, prefix = "") =>
+const keyPaths = (obj: object, prefix = ""): string[] =>
   Object.entries(obj).flatMap(([key, value]) =>
-    typeof value === "object" && !Array.isArray(value)
+    typeof value === "object" && value !== null && !Array.isArray(value)
       ? keyPaths(value, `${prefix}${key}.`)
       : [`${prefix}${key}`],
   );
@@ -64,7 +64,9 @@ test("geçersiz setLocale mevcut dili korur", () => {
 });
 
 test("dizi değerleri interpolasyon yapılmadan döner", () => {
-  const items = i18n.t("help.commandRows");
+  // Bu anahtar metin değil satır listesi tutuyor; `t()` metin döndürdüğü
+  // için değer burada daraltılıyor (tList/tRows da aynısını yapıyor).
+  const items = i18n.t("help.commandRows") as unknown as string[][];
   assert.ok(Array.isArray(items));
   assert.ok(items.length > 0);
 });

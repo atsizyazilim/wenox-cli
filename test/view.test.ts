@@ -7,11 +7,19 @@ import assert from "node:assert/strict";
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-view-"));
 const { buildTranscript } = await import("../src/tui/view.js");
 const { setLocale } = await import("../src/i18n/index.js");
+import type { TranscriptItem } from "../src/session.js";
 
-const plain = (line) => String(line).replace(/\[[0-9;]*m/g, "");
-const textOf = (items, width = 60) => buildTranscript(items, width).lines.map(plain).join("\n");
+const plain = (line: unknown): string => String(line).replace(/\x1b\[[0-9;]*m/g, "");
+const textOf = (items: TranscriptItem[], width = 60): string =>
+  buildTranscript(items, width).lines.map(plain).join("\n");
 
-function commandItems(stdout = "", extra = {}) {
+interface CommandExtra {
+  returncode?: number;
+  stderr?: string;
+  expanded?: boolean;
+}
+
+function commandItems(stdout = "", extra: CommandExtra = {}): TranscriptItem[] {
   return [
     { id: 1, role: "tool-call", name: "run_command", args: { command: "node --version" } },
     {

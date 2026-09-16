@@ -11,24 +11,33 @@ const { checkForUpdate, fetchLatestVersion, isNewer, updateCacheFile } = await i
 
 const STALE = 7 * 60 * 60 * 1000;
 
-function stubFetch(impl) {
+// Sahte fetch yanıtları gerçek Response değil; testte yalnızca birkaç alan
+// okunuyor. Farklı aritelerde stub verilebilsin diye gevşek imza.
+type FetchStub = (...args: any[]) => unknown;
+
+function stubFetch(impl: FetchStub): () => void {
   const original = globalThis.fetch;
-  globalThis.fetch = impl;
+  globalThis.fetch = impl as unknown as typeof fetch;
   return () => {
     globalThis.fetch = original;
   };
 }
 
-function writeCacheFile(latest, checkedAt) {
+function writeCacheFile(latest: string | null, checkedAt: number): void {
   fs.writeFileSync(updateCacheFile(), JSON.stringify({ latest, checkedAt }), "utf8");
 }
 
-function clearCache() {
+function clearCache(): void {
   fs.rmSync(updateCacheFile(), { force: true });
 }
 
-function readCacheFile() {
-  return JSON.parse(fs.readFileSync(updateCacheFile(), "utf8"));
+interface CacheFile {
+  latest: string | null;
+  checkedAt: number;
+}
+
+function readCacheFile(): CacheFile {
+  return JSON.parse(fs.readFileSync(updateCacheFile(), "utf8")) as CacheFile;
 }
 
 test("sürüm karşılaştırması sayısal yapılır", () => {

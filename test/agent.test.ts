@@ -3,17 +3,20 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type OpenAI from "openai";
 
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-agent-"));
 const { WenOXAgent, getSystemPrompt } = await import("../src/agent.js");
+import type { Sink, AskPermissionRequest } from "../src/sink.js";
+import type { ToolArgs, ToolResult } from "../src/tools.js";
 
-function streamOf(chunks) {
+function streamOf(chunks: unknown[]) {
   return (async function* () {
     for (const chunk of chunks) yield chunk;
   })();
 }
 
-function toolCallChunk(name, args) {
+function toolCallChunk(name: string, args: ToolArgs) {
   return {
     choices: [
       {
@@ -27,7 +30,7 @@ function toolCallChunk(name, args) {
   };
 }
 
-function makeAgent(firstChunk) {
+function makeAgent(firstChunk: unknown): InstanceType<typeof WenOXAgent> {
   const agent = new WenOXAgent({ apiKey: "test" });
   let call = 0;
   agent.client = {
@@ -39,7 +42,7 @@ function makeAgent(firstChunk) {
             : streamOf([{ choices: [{ delta: { content: "bitti" } }] }]),
       },
     },
-  };
+  } as unknown as OpenAI;
   return agent;
 }
 
@@ -47,19 +50,22 @@ const OUTSIDE = path.join("..", "..", `wenox-outside-${process.pid}`);
 
 test("proje dışı yol izin ister, reddedilirse araç çalışmaz", async () => {
   const agent = makeAgent(toolCallChunk("list_dir", { path: OUTSIDE }));
-  const asked = [];
-  const results = [];
-  await agent.chatStep("t", {
+  const asked: AskPermissionRequest[] = [];
+  const results: ToolResult[] = [];
+  const sink: Sink = {
     askPermission: async (info) => {
       asked.push(info);
       return "reject";
     },
-    toolResult: (_name, result) => results.push(result),
-  });
+    toolResult: (_name, result) => {
+      results.push(result);
+    },
+  };
+  await agent.chatStep("t", sink);
   assert.equal(asked.length, 1);
   assert.match(asked[0].pattern, /\*$/);
   assert.equal(results[0].success, false);
-  assert.match(results[0].error, /denied/i);
+  assert.match(results[0].error ?? "", /denied/i);
 });
 
 test("proje içi yol izin istemez", async () => {
@@ -111,29 +117,33 @@ test("'once' seçilince kalıcı izin eklenmez", async () => {
 
 test("system prompt İngilizce ve dil talimatı içerir", () => {
   const agent = new WenOXAgent({ apiKey: "k" });
-  const sys = agent.messages[0].content;
+  const sys = agent.messages[0].content ?? "";
   assert.match(sys, /Always respond in the same language the user writes in/);
   assert.match(sys, /You are WenOX AI/);
 });
 
 test("setMode system prompt'u Build/Plan arasında günceller", () => {
   const agent = new WenOXAgent({ apiKey: "k" });
-  assert.match(agent.messages[0].content, /MODE: BUILD/);
+  assert.match(agent.messages[0].content ?? "", /MODE: BUILD/);
   agent.setMode("plan");
-  assert.match(agent.messages[0].content, /MODE: PLAN/);
+  assert.match(agent.messages[0].content ?? "", /MODE: PLAN/);
   assert.equal(agent.mode, "plan");
   agent.setMode("build");
-  assert.match(agent.messages[0].content, /MODE: BUILD/);
+  assert.match(agent.messages[0].content ?? "", /MODE: BUILD/);
 });
 
 test("plan modunda yazma/komut engellenir", async () => {
   const target = path.join(process.cwd(), "plan-block-test.txt");
   const agent = makeAgent(toolCallChunk("write_file", { path: target, content: "x" }));
   agent.setMode("plan");
-  const results = [];
-  await agent.chatStep("t", { toolResult: (_name, result) => results.push(result) });
+  const results: ToolResult[] = [];
+  await agent.chatStep("t", {
+    toolResult: (_name, result) => {
+      results.push(result);
+    },
+  });
   assert.equal(results[0].success, false);
-  assert.match(results[0].error, /plan mode/i);
+  assert.match(results[0].error ?? "", /plan mode/i);
   assert.equal(fs.existsSync(target), false, "dosya yazılmamalıydı");
 });
 

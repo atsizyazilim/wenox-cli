@@ -7,17 +7,21 @@ import assert from "node:assert/strict";
 process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-tui-"));
 process.env.FORCE_COLOR = "3";
 
-const { html } = await import("htm/react");
 const { render } = await import("ink-testing-library");
 const stripAnsi = (await import("strip-ansi")).default;
 const { App } = await import("../src/tui/app.js");
 const { Permission } = await import("../src/tui/components/permission.js");
 const { setLocale } = await import("../src/i18n/index.js");
+import type { AppAgent } from "../src/tui/app.js";
+import type { Sink } from "../src/sink.js";
+import type { LanguageCode } from "../src/i18n/index.js";
 
-const d = (ms) => new Promise((r) => setTimeout(r, ms));
-const plain = (s) => stripAnsi(s ?? "");
+type TestUi = ReturnType<typeof render>;
 
-const agent = {
+const d = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const plain = (s: string | null | undefined): string => stripAnsi(s ?? "");
+
+const agent: AppAgent = {
   apiKey: "",
   modelId: "grok-4.6",
   messages: [{ role: "system", content: "s" }],
@@ -37,9 +41,12 @@ const agent = {
   },
 };
 
-async function frame(locale, actions) {
+async function frame(
+  locale: LanguageCode,
+  actions?: (ui: TestUi) => Promise<void> | void,
+): Promise<string> {
   setLocale(locale);
-  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  const ui = render(<App agent={agent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(140);
   await actions?.(ui);
   const out = plain(ui.lastFrame());
@@ -69,15 +76,13 @@ test("slash menüsü seçili dilde komut açıklaması gösterir", async () => {
 
 test("permission paneli TR + seçim okunur", async () => {
   setLocale("tr");
-  const ui = render(
-    html`<${Permission} path="C:\\x\\y" pattern="C:\\x\\y\\*" choice=${0} />`,
-  );
+  const ui = render(<Permission path="C:\\x\\y" pattern="C:\\x\\y\\*" choice={0} />);
   await d(90);
   const f = plain(ui.lastFrame());
   assert.ok(f.includes("İzin gerekli"));
   assert.ok(f.includes("Bir kez izin ver"));
   assert.ok(f.includes("Her zaman izin ver") && f.includes("Reddet"));
-  assert.match(ui.lastFrame(), /48;2;224;160;101/, "seçili seçenek amber zeminli olmalı");
+  assert.match(ui.lastFrame() ?? "", /48;2;224;160;101/, "seçili seçenek amber zeminli olmalı");
   ui.unmount();
 });
 
@@ -95,14 +100,14 @@ test("/lang ile canlı dil değişimi", async () => {
 
 test("Tab mod değiştirir, model listesi açılmaz", async () => {
   setLocale("en");
-  const modeAgent = {
+  const modeAgent: AppAgent = {
     ...agent,
     mode: "plan",
-    setMode(value) {
+    setMode(value: string) {
       modeAgent.mode = value;
     },
   };
-  const ui = render(html`<${App} agent=${modeAgent} version="0.1.1" initialModelId="grok-4.6" />`);
+  const ui = render(<App agent={modeAgent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(150);
   assert.ok(plain(ui.lastFrame()).includes("Plan"), "başlangıç Plan");
 
@@ -122,7 +127,7 @@ test("Tab mod değiştirir, model listesi açılmaz", async () => {
 test("onay paneli Allow/Disallow içerir", async () => {
   setLocale("en");
   const { Approval } = await import("../src/tui/components/approval.js");
-  const ui = render(html`<${Approval} command="node -v" allow=${true} />`);
+  const ui = render(<Approval command="node -v" allow={true} />);
   await d(80);
   const f = plain(ui.lastFrame());
   assert.ok(f.includes("Allow") && f.includes("Disallow"));
@@ -131,10 +136,10 @@ test("onay paneli Allow/Disallow içerir", async () => {
 
 test("Ctrl+C açık paneli kapatır (kilitlenme yok)", async () => {
   setLocale("tr");
-  const panelAgent = {
+  const panelAgent: AppAgent = {
     ...agent,
-    async chatStep(_text, sink) {
-      await sink.askPermission({
+    async chatStep(_text: string, sink: Sink) {
+      await sink.askPermission?.({
         tool: "list_dir",
         path: ".",
         resolved: process.cwd(),
@@ -143,7 +148,7 @@ test("Ctrl+C açık paneli kapatır (kilitlenme yok)", async () => {
       });
     },
   };
-  const ui = render(html`<${App} agent=${panelAgent} version="0.1.1" initialModelId="grok-4.6" />`);
+  const ui = render(<App agent={panelAgent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(180);
   ui.stdin.write("x");
   await d(60);
@@ -151,7 +156,7 @@ test("Ctrl+C açık paneli kapatır (kilitlenme yok)", async () => {
   await d(250);
   assert.ok(plain(ui.lastFrame()).includes("İzin gerekli"), "panel açık");
 
-  ui.stdin.write(""); // Ctrl+C
+  ui.stdin.write("\x03"); // Ctrl+C
   await d(250);
   assert.ok(!plain(ui.lastFrame()).includes("İzin gerekli"), "Ctrl+C paneli kapattı");
 
@@ -163,14 +168,14 @@ test("Ctrl+C açık paneli kapatır (kilitlenme yok)", async () => {
 
 test("ESC beklemedeki kuyruğu temizler", async () => {
   setLocale("tr");
-  const slowAgent = {
+  const slowAgent: AppAgent = {
     ...agent,
-    async chatStep(_text, sink) {
-      sink.thinking?.();
+    async chatStep(_text: string, sink: Sink) {
+      sink.thinking?.("");
       await new Promise((resolve) => setTimeout(resolve, 1500));
     },
   };
-  const ui = render(html`<${App} agent=${slowAgent} version="0.1.1" initialModelId="grok-4.6" />`);
+  const ui = render(<App agent={slowAgent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(180);
   ui.stdin.write("bir");
   await d(60);
@@ -182,11 +187,11 @@ test("ESC beklemedeki kuyruğu temizler", async () => {
   await d(150);
   assert.ok(plain(ui.lastFrame()).includes("KUYRUKTA"), "ikinci mesaj kuyrukta");
 
-  ui.stdin.write(""); // ESC
+  ui.stdin.write("\x1b"); // ESC
   await d(250);
-  const frame = plain(ui.lastFrame());
-  assert.ok(frame.includes("Kuyruk temizlendi"), "kuyruk temizlendi mesajı görünür");
-  assert.ok(!frame.includes("KUYRUKTA"), "kuyruk etiketi kalktı");
+  const out = plain(ui.lastFrame());
+  assert.ok(out.includes("Kuyruk temizlendi"), "kuyruk temizlendi mesajı görünür");
+  assert.ok(!out.includes("KUYRUKTA"), "kuyruk etiketi kalktı");
   ui.unmount();
   await d(1600);
 });
@@ -195,7 +200,7 @@ test("güvensiz dizinde (ev dizini) uyarı gösterilir", async () => {
   setLocale("tr");
   const original = process.cwd();
   process.chdir(os.homedir());
-  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  const ui = render(<App agent={agent} version="0.1.1" initialModelId="grok-4.6" />);
   try {
     await d(250);
     assert.ok(
@@ -220,14 +225,16 @@ test("seçim, uyarı varken de imlecin altındaki satırda başlar", async () =>
     cwd: process.cwd(),
     model: "grok-4.6",
     tokens: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     messages: [],
     items: [
-      { id: 1, role: "user", text: "sea" },
-      { id: 2, role: "assistant", text: "Merhaba! Nasil yardimci olabilirim?" },
+      { id: 1, role: "user" as const, text: "sea" },
+      { id: 2, role: "assistant" as const, text: "Merhaba! Nasil yardimci olabilirim?" },
     ],
   };
   const ui = render(
-    html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" session=${session} />`,
+    <App agent={agent} version="0.1.1" initialModelId="grok-4.6" session={session} />,
   );
   try {
     await d(300);
@@ -241,10 +248,10 @@ test("seçim, uyarı varken de imlecin altındaki satırda başlar", async () =>
     ui.stdin.write(`[<32;20;${merhabaRow}M`); // sürüklendi
     await d(120);
 
-    const highlighted = ui.lastFrame()
+    const highlighted = (ui.lastFrame() ?? "")
       .split("\n")
       .map((row, index) => (row.includes("48;2;207;207;207") ? index + 1 : 0))
-      .filter(Boolean);
+      .filter((rowNumber) => rowNumber > 0);
 
     assert.ok(highlighted.length > 0, "seçim oluşmalı");
     assert.equal(
@@ -266,10 +273,14 @@ test("/exit oturum içeriğini senkronlar (komutla çıkışta id verilir)", asy
     cwd: process.cwd(),
     model: "grok-4.6",
     tokens: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     messages: [],
     items: [],
   };
-  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" session=${session} />`);
+  const ui = render(
+    <App agent={agent} version="0.1.1" initialModelId="grok-4.6" session={session} />,
+  );
   await d(150);
   ui.stdin.write("/help");
   await d(60);
@@ -286,12 +297,12 @@ test("/exit oturum içeriğini senkronlar (komutla çıkışta id verilir)", asy
 
 test("/key anahtarı doğrulayarak günceller", async () => {
   setLocale("en");
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({ name: "Ali", credits_remaining: 5 }),
-  });
-  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  })) as unknown as typeof fetch;
+  const ui = render(<App agent={agent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(150);
   ui.stdin.write("/key");
   await d(80);
@@ -309,8 +320,12 @@ test("/key anahtarı doğrulayarak günceller", async () => {
 
 test("/key geçersiz anahtarı kaydetmez", async () => {
   setLocale("en");
-  globalThis.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
-  const ui = render(html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" />`);
+  globalThis.fetch = (async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({}),
+  })) as unknown as typeof fetch;
+  const ui = render(<App agent={agent} version="0.1.1" initialModelId="grok-4.6" />);
   await d(150);
   ui.stdin.write("/key");
   await d(80);
@@ -329,7 +344,7 @@ test("/key geçersiz anahtarı kaydetmez", async () => {
 test("zorunlu güncelleme ekranı sürümleri ve komutu gösterir", async () => {
   setLocale("tr");
   const { UpdateRequired } = await import("../src/tui/screens/update.js");
-  const ui = render(html`<${UpdateRequired} current="0.1.1" latest="0.2.0" />`);
+  const ui = render(<UpdateRequired current="0.1.1" latest="0.2.0" />);
   await d(90);
   const f = plain(ui.lastFrame());
   assert.ok(f.includes("Güncelleme gerekli"), "başlık görünür");
@@ -341,10 +356,10 @@ test("zorunlu güncelleme ekranı sürümleri ve komutu gösterir", async () => 
 test("zorunlu güncelleme ekranı Q ve Ctrl+C ile kapanır", async () => {
   setLocale("en");
   const { UpdateRequired } = await import("../src/tui/screens/update.js");
-  for (const key of ["q", ""]) {
-    const ui = render(html`<${UpdateRequired} current="0.1.1" latest="0.2.0" />`);
+  for (const pressed of ["q", "\x03"]) {
+    const ui = render(<UpdateRequired current="0.1.1" latest="0.2.0" />);
     await d(80);
-    ui.stdin.write(key);
+    ui.stdin.write(pressed);
     await d(120);
     ui.unmount();
   }

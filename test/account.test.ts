@@ -8,9 +8,13 @@ process.env.WENOX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-account-")
 const { verifyApiKey, verifyFailureMessage } = await import("../src/account.js");
 const { setLocale } = await import("../src/i18n/index.js");
 
-function stubFetch(impl) {
+// Sahte fetch yanıtları gerçek Response değil; testte yalnızca `ok`, `status`
+// ve `json()` okunuyor.
+type FetchStub = () => unknown;
+
+function stubFetch(impl: FetchStub): () => void {
   const original = globalThis.fetch;
-  globalThis.fetch = impl;
+  globalThis.fetch = impl as unknown as typeof fetch;
   return () => {
     globalThis.fetch = original;
   };
@@ -24,7 +28,8 @@ test("geçerli anahtar ok ve hesap döner", async () => {
   }));
   const result = await verifyApiKey("wx-valid");
   assert.equal(result.ok, true);
-  assert.equal(result.account.name, "Ali");
+  if (!result.ok) throw new Error("geçerli anahtar kabul edilmeliydi");
+  assert.equal(result.account?.name, "Ali");
   restore();
 });
 
@@ -41,6 +46,7 @@ test("diğer HTTP hataları 'server' nedeni döner", async () => {
   const restore = stubFetch(async () => ({ ok: false, status: 500, json: async () => ({}) }));
   const result = await verifyApiKey("wx-x");
   assert.equal(result.ok, false);
+  if (result.ok) throw new Error("başarısız olmalıydı");
   assert.equal(result.reason, "server");
   restore();
 });
@@ -51,6 +57,7 @@ test("ağ hatası 'network' nedeni döner", async () => {
   });
   const result = await verifyApiKey("wx-x");
   assert.equal(result.ok, false);
+  if (result.ok) throw new Error("başarısız olmalıydı");
   assert.equal(result.reason, "network");
   restore();
 });
@@ -61,6 +68,7 @@ test("sunucu hatasında 'geçersiz anahtar' denmez", async () => {
   const result = await verifyApiKey("wx-x");
   restore();
 
+  if (result.ok) throw new Error("başarısız olmalıydı");
   assert.equal(result.reason, "server");
   const message = verifyFailureMessage(result.reason);
   assert.match(message, /sunucu/i);

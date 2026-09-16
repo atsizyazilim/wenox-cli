@@ -9,19 +9,25 @@ const { serverFor, codeIntel } = await import("../src/lsp.js");
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wenox-lsp-work-"));
 
+function serverOf(name: string) {
+  const server = serverFor(name);
+  if (!server) throw new Error(`${name} için sunucu bulunamadı`);
+  return server;
+}
+
 test("serverFor uzantıya göre sunucu seçer", () => {
-  assert.equal(serverFor("a.ts").command, "typescript-language-server");
-  assert.equal(serverFor("a.js").command, "typescript-language-server");
-  assert.equal(serverFor("a.py").command, "pyright-langserver");
-  assert.equal(serverFor("a.go").command, "gopls");
-  assert.equal(serverFor("a.rs").command, "rust-analyzer");
+  assert.equal(serverOf("a.ts").command, "typescript-language-server");
+  assert.equal(serverOf("a.js").command, "typescript-language-server");
+  assert.equal(serverOf("a.py").command, "pyright-langserver");
+  assert.equal(serverOf("a.go").command, "gopls");
+  assert.equal(serverOf("a.rs").command, "rust-analyzer");
   assert.equal(serverFor("a.txt"), null);
 });
 
 test("bilinmeyen işlem hata verir", async () => {
   const r = await codeIntel({ operation: "patlat", path: "a.ts" });
   assert.equal(r.success, false);
-  assert.match(r.error, /unknown operation/i);
+  assert.match(r.error ?? "", /unknown operation/i);
 });
 
 test("desteklenmeyen uzantıda nazik hata", async () => {
@@ -29,13 +35,13 @@ test("desteklenmeyen uzantıda nazik hata", async () => {
   fs.writeFileSync(file, "içerik", "utf8");
   const r = await codeIntel({ operation: "symbols", path: file });
   assert.equal(r.success, false);
-  assert.match(r.error, /no language server/i);
+  assert.match(r.error ?? "", /no language server/i);
 });
 
 test("olmayan dosyada hata", async () => {
   const r = await codeIntel({ operation: "symbols", path: path.join(dir, "yok.ts") });
   assert.equal(r.success, false);
-  assert.match(r.error, /not found/i);
+  assert.match(r.error ?? "", /not found/i);
 });
 
 test("konum gerektiren işlemde line/character zorunlu", async () => {
@@ -43,13 +49,13 @@ test("konum gerektiren işlemde line/character zorunlu", async () => {
   fs.writeFileSync(file, "const x = 1;\n", "utf8");
   const r = await codeIntel({ operation: "definition", path: file });
   assert.equal(r.success, false);
-  assert.match(r.error, /line.*character/i);
+  assert.match(r.error ?? "", /line.*character/i);
 });
 
 test("code_intel araç şemasında İngilizce tanımlı", async () => {
   const tools = await import("../src/tools.js");
   const entry = tools.TOOLS_SCHEMA.find((t) => t.function.name === "code_intel");
-  assert.ok(entry, "code_intel şemada olmalı");
+  if (!entry) throw new Error("code_intel şemada olmalı");
   assert.match(entry.function.description, /language server/i);
   assert.equal(/[çğıöşüÇĞİÖŞÜ]/.test(JSON.stringify(entry)), false);
 });
