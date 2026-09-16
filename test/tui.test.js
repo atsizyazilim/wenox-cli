@@ -208,6 +208,56 @@ test("güvensiz dizinde (ev dizini) uyarı gösterilir", async () => {
   }
 });
 
+// Çöken davranış: güvensiz dizin uyarısı transkriptin üstünde çizildiğinde
+// fare→satır eşlemesi kayıyordu ve seçim imlecin birkaç satır altına düşüyordu.
+test("seçim, uyarı varken de imlecin altındaki satırda başlar", async () => {
+  setLocale("tr");
+  const original = process.cwd();
+  process.chdir(os.homedir());
+  const session = {
+    id: "ses_sel",
+    title: "",
+    cwd: process.cwd(),
+    model: "grok-4.6",
+    tokens: 0,
+    messages: [],
+    items: [
+      { id: 1, role: "user", text: "sea" },
+      { id: 2, role: "assistant", text: "Merhaba! Nasil yardimci olabilirim?" },
+    ],
+  };
+  const ui = render(
+    html`<${App} agent=${agent} version="0.1.1" initialModelId="grok-4.6" session=${session} />`,
+  );
+  try {
+    await d(300);
+    const rows = plain(ui.lastFrame() ?? "").split("\n");
+    const seaRow = rows.findIndex((row) => row.includes("sea")) + 1;
+    const merhabaRow = rows.findIndex((row) => row.includes("Merhaba")) + 1;
+    assert.ok(seaRow > 0 && merhabaRow > seaRow, "transkript satırları ekranda olmalı");
+
+    ui.stdin.write(`[<0;10;${seaRow}M`); // sol tuş basıldı
+    await d(80);
+    ui.stdin.write(`[<32;20;${merhabaRow}M`); // sürüklendi
+    await d(120);
+
+    const highlighted = ui.lastFrame()
+      .split("\n")
+      .map((row, index) => (row.includes("48;2;207;207;207") ? index + 1 : 0))
+      .filter(Boolean);
+
+    assert.ok(highlighted.length > 0, "seçim oluşmalı");
+    assert.equal(
+      highlighted[0],
+      seaRow,
+      `vurgu basılan satırda başlamalı (beklenen ${seaRow}, gelen ${highlighted[0]})`,
+    );
+  } finally {
+    ui.unmount();
+    process.chdir(original);
+  }
+});
+
 test("/exit oturum içeriğini senkronlar (komutla çıkışta id verilir)", async () => {
   setLocale("tr");
   const session = {

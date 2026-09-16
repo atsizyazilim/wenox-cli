@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import wrapAnsi from "wrap-ansi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import type { Key } from "ink";
@@ -163,7 +164,10 @@ function commandItems(): OverlayItem[] {
   }));
 }
 
-const TRANSCRIPT_TOP = 2; // transkriptin ilk satırının ekran satırı (1 tabanlı)
+// Transkriptin ilk satırının ekran satırı (1 tabanlı), güvensiz dizin uyarısı
+// yokken. Uyarı çizildiğinde transkript onun kapladığı kadar aşağı kayar; bu
+// yüzden çalışma zamanında ekleniyor (bkz. transcriptTop).
+const TRANSCRIPT_TOP = 2;
 const TRANSCRIPT_LEFT = 3; // transkriptin ilk kolonunun ekran kolonu (1 tabanlı)
 const AUTO_COMPACT_RATIO = 0.85;
 
@@ -880,13 +884,26 @@ export function App({
     setSelection(value);
   };
 
+  // Güvensiz dizin uyarısı transkriptin ÜSTÜNDE çiziliyor, yani uyarı
+  // göründüğünde transkript o kadar satır aşağı kayıyor. Fare→satır eşlemesi
+  // bunu hesaba katmazsa seçim imlecin birkaç satır ALTINA düşer ya da hiç
+  // oluşmaz (alt satırlarda hesaplanan indeks görünür alanı aşıyor).
+  const warningRows = unsafeWorkspace
+    ? wrapAnsi(t("notices.unsafeDir", { cwd: process.cwd() }), Math.max(1, columns - 4), {
+        hard: true,
+        trim: false,
+        wordWrap: true,
+      }).split("\n").length
+    : 0;
+  const transcriptTop = TRANSCRIPT_TOP + (warningRows > 0 ? warningRows + 1 : 0);
+
   const toTranscriptPos = (
     x: number,
     y: number,
     clamp = false,
   ): { line: number; col: number } | null => {
     if (!started || lines.length === 0) return null;
-    const rel = y - TRANSCRIPT_TOP;
+    const rel = y - transcriptTop;
     if (!clamp && (rel < 0 || rel >= viewportHeight)) return null;
     const clamped = Math.max(0, Math.min(viewportHeight - 1, rel));
     return {
