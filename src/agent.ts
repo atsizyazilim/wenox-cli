@@ -4,6 +4,7 @@ import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import type { ToolArgs } from "./tools.js";
 import { sanitizeOutput, errorProp } from "./utils.js";
+import { createThinkingFilter, stripThinking } from "./thinking.js";
 import { t } from "./i18n/index.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { isUnsafeWorkspace } from "./workspace.js";
@@ -304,6 +305,9 @@ export class WenOXAgent {
       let firstTokenAt: number | null = null;
       const toolCalls: ToolCallAccumulator[] = [];
       let lastRender = 0;
+      // Düşünme bloğu cevabın içinde geliyor ve akış ortasında bölünebiliyor.
+      const thinking = createThinkingFilter();
+      let rawChars = 0;
 
       for await (const chunk of stream) {
         armIdle();
@@ -324,7 +328,8 @@ export class WenOXAgent {
 
         if (delta.content) {
           if (!firstTokenAt) firstTokenAt = Date.now();
-          content += delta.content;
+          rawChars += delta.content.length;
+          content += thinking.push(delta.content);
           const now = Date.now();
           if (now - lastRender >= RENDER_INTERVAL_MS) {
             lastRender = now;
@@ -346,6 +351,7 @@ export class WenOXAgent {
           }
         }
       }
+      content += thinking.flush();
 
       if (timedOut) throw new RequestTimeoutError();
 
@@ -361,8 +367,9 @@ export class WenOXAgent {
           usage ??
           {
             prompt_tokens: Math.ceil(promptChars / 4),
-            completion_tokens: Math.ceil(content.length / 4),
-            total_tokens: Math.ceil((promptChars + content.length) / 4),
+            // Tahmin ham uzunluğa göre: düşünme metni silinse de token harcandı.
+            completion_tokens: Math.ceil(rawChars / 4),
+            total_tokens: Math.ceil((promptChars + rawChars) / 4),
             estimated: true,
           },
       };
@@ -542,7 +549,7 @@ export class WenOXAgent {
       ],
     });
 
-    const raw = response.choices?.[0]?.message?.content ?? "";
+    const raw = stripThinking(response.choices?.[0]?.message?.content ?? "");
     return raw
       .trim()
       .split("\n")[0]
@@ -577,7 +584,7 @@ export class WenOXAgent {
       ],
     });
 
-    const summary = response.choices?.[0]?.message?.content?.trim() ?? "";
+    const summary = stripThinking(response.choices?.[0]?.message?.content ?? "").trim();
     if (!summary) return { summary: "", tokens: 0 };
 
     this.messages = [
