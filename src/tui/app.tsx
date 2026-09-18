@@ -170,6 +170,8 @@ function commandItems(): OverlayItem[] {
 const TRANSCRIPT_TOP = 2;
 const TRANSCRIPT_LEFT = 3; // transkriptin ilk kolonunun ekran kolonu (1 tabanlı)
 const AUTO_COMPACT_RATIO = 0.85;
+// Akış sırasındaki düşünme kartının kimliği: henüz `items` içinde değil.
+const LIVE_THINKING_ID = "thinking-live";
 
 function normalizeSelection(selection: TextSelection): TextSelection {
   const { startLine, startCol, endLine, endCol } = selection;
@@ -238,6 +240,8 @@ export function App({
 
   const [items, setItems] = useState<TranscriptItem[]>(initialItems);
   const [liveText, setLiveText] = useState("");
+  const [liveThinking, setLiveThinking] = useState("");
+  const [liveThinkingExpanded, setLiveThinkingExpandedState] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inputTokens, setInputTokens] = useState<InputToken[]>([]);
   const [caret, setCaret] = useState<Cursor>({ i: 0, o: 0 });
@@ -265,6 +269,7 @@ export function App({
   const [tokens, setTokens] = useState(session?.tokens ?? 0);
   const selectionRef = useRef<TextSelection | null>(null);
   const draggingRef = useRef(false);
+  const pressRef = useRef<{ line: number; col: number } | null>(null);
   const ownersRef = useRef<ItemId[]>([]);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [follow, setFollow] = useState(true);
@@ -279,6 +284,11 @@ export function App({
   const tokensRef = useRef(session?.tokens ?? 0);
   const contextWindowRef = useRef(CONTEXT_WINDOW);
   const warnedRef = useRef(false);
+  const liveThinkingExpandedRef = useRef(false);
+  const setLiveThinkingExpanded = (value: boolean): void => {
+    liveThinkingExpandedRef.current = value;
+    setLiveThinkingExpandedState(value);
+  };
   const push = useCallback((item: Omit<TranscriptItem, "id">) => {
     idRef.current += 1;
     const id = idRef.current;
@@ -422,11 +432,13 @@ export function App({
         setBusy(true);
         busyRef.current = true;
       },
-      assistantUpdate: (text: string) => {
+      assistantUpdate: (text: string, reasoning?: string) => {
+        setLiveThinking(reasoning ?? "");
         setLiveText(text);
       },
       assistantEnd: (text: string, meta?: TranscriptMeta) => {
         setLiveText("");
+        setLiveThinking("");
         if (meta?.usage?.total_tokens) {
           tokensRef.current += meta.usage.total_tokens;
           setTokens(tokensRef.current);
@@ -439,10 +451,21 @@ export function App({
             });
           }
         }
+        if (meta?.reasoning) {
+          // Kart, akış sırasında kullanıcının bıraktığı durumda kalır.
+          push({
+            role: "thinking",
+            text: meta.reasoning,
+            meta: { thinkingDurationMs: meta.thinkingDurationMs },
+            expanded: liveThinkingExpandedRef.current,
+          });
+        }
+        setLiveThinkingExpanded(false);
         if (text && text.trim()) push({ role: "assistant", text, meta });
       },
       assistantClear: () => {
         setLiveText("");
+        setLiveThinking("");
       },
       toolCall: (name: string, args: ToolArgs) => {
         setLiveText("");
@@ -742,9 +765,22 @@ export function App({
   const toggleCardAt = useCallback((lineIndex: number): void => {
     const id = ownersRef.current[lineIndex];
     if (id == null) return;
+    // Akış sırasındaki düşünme kartı henüz `items` içinde değil, ayrı bayrakta.
+    if (id === LIVE_THINKING_ID) {
+      setLiveThinkingExpanded(!liveThinkingExpandedRef.current);
+      return;
+    }
     const items = itemsRef.current;
     const clicked = items.find((entry) => entry.id === id);
     if (!clicked) return;
+
+    if (clicked.role === "thinking") {
+      itemsRef.current = items.map((entry) =>
+        entry.id === clicked.id ? { ...entry, expanded: !entry.expanded } : entry,
+      );
+      setItems(itemsRef.current);
+      return;
+    }
 
     let target: TranscriptItem | undefined = clicked;
     if (clicked.role === "tool-call" && clicked.name === "run_command") {
@@ -804,6 +840,15 @@ export function App({
 
   const displayItems = useMemo(() => {
     const list = [...items];
+    // Düşünme cevaptan önce akar; canlıyken kendi kartında görünür.
+    if (liveThinking) {
+      list.push({
+        id: LIVE_THINKING_ID,
+        role: "thinking",
+        text: liveThinking,
+        expanded: liveThinkingExpanded,
+      });
+    }
     if (liveText) {
       list.push({
         id: "live",
@@ -814,7 +859,7 @@ export function App({
       });
     }
     return list;
-  }, [items, liveText, modelId]);
+  }, [items, liveText, liveThinking, liveThinkingExpanded, modelId]);
 
   const lines = useMemo(() => {
     const transcript = buildTranscript(displayItems, width);
@@ -926,7 +971,7 @@ export function App({
       .map((line) => line.replace(/^\s*│ ?/, "").replace(/[ \t]+$/, ""))
       .filter(
         (line) =>
-          !/^(▣ Build|✎|❓|\+ (Düşünen|Thinking):|→ (Soru soruldu|Question asked))/.test(
+          !/^(▣ Build|✎|❓|\+ (Düşünen|Thinking):|[+−] (Düşünüyor|Thinking|Düşündü|Thought)|→ (Soru soruldu|Question asked))/.test(
             line.trim(),
           ),
       )
@@ -1054,6 +1099,7 @@ export function App({
       }
       if (mouse.type === "press" && mouse.button === 0) {
         const pos = toTranscriptPos(mouse.x, mouse.y);
+        pressRef.current = pos;
         if (pos) {
           draggingRef.current = true;
           setSel({
@@ -1073,15 +1119,18 @@ export function App({
         return;
       }
       if (mouse.type === "release") {
-        const sel = selectionRef.current;
-        const clicked =
-          draggingRef.current &&
-          sel &&
-          sel.startLine === sel.endLine &&
-          sel.startCol === sel.endCol;
+        const press = pressRef.current;
+        const dragging = draggingRef.current;
+        pressRef.current = null;
         draggingRef.current = false;
-        if (clicked) {
-          toggleCardAt(sel.startLine);
+        if (!press || !dragging) return;
+        // Sürüklerken seçim başlar; tıkta ise bırakma noktası basma noktasının
+        // üstünde kalır. Gerçek fareler tıklarken bile bir hücre kayabildiği
+        // için tek hücrelik sapma da tık sayılıyor.
+        const pos = toTranscriptPos(mouse.x, mouse.y, true);
+        const isClick = pos && pos.line === press.line && Math.abs(pos.col - press.col) <= 1;
+        if (isClick) {
+          toggleCardAt(press.line);
           setSel(null);
         }
         return;
@@ -1295,6 +1344,9 @@ export function App({
     }
     if (isEsc) {
       if (selectionRef.current) {
+        // İptal edilen sürükleme, bırakıldığında tık sayılmasın.
+        draggingRef.current = false;
+        pressRef.current = null;
         setSel(null);
         return;
       }

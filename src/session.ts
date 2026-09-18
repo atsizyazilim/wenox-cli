@@ -17,6 +17,7 @@ export interface ChatMessage {
 export type TranscriptRole =
   | "user"
   | "assistant"
+  | "thinking"
   | "info"
   | "error"
   | "tool-call"
@@ -29,7 +30,9 @@ export type ItemId = string | number;
 export interface TranscriptMeta {
   durationMs?: number;
   thinkingMs?: number;
+  thinkingDurationMs?: number;
   modelName?: string;
+  reasoning?: string;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;

@@ -4,7 +4,6 @@ import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import type { ToolArgs } from "./tools.js";
 import { sanitizeOutput, errorProp } from "./utils.js";
-import { createThinkingFilter, stripThinking } from "./thinking.js";
 import { t } from "./i18n/index.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { isUnsafeWorkspace } from "./workspace.js";
@@ -301,12 +300,12 @@ export class WenOXAgent {
       }
 
       let content = "";
+      let reasoning = "";
       let usage: OpenAI.CompletionUsage | null = null;
       let firstTokenAt: number | null = null;
+      let firstVisibleAt: number | null = null;
       const toolCalls: ToolCallAccumulator[] = [];
       let lastRender = 0;
-      // Düşünme bloğu cevabın içinde geliyor ve akış ortasında bölünebiliyor.
-      const thinking = createThinkingFilter();
       let rawChars = 0;
 
       for await (const chunk of stream) {
@@ -326,14 +325,26 @@ export class WenOXAgent {
         const delta = chunk.choices?.[0]?.delta;
         if (!delta) continue;
 
-        if (delta.content) {
+        // Düşünme ayrı alanda gelir (`reasoning_content`), cevap `content`'te
+        // kalır; ikisi de kendi akışında parça parça okunur.
+        const thought = (delta as { reasoning_content?: unknown }).reasoning_content;
+        const reasoningDelta = typeof thought === "string" ? thought : "";
+        const textDelta = typeof delta.content === "string" ? delta.content : "";
+
+        if (reasoningDelta) reasoning += reasoningDelta;
+        if (textDelta) {
+          content += textDelta;
+          // Düşünme bitip ilk görünür metin geldiği an: süresi buradan ölçülüyor.
+          if (!firstVisibleAt) firstVisibleAt = Date.now();
+        }
+
+        if (reasoningDelta || textDelta) {
           if (!firstTokenAt) firstTokenAt = Date.now();
-          rawChars += delta.content.length;
-          content += thinking.push(delta.content);
+          rawChars += reasoningDelta.length + textDelta.length;
           const now = Date.now();
           if (now - lastRender >= RENDER_INTERVAL_MS) {
             lastRender = now;
-            sink.assistantUpdate?.(content);
+            sink.assistantUpdate?.(content, reasoning || undefined);
           }
         }
 
@@ -351,8 +362,6 @@ export class WenOXAgent {
           }
         }
       }
-      content += thinking.flush();
-
       if (timedOut) throw new RequestTimeoutError();
 
       const promptChars = this.messages.reduce(
@@ -362,12 +371,15 @@ export class WenOXAgent {
       const meta: TranscriptMeta = {
         durationMs: Date.now() - startedAt,
         thinkingMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
+        thinkingDurationMs:
+          firstTokenAt && firstVisibleAt ? firstVisibleAt - firstTokenAt : undefined,
         modelName,
+        reasoning: reasoning || undefined,
         usage:
           usage ??
           {
             prompt_tokens: Math.ceil(promptChars / 4),
-            // Tahmin ham uzunluğa göre: düşünme metni silinse de token harcandı.
+            // Tahmin ham uzunluğa göre: düşünme de token harcıyor.
             completion_tokens: Math.ceil(rawChars / 4),
             total_tokens: Math.ceil((promptChars + rawChars) / 4),
             estimated: true,
@@ -513,7 +525,10 @@ export class WenOXAgent {
         continue;
       }
 
-      const clean = sanitizeOutput(content) || FALLBACK_RESPONSE();
+      // Yalnızca düşünüp cevap vermeyen modelde uydurma cevap gösterme:
+      // düşünme zaten kendi kartında duruyor.
+      const clean =
+        sanitizeOutput(content) || (meta.reasoning ? "" : FALLBACK_RESPONSE());
       this.messages.push({ role: "assistant", content: clean });
       sink.assistantEnd?.(clean, meta);
       return;
@@ -549,7 +564,7 @@ export class WenOXAgent {
       ],
     });
 
-    const raw = stripThinking(response.choices?.[0]?.message?.content ?? "");
+    const raw = response.choices?.[0]?.message?.content ?? "";
     return raw
       .trim()
       .split("\n")[0]
@@ -584,7 +599,7 @@ export class WenOXAgent {
       ],
     });
 
-    const summary = stripThinking(response.choices?.[0]?.message?.content ?? "").trim();
+    const summary = (response.choices?.[0]?.message?.content ?? "").trim();
     if (!summary) return { summary: "", tokens: 0 };
 
     this.messages = [

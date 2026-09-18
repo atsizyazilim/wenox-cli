@@ -230,6 +230,8 @@ Shortcuts
 
   view: {
     thinking: "+ Thinking: {ms}ms",
+    thought: "Thought: {time}",
+    thinkingLive: "Thinking",
     build: "▣ Build · {model}{seconds}",
     questionAsked: "→ Question asked",
     answer: "  ↳ Answer: {answer}",

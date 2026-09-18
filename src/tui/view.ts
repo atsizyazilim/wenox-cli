@@ -25,6 +25,11 @@ function commandBar(text: string, colorName: "green" | "red" | "cyan"): string {
 
 const MAX_COMMAND_LINES = 6;
 
+// Düşünme süresi: saniyenin altında milisaniye, üstünde saniye olarak yazılır.
+function thoughtTime(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
 function commandOutput(
   result: ToolResult,
   width: number,
@@ -143,7 +148,8 @@ function itemLines(
     case "assistant": {
       const lines: string[] = [];
       const meta = item.meta ?? {};
-      if (meta.thinkingMs) {
+      // Düşünme metni varsa süresi kendi kartında gösteriliyor.
+      if (meta.thinkingMs && !meta.reasoning) {
         lines.push(chalk.dim(t("view.thinking", { ms: meta.thinkingMs })), "");
       }
       for (const block of renderMarkdownBlocks(item.text)) {
@@ -155,6 +161,23 @@ function itemLines(
         chalk.dim(t("view.build", { model: meta.modelName ?? "WenOX", seconds })),
         "",
       );
+      return lines;
+    }
+
+    case "thinking": {
+      // opencode tarzı: tek satır başlık, gövde yalnızca kullanıcı açınca.
+      // Sürerken "Düşünüyor", bitince "Düşündü: 959ms".
+      const ms = item.meta?.thinkingDurationMs;
+      const label =
+        ms == null ? t("view.thinkingLive") : t("view.thought", { time: thoughtTime(ms) });
+      const title = chalk.hex(theme.menuSelectedBg)(`  ${item.expanded ? "−" : "+"} ${label}`);
+
+      const lines = [title];
+      if (item.expanded) {
+        const body = wrapLines(item.text ?? "", Math.max(10, width - 6));
+        lines.push(...body.map((line) => chalk.hex(theme.menuDesc)(`     ${line}`)));
+      }
+      lines.push("");
       return lines;
     }
 

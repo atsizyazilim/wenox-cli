@@ -230,6 +230,8 @@ Kısayollar
 
   view: {
     thinking: "+ Düşünen: {ms}ms",
+    thought: "Düşündü: {time}",
+    thinkingLive: "Düşünüyor",
     build: "▣ Build · {model}{seconds}",
     questionAsked: "→ Soru soruldu",
     answer: "  ↳ Cevap: {answer}",

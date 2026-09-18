@@ -32,7 +32,7 @@ export interface AskUserAnswer {
 
 export interface Sink {
   thinking?(label: string): void;
-  assistantUpdate?(content: string): void;
+  assistantUpdate?(content: string, reasoning?: string): void;
   assistantEnd?(content: string, meta?: TranscriptMeta): void;
   assistantClear?(): void;
   toolCall?(name: string, args: ToolArgs): void;
