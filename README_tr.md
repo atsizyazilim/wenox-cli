@@ -231,7 +231,6 @@ TypeScript ile yazıldı ve `tsc` ile derleniyor. Yayınlanan paket derlenmiş
 ```bash
 npm install
 npm run build   # derle
-npm test        # derle, sonra testleri koş
 npm start       # derle, sonra CLI'ı çalıştır
 ```
 

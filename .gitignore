@@ -15,3 +15,6 @@ Thumbs.db
 # Derlenmiş çıktı
 /dist/
 *.tsbuildinfo
+
+# Testler yerelde tutuluyor, repoya girmiyor
+/test/

@@ -229,7 +229,6 @@ the compiled output, so installing it needs nothing extra.
 ```bash
 npm install
 npm run build   # compile
-npm test        # compile, then run the tests
 npm start       # compile, then run the CLI
 ```
 
