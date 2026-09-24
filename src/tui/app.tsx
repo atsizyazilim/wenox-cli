@@ -187,6 +187,10 @@ const AUTO_COMPACT_RATIO = 0.85;
 // Akış sırasındaki düşünme kartının kimliği: henüz `items` içinde değil.
 const LIVE_THINKING_ID = "thinking-live";
 
+// Modele giden metin: kullanıcı arayüzü değil, bu yüzden dile göre değişmez.
+const INIT_PROMPT =
+  "Analyze this project: inspect its structure, configuration files, build/test commands and conventions. Then create or update AGENTS.md at the project root so a future coding agent can follow it: what the project is, how to build and test it, code style and conventions, and anything important to avoid. Keep it concise (under 80 lines) and do not invent details you have not verified.";
+
 function normalizeSelection(selection: TextSelection): TextSelection {
   const { startLine, startCol, endLine, endCol } = selection;
   if (startLine < endLine || (startLine === endLine && startCol <= endCol)) {
@@ -443,6 +447,57 @@ export function App({
     [agent, push, session, refreshUnsafeWorkspace],
   );
 
+  // `/editor`: uzun mesajı $EDITOR ile yaz. Terminal çocuk sürece devredilir,
+  // dönünce dosya içeriği girdiye alınır (opencode'daki /editor gibi).
+  const openExternalEditor = useCallback(async (): Promise<void> => {
+    const editor =
+      process.env.VISUAL?.trim() ||
+      process.env.EDITOR?.trim() ||
+      (process.platform === "win32" ? "notepad" : "vi");
+    const file = path.join(os.tmpdir(), `wenox-prompt-${process.pid}.md`);
+    try {
+      fs.writeFileSync(file, toText(inputTokensRef.current), "utf8");
+    } catch {
+      setToast(t("images.readFailed"));
+      return;
+    }
+
+    try {
+      await suspendTerminal(
+        () =>
+          new Promise<void>((resolve) => {
+            const child = spawn(editor, [file], { stdio: "inherit", shell: true });
+            child.on("close", () => resolve());
+            child.on("error", () => resolve());
+          }),
+      );
+    } catch {
+      // editör açılamadıysa eldeki taslak korunur
+      return;
+    }
+
+    try {
+      const text = fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+      const restored = createTokens(text);
+      inputTokensRef.current = restored;
+      caretRef.current = endCursor(restored);
+      setInputTokens(restored);
+      setCaret(endCursor(restored));
+    } catch {
+      // okunamazsa girdi olduğu gibi kalır
+    } finally {
+      try {
+        fs.rmSync(file, { force: true });
+      } catch {
+        // geçici dosya silinemese de devam
+      }
+    }
+  }, [suspendTerminal]);
+
+  // /init, ajanı ayrı bir istekle çalıştırır; drive tanımı sonra geldiği için
+  // çağrı bir ref üzerinden yapılıyor.
+  const initRef = useRef<(() => Promise<void>) | null>(null);
+
   const sink = useMemo<Sink>(
     () => ({
       thinking: () => {
@@ -578,6 +633,9 @@ export function App({
           }
           return;
         }
+        case "init":
+          await initRef.current?.();
+          return;
         case "help":
           push({ role: "info", text: t("help.tui") });
           return;

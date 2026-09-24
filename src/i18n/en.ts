@@ -14,6 +14,7 @@ export default {
     compact: "summarize context (free up space)",
     exit: "exit",
     help: "show commands",
+    init: "generate AGENTS.md for this project",
     key: "update API key",
     lang: "change language",
     me: "account and credits",

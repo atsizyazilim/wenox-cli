@@ -14,6 +14,7 @@ export default {
     compact: "bağlamı özetle (yer aç)",
     exit: "çık",
     help: "komutları göster",
+    init: "projeye AGENTS.md üret",
     key: "API anahtarını güncelle",
     lang: "dili değiştir",
     me: "hesap ve kredi bilgisi",

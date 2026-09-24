@@ -79,6 +79,11 @@ export function getSystemPrompt(mode = "build"): string {
   const workspaceNote = isUnsafeWorkspace(cwd)
     ? "\nWARNING: The working directory does not look like a project directory (it is a user or system location). Be extra careful here: never delete or overwrite anything unless the user explicitly asks, prefer read-only inspection, and suggest that the user switch to a project folder.\n"
     : "";
+  // Projedeki AGENTS.md/CLAUDE.md talimatları prompt'a eklenir (varsa).
+  const projectRules = loadInstructions(cwd);
+  const instructions = projectRules
+    ? `\nProject instructions (from AGENTS.md/CLAUDE.md — follow them):\n${projectRules}\n`
+    : "";
   return `You are WenOX AI. You are an advanced AI Coding Assistant developed by WenOX.
 If asked who you are, your answer is always: "I am WenOX AI, developed by WenOX." Never state any other name.
 You have direct access to the local file system and can use the tools below to inspect projects, read files, edit files, and run commands.
