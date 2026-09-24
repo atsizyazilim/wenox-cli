@@ -704,12 +704,13 @@ export const TOOLS_SCHEMA: ToolSchema[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Creates a new file or overwrites the entire contents of an existing file.",
+      description:
+        "Creates a new file or overwrites an existing file. For a long file, write only the first section here (under ~150 lines) and append the remaining sections with edit_file in later calls — never put a whole large file into a single call, because the response gets truncated.",
       parameters: {
         type: "object",
         properties: {
           path: { type: "string", description: "Path of the file to write" },
-          content: { type: "string", description: "Full text content to write to the file" },
+          content: { type: "string", description: "Text content to write to the file" },
         },
         required: ["path", "content"],
       },
@@ -720,7 +721,7 @@ export const TOOLS_SCHEMA: ToolSchema[] = [
     function: {
       name: "edit_file",
       description:
-        "Replaces a specific code block (target) in a file with a new code block (replacement). Provides safe, surgical edits.",
+        "Replaces a specific code block (target) in a file with a new code block (replacement). Safe, surgical edits. Also the way to append to a file: pass the file's current last line as target, and that same line followed by the new section as replacement.",
       parameters: {
         type: "object",
         properties: {
@@ -729,7 +730,10 @@ export const TOOLS_SCHEMA: ToolSchema[] = [
             type: "string",
             description: "The exact, unique existing code block to be replaced",
           },
-          replacement: { type: "string", description: "The new code block to insert" },
+          replacement: {
+            type: "string",
+            description: "The new code block to insert in place of target",
+          },
         },
         required: ["path", "target", "replacement"],
       },

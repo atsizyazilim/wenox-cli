@@ -347,6 +347,8 @@ Shortcuts
     cancelledTools: "⚠️  Canceled with ESC — remaining tools skipped.",
     turnLimit:
       "⚠️ Reached the tool-call turn limit ({max}) for this step. Type 'continue' to keep going.",
+    doomLoop: "⚠️ {tool} was called three times in a row with the same arguments — this looks like a loop, so I stopped. Type again to continue.",
+    truncated: "⚠️  The reply hit the output limit — continuing where it left off, in smaller pieces.",
     authError: "❌ Invalid or unauthorized WenOX API Key.",
     authHint: "You can update the key with the '/key' command.",
     rateLimit: "❌ Rate limit exceeded. Please wait a bit and try again.",

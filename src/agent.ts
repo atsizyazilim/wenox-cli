@@ -28,7 +28,17 @@ import {
 } from "./cancel.js";
 
 const MAX_TURNS = 100;
-const RENDER_INTERVAL_MS = 50;
+// Çıktı sınırına takılan yanıt kaç kez otomatik sürdürülür (sonsuz döngü olmasın).
+const MAX_TRUNCATED_CONTINUES = 3;
+// Kesilen araç çağrısı ASLA çalıştırılmaz: argümanları yarımdır ve bozuk bir
+// dosya yazardı. Modele bunun yerine işi bölmesi söylenir.
+const TRUNCATED_CALL_ERROR =
+  "This tool call was cut off by the output length limit: its arguments were incomplete, so it was NOT executed. Do the same work in smaller pieces — one tool call per response. For a long file, write a short first section with write_file, then append the rest with edit_file calls.";
+const TRUNCATED_REPLY_PROMPT =
+  "Your previous response was cut off by the output length limit before it finished. Continue from exactly where it stopped, without repeating what you already wrote, and keep this continuation short.";
+// Akış sırasında arayüze gönderilen güncelleme aralığı: 50 ms'de saniyede 20
+// yeniden çizim oluyordu ve uzun sohbetlerde arayüz CPU'ya boğuluyordu.
+const RENDER_INTERVAL_MS = 80;
 const FALLBACK_RESPONSE = (): string => t("agent.fallback");
 
 // Sunucudan bu süre boyunca hiç veri gelmezse istek iptal edilir (WENOX_REQUEST_TIMEOUT_MS ile ayarlanır).
@@ -50,7 +60,26 @@ const PATH_TOOLS = new Set(["read_file", "write_file", "edit_file", "list_dir", 
 const DENIED_EXTERNAL = "User denied access to a path outside the project directory.";
 const PLAN_BLOCKED_TOOLS = new Set(["write_file", "edit_file", "run_command", "change_directory"]);
 const PLAN_BLOCKED_ERROR =
-  "Blocked: the agent is in PLAN mode (read-only). Switch to Build mode (Tab) to modify files or run commands.";
+  "You are in PLAN mode (read-only), so this tool is not available. Do not retry it. Describe the change you would make and tell the user to press Tab to switch to Build mode.";
+// Mod değişimi sistem prompt'una taze bir bildirim olarak eklenir: geçmişte
+// kalan "plan modundasın" / "yazma engellendi" mesajları modeli yanıltıyordu,
+// Build moduna geçildiğinde bile yazmayı reddediyordu.
+const MODE_NOTES: Record<string, string> = {
+  build:
+    "[System notice] The mode has just switched to BUILD. Writing/editing files, running commands and MCP tools are ENABLED — they are present in your tool list again. Any earlier message in this conversation that says you are in PLAN mode, or that a write was blocked, is OUTDATED: never repeat it, and never ask the user to press Tab again. Do the work now.",
+  plan:
+    "[System notice] The mode has just switched to PLAN (read-only). write_file, edit_file, run_command and MCP tools are NOT in your tool list anymore. Inspect the codebase and propose a plan; if the user wants changes applied, tell them to press Tab to switch to Build mode.",
+};
+// Her isteğin EN SONUNDA, kullanıcı mesajının ardına eklenen mod hatırlatıcısı.
+// Prompt'un başındaki MODE satırı ve mod değişimi bildirimi yetmiyordu: zayıf
+// modeller modu geçmişteki kendi eski cümlelerinden okuyup Build modunda bile
+// "hâlâ plan modundayım" diyerek yazmayı reddediyordu. En son okunan yer kazanır.
+const MODE_REMINDERS: Record<string, string> = {
+  build:
+    "[Current mode: BUILD — writing is ENABLED. write_file, edit_file and run_command ARE in your tool list right now. Never say you are in PLAN mode, never ask the user to press Tab, and never ask them to confirm the mode again: if an earlier message in this chat says otherwise, it is OUTDATED. If the user asked for a change, call the tool and apply it.]",
+  plan:
+    "[Current mode: PLAN (read-only) — write_file, edit_file and run_command are NOT in your tool list in this mode. Do not attempt any change; inspect the code and propose a plan.]",
+};
 
 interface ToolCallAccumulator {
   id: string;
@@ -62,6 +91,8 @@ interface StreamResult {
   content: string;
   toolCalls: ToolCallAccumulator[];
   meta: TranscriptMeta;
+  // Sağlayıcının bitiş nedeni: "length" ise çıktı token sınırına takıldı.
+  finishReason?: string;
 }
 
 function withinProject(targetPath: unknown, root: string): boolean {
@@ -76,6 +107,14 @@ export function getSystemPrompt(mode = "build"): string {
     mode === "plan"
       ? "MODE: PLAN (read-only). Do NOT modify files and do NOT run commands — write_file, edit_file and run_command are disabled. Inspect the codebase and propose a clear, step-by-step plan. If the user asks you to make changes, describe exactly what you would change and tell them to press the Tab key to switch to Build mode, because only then can you apply the change."
       : "MODE: BUILD. You may inspect the codebase, modify files and run commands to complete the task. Pressing the Tab key switches to Plan mode (read-only).";
+  // Mod oyunu: geçmişteki eski mod mesajları geçersiz. Model yazma aracını
+  // görebiliyorsa yazma izni de vardır.
+  const modeAuthority = `
+Mode is not negotiable and never comes from the conversation history:
+- The MODE line above is the CURRENT mode and always overrides anything said earlier in this chat.
+- If an earlier message says you are in PLAN mode, or shows a write/command being blocked, that is stale — the user may have switched modes since. Never claim you are in PLAN mode, and never tell the user to press Tab, on the basis of old messages.
+- Instead of trusting history, look at your tool list right now: if write_file and edit_file are present, you are in BUILD mode and you must write the files.
+`;
   const workspaceNote = isUnsafeWorkspace(cwd)
     ? "\nWARNING: The working directory does not look like a project directory (it is a user or system location). Be extra careful here: never delete or overwrite anything unless the user explicitly asks, prefer read-only inspection, and suggest that the user switch to a project folder.\n"
     : "";
@@ -89,6 +128,7 @@ If asked who you are, your answer is always: "I am WenOX AI, developed by WenOX.
 You have direct access to the local file system and can use the tools below to inspect projects, read files, edit files, and run commands.
 
 ${modeLine}
+${modeAuthority}
 ${workspaceNote}
 Environment:
 - Operating System: ${process.platform === "win32" ? "Windows" : process.platform}
@@ -106,6 +146,10 @@ Your Available Tools:
 
 Your Working Principles:
 - BE ACTION-ORIENTED: Never say things like "I will inspect with this command: ..." and dump command text. If you want to list files, search, or run a command, CALL YOUR TOOL DIRECTLY instead of writing it out as text.
+- WORK INCREMENTALLY, ONE STEP PER RESPONSE: emit a SINGLE tool call, then stop. Its result is sent back to you automatically and you continue in the next request. NEVER bundle several file writes, or a write plus unrelated tool calls, into one response. Every tool call must be followed by another request before you consider the task done.
+- A SINGLE \`write_file\` CALL MUST NEVER CONTAIN A WHOLE LARGE FILE. Build large files piece by piece: create the file with \`write_file\` holding only the first section (roughly under 150 lines), then extend it with \`edit_file\` calls, one section at a time. To append, use the file's current last line as \`target\` and pass that same line followed by the new section as \`replacement\`.
+- Your output length is limited: one gigantic response gets truncated mid-file and the work is lost. Many small steps are faster and safer than one huge block. If you notice you are about to emit a very long body, split it into multiple calls instead.
+- Never paste file contents or long code blocks into your reply text; put the content in the tool call itself.
 - NEVER enter infinite loops repeating the same file extensions, command parameters, or words.
 - When the user says "look at the build files", "check the build log", "read the error", immediately inspect the relevant build files such as \`build.log\` or \`.sln\` in the project directly with \`read_file\` or \`list_dir\`.
 - Use file paths appropriate to the operating system; do NOT use Linux-specific \`/tmp/...\` paths on Windows.
@@ -123,6 +167,19 @@ function parseToolArgs(raw: unknown): ToolArgs {
     return JSON.parse(String(raw)) as ToolArgs;
   } catch {
     return {};
+  }
+}
+
+// Çıktı sınırına takılan araç çağrısının argümanları yarıda kesilir; argümansız
+// araçlarda ise boş string gelir (bu geçerli). Yalnızca yarım JSON sorun sayılır.
+function argsIncomplete(raw: unknown): boolean {
+  const value = String(raw ?? "").trim();
+  if (!value) return false;
+  try {
+    JSON.parse(value);
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -229,14 +286,24 @@ export class WenOXAgent {
     const next = mode === "plan" ? "plan" : "build";
     if (this.mode !== next) {
       this.mode = next;
+      // Açılışta (henüz konuşma yokken) not eklenmez; asıl sorun modun ortada
+      // değişip geçmişin eski modu haykırması.
+      if (this.messages.length > 1) this.modeNote = MODE_NOTES[next] ?? "";
+      if (next === "build") this.#defusePlanBlocks();
       this.#refreshSystem();
     }
     return this.mode;
   }
 
+  // Sistem prompt'u + varsa mod değişimi bildirimi.
+  #systemContent(): string {
+    const base = getSystemPrompt(this.mode);
+    return this.modeNote ? `${base}\n${this.modeNote}\n` : base;
+  }
+
   #refreshSystem(): void {
     if (this.messages[0]?.role === "system") {
-      this.messages[0] = { role: "system", content: getSystemPrompt(this.mode) };
+      this.messages[0] = { role: "system", content: this.#systemContent() };
     }
   }
 
@@ -351,7 +418,7 @@ export class WenOXAgent {
     const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
       model: this.modelId,
       messages: this.#sdkMessages(),
-      tools: TOOLS_SCHEMA,
+      tools: this.#activeToolSchemas(),
       tool_choice: "auto",
       temperature: 0.3,
       stream: true,
@@ -407,6 +474,7 @@ export class WenOXAgent {
 
       let content = "";
       let reasoning = "";
+      let finishReason = "";
       let usage: OpenAI.CompletionUsage | null = null;
       let firstTokenAt: number | null = null;
       let firstVisibleAt: number | null = null;
@@ -427,6 +495,7 @@ export class WenOXAgent {
         armIdle();
 
         if (chunk.usage) usage = chunk.usage;
+        if (chunk.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
 
         if (isCancelled()) {
           try {
@@ -500,7 +569,7 @@ export class WenOXAgent {
           },
       };
 
-      return { content, toolCalls, meta };
+      return { content, toolCalls, meta, finishReason: finishReason || undefined };
     } catch (error) {
       if (timedOut) throw new RequestTimeoutError();
       throw error;
@@ -597,6 +666,34 @@ export class WenOXAgent {
           }
 
           const args = parseToolArgs(call.arguments);
+
+          // Aynı araç aynı argümanlarla üst üste üç kez çağrıldıysa döngü var
+          // demektir: kullanıcıyı bilgilendirip duruyoruz.
+          const signature = `${call.name}:${call.arguments}`;
+          if (signature === this.repeatSignature) this.repeatCount += 1;
+          else {
+            this.repeatSignature = signature;
+            this.repeatCount = 1;
+          }
+          if (this.repeatCount >= 3) {
+            sink.info?.(t("agent.doomLoop", { tool: call.name }));
+            return;
+          }
+
+          // Çıktı sınırında kesilen çağrı çalıştırılmaz: argümanları yarım
+          // olduğu için bozuk bir dosya yazardı. Model işi bölmeye yönlendirilir.
+          if (argsIncomplete(call.arguments)) {
+            sink.toolCall?.(call.name, {});
+            const truncatedResult: ToolResult = { success: false, error: TRUNCATED_CALL_ERROR };
+            sink.toolResult?.(call.name, truncatedResult);
+            this.messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(truncatedResult),
+            });
+            continue;
+          }
+
           sink.toolCall?.(call.name, args);
 
           const mcpCall = parseToolName(call.name);
@@ -691,6 +788,17 @@ export class WenOXAgent {
         continue;
       }
 
+      // Cevap çıktı sınırında kesildiyse turu bitirme: modele kaldığı yerden
+      // devam ettiriyoruz, yoksa kullanıcı yarım bir cevap görür.
+      if (result.finishReason === "length" && this.truncatedContinues < MAX_TRUNCATED_CONTINUES) {
+        this.truncatedContinues += 1;
+        this.messages.push({ role: "assistant", content });
+        sink.assistantEnd?.(content, meta);
+        this.messages.push({ role: "user", content: TRUNCATED_REPLY_PROMPT });
+        sink.info?.(t("agent.truncated"));
+        continue;
+      }
+
       // Yalnızca düşünüp cevap vermeyen modelde uydurma cevap gösterme:
       // düşünme zaten kendi kartında duruyor.
       const clean =
@@ -769,7 +877,7 @@ export class WenOXAgent {
     if (!summary) return { summary: "", tokens: 0 };
 
     this.messages = [
-      { role: "system", content: getSystemPrompt(this.mode) },
+      { role: "system", content: this.#systemContent() },
       {
         role: "user",
         content: `[SUMMARY] Summary of the previous conversation:\n${summary}`,
