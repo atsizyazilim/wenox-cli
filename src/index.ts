@@ -31,6 +31,7 @@ import { checkForUpdate, UPGRADE_COMMAND } from "./update.js";
 import { t, tList, setLocale, detectLanguage } from "./i18n/index.js";
 import * as ui from "./ui.js";
 import { findPackageJson, errorProp } from "./utils.js";
+import { applyTheme } from "./tui/theme.js";
 
 // Manifest derinliğe bağlı olmadan bulunur: kaynak ağacında (src/), derlenmiş
 // çıktıda (dist/src/) ve global kurulumda aynı şekilde çalışır.

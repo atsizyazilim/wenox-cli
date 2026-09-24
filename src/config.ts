@@ -80,6 +80,7 @@ export interface Config {
   apiKey: string;
   currentModel: string;
   language: string;
+  theme: string;
   apiBaseUrl: string;
   // Kullanıcının elle yazdığı izin kalıpları (tool + pattern + action).
   permissions: PermissionRule[];
@@ -144,19 +145,22 @@ export interface SaveConfigInput {
   apiKey?: string | null;
   currentModel?: string | null;
   language?: string | null;
+  theme?: string | null;
 }
 
-export function saveConfig({ apiKey, currentModel, language }: SaveConfigInput = {}): Config {
+export function saveConfig({ apiKey, currentModel, language, theme }: SaveConfigInput = {}): Config {
   const cfg = loadConfig();
   if (apiKey != null) cfg.apiKey = String(apiKey).trim();
   if (currentModel != null) cfg.currentModel = String(currentModel).trim();
   if (language != null) cfg.language = String(language).trim();
+  if (theme != null) cfg.theme = String(theme).trim();
 
   fs.mkdirSync(configDir(), { recursive: true, mode: 0o700 });
   const payload = {
     apiKey: cfg.apiKey,
     currentModel: cfg.currentModel,
     language: cfg.language ?? "",
+    theme: cfg.theme ?? "",
     apiBaseUrl: API_BASE_URL,
     permissions: cfg.permissions ?? [],
     keybinds: cfg.keybinds ?? {},
