@@ -8,7 +8,13 @@ import { t } from "./i18n/index.js";
 import { debugLog } from "./debug.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { isUnsafeWorkspace } from "./workspace.js";
-import type { ChatMessage, TranscriptMeta } from "./session.js";
+import { loadInstructions } from "./instructions.js";
+import { callResultText, connectAll, parseToolName, toolSchemas } from "./mcp.js";
+import type { McpConnection } from "./mcp.js";
+import { fetchWithSession } from "./session.js";
+import type { ChatMessage, TodoItem, TranscriptMeta } from "./session.js";
+import { contentParts } from "./images.js";
+import type { Attachment } from "./images.js";
 import type { Sink } from "./sink.js";
 import {
   CancelledError,
@@ -443,7 +449,13 @@ export class WenOXAgent {
   async chatStep(userPrompt: string, sink: Sink = {}, attachments: Attachment[] = []): Promise<void> {
     debugLog("chatStep başladı");
     resetCancel();
-    this.messages.push({ role: "user", content: userPrompt });
+    this.repeatSignature = "";
+    this.repeatCount = 0;
+    this.truncatedContinues = 0;
+    this.messages.push({
+      role: "user",
+      content: attachments.length > 0 ? contentParts(userPrompt, attachments) : userPrompt,
+    });
 
     for (let turn = 0; turn < MAX_TURNS; turn += 1) {
       if (isCancelled()) {

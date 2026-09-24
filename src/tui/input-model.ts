@@ -1,5 +1,7 @@
 import stringWidth from "string-width";
 import { t } from "../i18n/index.js";
+import { isImage } from "../images.js";
+import type { Attachment } from "../images.js";
 
 export const MAX_INPUT_LINES = 6;
 
@@ -14,7 +16,23 @@ export interface PasteToken {
   lines: number;
 }
 
-export type InputToken = TextToken | PasteToken;
+// Ekin kendisi token'da taşınır; metindeki yeri işaretle belirtilir ve o işaret
+// modele de gider (sıra karışmasın diye).
+export interface AttachmentToken {
+  type: "attachment";
+  attachment: Attachment;
+}
+
+export type InputToken = TextToken | PasteToken | AttachmentToken;
+
+// İşaret dile göre değişmez: aynı metin ekranda görünür ve modele gider.
+export function attachmentLabel(index: number, attachment: Attachment): string {
+  return isImage(attachment) ? `[Image ${index}]` : `[PDF ${index}]`;
+}
+
+function isChip(token: InputToken): token is PasteToken | AttachmentToken {
+  return token.type !== "text";
+}
 
 export interface Cursor {
   i: number;
@@ -48,7 +66,21 @@ export function createTokens(text = ""): InputToken[] {
 }
 
 export function toText(tokens: InputToken[]): string {
-  return tokens.map((token) => token.value).join("");
+  let index = 0;
+  return tokens
+    .map((token) => {
+      if (token.type === "attachment") {
+        index += 1;
+        return attachmentLabel(index, token.attachment);
+      }
+      return token.value;
+    })
+    .join("");
+}
+
+// Gönderilecek ekler, metindeki işaret sırasıyla aynı.
+export function attachedFiles(tokens: InputToken[]): Attachment[] {
+  return tokens.flatMap((token) => (token.type === "attachment" ? [token.attachment] : []));
 }
 
 export function clampCursor(
@@ -74,7 +106,7 @@ export function endCursor(tokens: InputToken[]): Cursor {
   return { i: tokens.length - 1, o: last.value.length };
 }
 
-function splitAt(tokens: InputToken[], c: Cursor, chip: PasteToken): EditResult {
+function splitAt(tokens: InputToken[], c: Cursor, chip: PasteToken | AttachmentToken): EditResult {
   const next = [...tokens];
   if (c.i === next.length) {
     next.push(chip);
@@ -132,6 +164,14 @@ export function insertPaste(
   lines: number,
 ): EditResult {
   return splitAt(tokens, clampCursor(tokens, cursor), { type: "paste", value, lines });
+}
+
+export function insertAttachment(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+  attachment: Attachment,
+): EditResult {
+  return splitAt(tokens, clampCursor(tokens, cursor), { type: "attachment", attachment });
 }
 
 export function backspace(
@@ -239,7 +279,13 @@ export function buildView(
   { mask, maxLines = MAX_INPUT_LINES }: { mask?: string; maxLines?: number } = {},
 ): InputView {
   const units: { kind: "chip" | "char"; display: string }[] = [];
+  let attachmentIndex = 0;
   tokens.forEach((token) => {
+    if (token.type === "attachment") {
+      attachmentIndex += 1;
+      units.push({ kind: "chip", display: attachmentLabel(attachmentIndex, token.attachment) });
+      return;
+    }
     if (token.type === "paste") {
       units.push({ kind: "chip", display: pasteLabel(token.lines ?? 1) });
       return;

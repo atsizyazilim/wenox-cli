@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { configDir } from "./config.js";
+import { messagesTokenCount } from "./tokens.js";
+import type { ContentPart } from "./images.js";
 import type { ToolArgs, ToolResult } from "./tools.js";
 
 // Sohbet geçmişi ve ekranda gösterilen satırlar. İkisi de oturum dosyasına
@@ -8,7 +10,8 @@ import type { ToolArgs, ToolResult } from "./tools.js";
 // dosyalar), bu yüzden alanlar opsiyonel.
 export interface ChatMessage {
   role: string;
-  content?: string | null;
+  // Görselli mesajlarda içerik parça dizisi olur (metin + image_url).
+  content?: string | ContentPart[] | null;
   tool_calls?: unknown[];
   tool_call_id?: string;
   name?: string;

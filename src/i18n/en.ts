@@ -83,10 +83,18 @@ Shortcuts
     modePlan: "Plan",
     keysHint: "tab mode   ctrl+p ",
     commands: "commands",
+    imageHint: "ctrl+v image   ",
     credits: "Credits: ",
     noCredits: "—",
   },
 
+  images: {
+    reading: "Reading image…",
+    noVision: "The selected model does not support images ({model}). Switch with /model.",
+    none: "No image in the clipboard.",
+    added: "{count} image(s) added.",
+    tooLarge: "Image is too large ({mb} MB max).",
+    readFailed: "Could not read the image.",
   approval: {
     title: "The model wants to run a command",
     hint: "←/→ or Tab: select    ·    Enter: confirm    ·    Esc: reject",

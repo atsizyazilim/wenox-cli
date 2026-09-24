@@ -13,6 +13,10 @@ import type {
   TranscriptItem,
   TranscriptMeta,
 } from "../session.js";
+import { attachmentPathsIn, readAttachmentFile, readClipboardImage, mbLimit } from "../images.js";
+import { isImage } from "../images.js";
+import type { Attachment } from "../images.js";
+import { executeTool } from "../tools.js";
 import type { ToolArgs, ToolResult } from "../tools.js";
 import {
   fetchAccount,
@@ -42,6 +46,8 @@ import {
   endCursor,
   insertText,
   insertPaste,
+  insertAttachment,
+  attachedFiles,
   backspace,
   deleteForward,
   moveLeft,
@@ -76,6 +82,7 @@ interface RemoteModel {
   name?: string;
   context_window?: number;
   owned_by?: string;
+  vision?: boolean;
 }
 
 export interface AppAgent {
@@ -92,11 +99,14 @@ export interface AppAgent {
   updateCwd(): void;
   compact(): Promise<{ summary?: string; tokens?: number } | null | undefined>;
   generateTitle(): Promise<string>;
-  chatStep(input: string, sink: unknown): Promise<unknown>;
+  chatStep(input: string, sink: unknown, attachments?: Attachment[]): Promise<unknown>;
+  todos?: TodoItem[];
 }
 
 interface ModelMeta {
   contextWindow: number | null;
+  // Sunucu söylemiyorsa bilinmiyor sayılır (görsel yapıştırmayı engellemeyiz).
+  vision?: boolean;
 }
 
 interface OverlayItem extends MenuItem {
@@ -282,7 +292,7 @@ export function App({
 
   const idRef = useRef(initialItems.length);
   const itemsRef = useRef<TranscriptItem[]>(initialItems);
-  const queuedRef = useRef<{ id: number; text: string }[]>([]);
+  const queuedRef = useRef<{ id: number; text: string; attachments: Attachment[] }[]>([]);
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
   const tokensRef = useRef(session?.tokens ?? 0);
@@ -320,6 +330,7 @@ export function App({
         if (model?.owned_by) extras.push(model.owned_by);
         metas[id] = {
           contextWindow: Number(model?.context_window) || null,
+          vision: typeof model?.vision === "boolean" ? model.vision : undefined,
         };
         return { value: id, left: name, right: extras.join("  ·  ") };
       });
@@ -665,6 +676,125 @@ export function App({
     setSlashIndex(0);
   }, []);
 
+
+  // Ek, imlecin olduğu yere çip olarak eklenir; ardından bir boşluk gelir ki
+  // art arda eklenenler ile sonradan yazılan metin çipe yapışmasın. Pano okuması
+  // asenkron olduğu için güncel token/imleç kopyaları ref'lerden okunuyor.
+  const addAttachment = useCallback((attachment: Attachment): void => {
+    const inserted = insertAttachment(inputTokensRef.current, caretRef.current, attachment);
+    const spaced = insertText(inserted.tokens, inserted.cursor, " ");
+    inputTokensRef.current = spaced.tokens;
+    caretRef.current = spaced.cursor;
+    setInputTokens(spaced.tokens);
+    setCaret(spaced.cursor);
+    setSlashIndex(0);
+  }, []);
+
+  // Sunucu bir model için görsel desteği olmadığını söylediyse görsel eklemeyip
+  // haber veriyoruz; alan yoksa (bilinmiyor) karışmıyoruz. PDF için böyle bir
+  // kapı yok: destek bilgisi model listesinde yalnızca görsel için var.
+  const canAttach = useCallback(
+    (attachment: Attachment): boolean => {
+      if (isImage(attachment) && modelMeta[modelId]?.vision === false) {
+        setToast(t("images.noVision", { model: getModelInfo(modelId).name }));
+        return false;
+      }
+      return true;
+    },
+    [modelId, modelMeta],
+  );
+
+  // Panodaki görseli alır; panoda görsel yoksa kısa bir bilgi gösterir.
+  const pasteClipboardImage = useCallback(async (): Promise<void> => {
+    // Panoda yalnızca görsel olabilir; model desteklemiyorsa hiç okumaya girişme.
+    if (modelMeta[modelId]?.vision === false) {
+      setToast(t("images.noVision", { model: getModelInfo(modelId).name }));
+      return;
+    }
+    // Pano okuması platform komutu başlattığı için bir an sürüyor.
+    setToast(t("images.reading"));
+    const result = await readClipboardImage();
+    if (result.attachment) {
+      addAttachment(result.attachment);
+      return;
+    }
+    setToast(
+      result.error === "tooLarge"
+        ? t("images.tooLarge", { mb: result.limitMb ?? mbLimit() })
+        : t("images.none"),
+    );
+  }, [addAttachment, modelId, modelMeta]);
+
+  // Terminale sürüklenen dosya yol olarak yapışır: yolları eke çevirir.
+  const pasteAttachmentPaths = useCallback(
+    (paths: string[]): void => {
+      let added = 0;
+      for (const filePath of paths) {
+        const result = readAttachmentFile(filePath);
+        if (result.attachment) {
+          if (!canAttach(result.attachment)) continue;
+          addAttachment(result.attachment);
+          added += 1;
+          continue;
+        }
+        setToast(
+          result.error === "tooLarge"
+            ? t("images.tooLarge", { mb: result.limitMb ?? mbLimit() })
+            : t("images.readFailed"),
+        );
+      }
+      if (added > 0) setToast(t("images.added", { count: added }));
+    },
+    [addAttachment, canAttach],
+  );
+
+  // Yapıştırma kanalı: satır sonları normalize edilir, metnin tamamı ek dosyası
+  // yoluysa eke çevrilir, uzun yapıştırma çip olur. Boş yapıştırma "panodaki
+  // görseli al" demektir — ama bu YALNIZCA yapıştırma için geçerli; yazılan
+  // boşluk bir yapıştırma değildir (o yüzden ayrı fonksiyon).
+  const applyPastedText = useCallback(
+    (raw: string): void => {
+      const text = raw.replace(/\r\n?/g, "\n");
+      if (!text.trim()) {
+        void pasteClipboardImage();
+        return;
+      }
+      const paths = attachmentPathsIn(text);
+      if (paths) {
+        pasteAttachmentPaths(paths);
+        return;
+      }
+      const lines = text.split("\n").length;
+      const next =
+        lines > 2 || text.length > 120
+          ? insertPaste(inputTokens, caret, text, lines)
+          : insertText(inputTokens, caret, text.replace(/\n/g, " "));
+      setInputTokens(next.tokens);
+      setCaret(next.cursor);
+      setSlashIndex(0);
+    },
+    [caret, inputTokens, pasteAttachmentPaths, pasteClipboardImage],
+  );
+
+  // `!komut`: modele gitmez, doğrudan çalışır ve çıktısı komut kartında görünür.
+  const runShellCommand = useCallback(
+    async (command: string): Promise<void> => {
+      const trimmed = command.trim();
+      if (!trimmed) return;
+      push({ role: "tool-call", name: "run_command", args: { command: trimmed } });
+      try {
+        const result = await executeTool("run_command", { command: trimmed });
+        push({ role: "tool-result", name: "run_command", result });
+      } catch (error) {
+        push({
+          role: "error",
+          text: t("notices.errorPrefix", { message: String(errorProp(error, "message")) }),
+        });
+      }
+    },
+    [push],
+  );
+
   const drive = useCallback(async (): Promise<void> => {
     if (drivingRef.current) return;
     drivingRef.current = true;
@@ -681,7 +811,7 @@ export function App({
         setItems(itemsRef.current);
 
         try {
-          await agent.chatStep(item.text, sink);
+          await agent.chatStep(item.text, sink, item.attachments);
         } catch (error) {
           push({
             role: "error",
@@ -719,10 +849,32 @@ export function App({
     }
   }, [agent, maybeTitle, push, refreshAccount, sink, syncSession]);
 
+  // /init: ajan projeyi inceleyip kök dizine AGENTS.md yazar.
+  const initProject = useCallback(async (): Promise<void> => {
+    if (busyRef.current) {
+      push({ role: "info", text: t("compact.busy") });
+      return;
+    }
+    idRef.current += 1;
+    const id = idRef.current;
+    itemsRef.current = [
+      ...itemsRef.current,
+      { id, role: "user", text: "/init" },
+    ];
+    setItems(itemsRef.current);
+    setStarted(true);
+    queuedRef.current = [...queuedRef.current, { id, text: INIT_PROMPT, attachments: [] }];
+    await drive();
+  }, [drive, push]);
+
+  initRef.current = initProject;
+
   const handleSubmit = useCallback(
     async (raw: string): Promise<void> => {
       const text = (raw ?? "").trim();
       if (!text || approval) return;
+      // Girdi sıfırlanmadan önce ekleri al.
+      const attachments = attachedFiles(inputTokens);
       resetInput();
 
       setHistory((prev) => [...prev.filter((entry) => entry !== text), text].slice(-50));
@@ -745,7 +897,7 @@ export function App({
         { id, role: "user", text, queued: busyRef.current },
       ];
       setItems(itemsRef.current);
-      queuedRef.current = [...queuedRef.current, { id, text }];
+      queuedRef.current = [...queuedRef.current, { id, text, attachments }];
 
       await drive();
     },
@@ -1057,6 +1209,11 @@ export function App({
       setInputTokens(next.tokens);
       setCaret(next.cursor);
       setSlashIndex(0);
+      return;
+    }
+    // Panodaki görseli al: Ctrl+V çoğu terminalde terminale ait, Alt+V yedek.
+    if (matchesKey(keybinds.image, char, key) || matchesKey("alt+v", char, key)) {
+      void pasteClipboardImage();
       return;
     }
     if (char && !key.ctrl && !key.meta) {

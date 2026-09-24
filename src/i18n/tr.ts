@@ -83,10 +83,18 @@ Kısayollar
     modePlan: "Plan",
     keysHint: "tab mod   ctrl+p ",
     commands: "komutlar",
+    imageHint: "ctrl+v görsel   ",
     credits: "Credits: ",
     noCredits: "—",
   },
 
+  images: {
+    reading: "Görsel alınıyor…",
+    noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",
+    none: "Panoda görsel yok.",
+    added: "{count} görsel eklendi.",
+    tooLarge: "Görsel çok büyük (en fazla {mb} MB).",
+    readFailed: "Görsel okunamadı.",
   approval: {
     title: "Model bir komut çalıştırmak istiyor",
     hint: "←/→ veya Tab: seç    ·    Enter: onayla    ·    Esc: reddet",
