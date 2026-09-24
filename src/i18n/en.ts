@@ -113,6 +113,7 @@ Shortcuts
     tasks: "Tasks",
     allDone: "all done",
     files: "Changed files",
+    limits: "Limits",
   },
 
   todo: {

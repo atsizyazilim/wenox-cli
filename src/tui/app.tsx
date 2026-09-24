@@ -1914,6 +1914,7 @@ export function App({
           contextWindow={contextWindow}
           todos={todos}
           files={changedFiles}
+          usage={usage}
         />
       ) : null}
       </Box>

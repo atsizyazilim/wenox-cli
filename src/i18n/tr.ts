@@ -113,6 +113,7 @@ Kısayollar
     tasks: "Görevler",
     allDone: "hepsi tamam",
     files: "Değişen dosyalar",
+    limits: "Limitler",
   },
 
   todo: {

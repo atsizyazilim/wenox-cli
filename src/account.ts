@@ -48,6 +48,22 @@ export function usageLine(
   return time ? `${label} ${used} · ${t("status.resets")} ${time}` : `${label} ${used}`;
 }
 
+// Kenar çubuğu için kısa yenilenme ifadesi ("2 sa. sonra"). Yerel dile göre
+// biçimlenir; sunucu tarihi bozuksa null döner ve satır yalnızca yüzdeyi gösterir.
+export function resetLabel(window: UsageWindow | null | undefined): string | null {
+  const at = window?.resets_at ? new Date(window.resets_at) : null;
+  if (!at || Number.isNaN(at.getTime())) return null;
+  const minutes = Math.round((at.getTime() - Date.now()) / 60_000);
+  try {
+    const format = new Intl.RelativeTimeFormat(localeTag(), { numeric: "auto", style: "narrow" });
+    if (Math.abs(minutes) < 60) return format.format(minutes, "minute");
+    const hours = Math.round(minutes / 60);
+    return Math.abs(hours) < 48 ? format.format(hours, "hour") : format.format(Math.round(hours / 24), "day");
+  } catch {
+    return null;
+  }
+}
+
 export type VerifyResult =
   | { ok: true; account: AccountInfo | null }
   | { ok: false; reason: VerifyFailureReason; status?: number };

@@ -2,6 +2,8 @@ import { Box, Text } from "ink";
 import stringWidth from "string-width";
 import { theme } from "../theme.js";
 import { t } from "../../i18n/index.js";
+import { resetLabel } from "../../account.js";
+import type { AccountInfo } from "../../account.js";
 import { formatTokens } from "../view.js";
 import type { TodoItem } from "../../session.js";
 
@@ -46,12 +48,14 @@ export function Sidebar({
   contextWindow,
   todos,
   files,
+  usage = null,
 }: {
   width: number;
   tokens: number;
   contextWindow: number;
   todos: TodoItem[];
   files: ChangedFile[];
+  usage?: AccountInfo["usage_limits"] | null;
 }) {
   // Kenar çubuğunda border (1) + paddingX (1+1) var; metin alanı bu kadar.
   const inner = Math.max(8, width - 4);
@@ -77,6 +81,27 @@ export function Sidebar({
     });
     if (rows.length === 0) rows.push(`✓ ${t("sidebar.allDone")}`);
     lines.push(...section(`${t("sidebar.tasks")} (${done}/${todos.length})`, rows));
+  }
+
+  // Limit pencereleri (5 saat / haftalık / aylık) /v1/me'den gelir ve alt barda
+  // da görünür; burada yenilenmeye kalan süreyle birlikte üçü birden duruyor.
+  if (usage) {
+    const rows = (
+      [
+        [t("account.window5h"), usage.five_hour],
+        [t("account.windowWeekly"), usage.weekly],
+        [t("account.windowMonthly"), usage.monthly],
+      ] as const
+    )
+      .map(([label, window]) => {
+        if (!window || typeof window.used_percent !== "number") return null;
+        const name = label.replace(/:\s*$/, "").trim();
+        const percent = `${window.used_percent.toFixed(1)}%`;
+        const reset = resetLabel(window);
+        return fit(reset ? `${name} ${percent} · ${reset}` : `${name} ${percent}`, inner);
+      })
+      .filter((row): row is string => row !== null);
+    if (rows.length > 0) lines.push(...section(t("sidebar.limits"), rows));
   }
 
   if (files.length > 0) {
