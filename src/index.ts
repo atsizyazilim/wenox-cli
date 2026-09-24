@@ -304,8 +304,12 @@ async function main(): Promise<void> {
   setCurrentSessionId(session.id);
 
   if (values.prompt) {
-    const reader = createLineReader();
-    const sink = ui.createPlainSink({ ask: (question) => reader.ask(question) });
+    const asJson = values.format === "json";
+    // JSON modunda insan için yazılan akış bastırılır; sonuç en sonda JSON olur.
+    const reader = asJson ? null : createLineReader();
+    const sink = asJson
+      ? {}
+      : ui.createPlainSink({ ask: (question) => reader?.ask(question) ?? Promise.resolve("") });
     startCancelScope();
     try {
       await agent.chatStep(values.prompt, sink);
@@ -314,6 +318,23 @@ async function main(): Promise<void> {
       reader.close();
     }
     session.messages = agent.messages.slice(1);
+    if (asJson) {
+      const last = [...agent.messages].reverse().find((message) => message.role === "assistant");
+      console.log(
+        JSON.stringify(
+          {
+            session: session.id,
+            model: agent.modelId,
+            cwd: process.cwd(),
+            content: last ? messageText(last) : "",
+          },
+          null,
+          2,
+        ),
+      );
+      saveSession(session);
+      return;
+    }
     printSessionFooter(session);
     return;
   }
