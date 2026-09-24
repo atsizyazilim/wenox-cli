@@ -12,6 +12,7 @@ export default {
   commands: {
     auto: "oto-onayı aç/kapat",
     compact: "bağlamı özetle (yer aç)",
+    editor: "mesajı harici editörde yaz",
     exit: "çık",
     help: "komutları göster",
     init: "projeye AGENTS.md üret",
@@ -54,6 +55,7 @@ export default {
   /me              Hesap ve kredi bilgisi
   /lang            Dili değiştir
   /compact         Bağlamı özetle (yer aç)
+  /editor          Mesajı harici editörde yaz
   /new             Bağlamı temizle
   /sessions        Geçmiş oturumları listele ve yükle
   /auto            Oto-onayı aç/kapat
@@ -71,6 +73,7 @@ Kısayollar
       ["/key", "WenOX API anahtarını gösterir veya yenisini kaydeder"],
       ["/lang", "Arayüz dilini değiştirir"],
       ["/compact", "Bağlamı özetler ve yer açar"],
+      ["/editor", "Mesajı $EDITOR ile yazar"],
       ["/sessions", "Geçmiş oturumları başlıklarıyla listeler"],
       ["/clear", "Mevcut konuşma bağlamını ve geçmişini sıfırlar"],
       ["/history", "Mevcut konuşmadaki mesaj sayısını gösterir"],
@@ -240,6 +243,7 @@ Kısayollar
     updated: "güncellendi",
     items: "{count} öğe",
     matches: "{count} eşleşme",
+    files: "{count} dosya",
     exitCode: "çıkış kodu {code}",
     noOutput: "(çıktı yok)",
     running: "çalışıyor…",

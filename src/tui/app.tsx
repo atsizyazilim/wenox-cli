@@ -1,11 +1,22 @@
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
 import wrapAnsi from "wrap-ansi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import type { Key } from "ink";
 import { AVAILABLE_MODELS, CONTEXT_WINDOW, getModelInfo, saveConfig } from "../config.js";
 import { getSystemPrompt } from "../agent.js";
-import { listSessions, saveSession } from "../session.js";
+import {
+  listSessions,
+  saveSession,
+  setCurrentSessionId,
+  messageText,
+  estimateContextTokens,
+} from "../session.js";
+import { addHistoryEntry, loadHistory, saveHistory, searchHistory } from "../history.js";
+import type { HistoryEntry } from "../history.js";
 import type {
   ChatMessage,
   ItemId,
@@ -39,6 +50,7 @@ import { debugEnabled, debugLog } from "../debug.js";
 import type { KeybindMap } from "./keybinds.js";
 import { setTitle, parseMouse, disableMouse } from "./screen.js";
 import { buildTranscript } from "./view.js";
+import { fuzzyFiles, projectFiles } from "./files.js";
 import {
   buildView,
   createTokens,
@@ -252,7 +264,7 @@ export function App({
   session?: Session | null;
 }) {
   void version;
-  const { exit } = useApp();
+  const { exit, suspendTerminal } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
   const [sidebarSettings] = useState(() => {
@@ -286,6 +298,9 @@ export function App({
   const [inputTokens, setInputTokens] = useState<InputToken[]>([]);
   const [caret, setCaret] = useState<Cursor>({ i: 0, o: 0 });
   const [slashIndex, setSlashIndex] = useState(0);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  // Esc ile kapatılan bahsetme: aynı sorgu yazıldığı sürece menü açılmaz.
+  const [mentionMuted, setMentionMuted] = useState<string | null>(null);
   const [started, setStarted] = useState(initialItems.length > 0);
   const [sessionName, setSessionName] = useState("WenOX");
   const [sessionTitle, setSessionTitle] = useState(session?.title ?? "");
@@ -333,8 +348,13 @@ export function App({
   const [permission, setPermission] = useState<PermissionState | null>(null);
   const [question, setQuestion] = useState<QuestionState | null>(null);
   const [keyMode, setKeyMode] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
+  // Geçmişte gezinirken yazılmakta olan metin kaybolmasın.
+  const draftRef = useRef<InputToken[]>([]);
+  const prefixMatchesRef = useRef<string[]>([]);
+  // Geçmişten gelen metin menüleri açmasın (yoksa oklar geçmiş yerine menüyü gezer).
+  const [historyBrowsing, setHistoryBrowsing] = useState(false);
   const [tokens, setTokens] = useState(session?.tokens ?? 0);
   const selectionRef = useRef<TextSelection | null>(null);
   const draggingRef = useRef(false);
@@ -663,6 +683,9 @@ export function App({
           setTodos([]);
           push({ role: "info", text: t("context.cleared") });
           return;
+        case "editor":
+          await openExternalEditor();
+          return;
         case "compact": {
           if (busyRef.current) {
             push({ role: "info", text: t("compact.busy") });
@@ -786,7 +809,7 @@ export function App({
           push({ role: "error", text: t("notices.unknownCommand", { cmd: cmd ?? "" }) });
       }
     },
-    [agent, autoApprove, exit, loadRemoteModels, modelId, push],
+    [agent, autoApprove, exit, loadRemoteModels, modelId, openExternalEditor, push],
   );
 
   const applyKey = useCallback(
@@ -1022,7 +1045,11 @@ export function App({
       const attachments = attachedFiles(inputTokens);
       resetInput();
 
-      setHistory((prev) => [...prev.filter((entry) => entry !== text), text].slice(-50));
+      setHistory((prev) => {
+        const next = addHistoryEntry(prev, text);
+        saveHistory(next);
+        return next;
+      });
       setHistoryIndex(-1);
       if (!started) {
         setSessionName(text.slice(0, 24));
@@ -1032,6 +1059,12 @@ export function App({
 
       if (text.startsWith("/")) {
         await runCommand(text);
+        return;
+      }
+
+      // `!komut` doğrudan çalıştırılır; modele hiç gitmez.
+      if (text.startsWith("!")) {
+        await runShellCommand(text.slice(1));
         return;
       }
 
@@ -1046,7 +1079,7 @@ export function App({
 
       await drive();
     },
-    [approval, drive, resetInput, runCommand, started],
+    [approval, drive, inputTokens, resetInput, runCommand, runShellCommand, started],
   );
 
   const resolveApproval = (allowed: boolean): void => {
@@ -1209,9 +1242,28 @@ export function App({
   const slashOpen = interactive && slashQuery !== null;
   const slashActive = Math.min(slashIndex, Math.max(0, slashItems.length - 1));
 
+  // `@dosya` bahsetme: imleç metnin sonundaysa son @parçası sorgu sayılır.
+  const inputEnd = endCursor(inputTokens);
+  const atInputEnd = caret.i === inputEnd.i && caret.o === inputEnd.o;
+  const mentionQuery = atInputEnd
+    ? /(?:^|\s)@([\w./\\-]*)$/.exec(inputText)?.[1] ?? null
+    : null;
+  const mentionItems = useMemo(() => {
+    if (mentionQuery === null || mentionQuery === mentionMuted) return [];
+    const root = process.cwd();
+    return fuzzyFiles(projectFiles(root), root, mentionQuery).map((rel) => {
+      const parts = rel.split("/");
+      const base = parts.pop() ?? rel;
+      return { value: rel, left: base, right: parts.join("/") };
+    });
+  }, [mentionQuery, mentionMuted]);
+  const mentionOpen = interactive && mentionItems.length > 0 && !historyBrowsing;
+  const mentionActive = Math.min(mentionIndex, Math.max(0, mentionItems.length - 1));
+
   let extraRows = 0;
   if (overlay) extraRows += Math.min(overlayList.length, 10) + 4;
   if (slashOpen) extraRows += Math.min(slashItems.length, 9) + 3;
+  if (mentionOpen) extraRows += Math.min(mentionItems.length, 9) + 3;
   if (approval) extraRows += 5;
   if (permission) extraRows += 10;
   if (unsafeWorkspace) extraRows += 3;
@@ -1393,9 +1445,42 @@ export function App({
     setCaret(endCursor(restored));
   };
 
+  // Seçilen dosya, yazılmakta olan `@parça` yerine konur.
+  const acceptMention = (rel: string): void => {
+    const match = /(?:^|\s)@([\w./\\-]*)$/.exec(inputText);
+    if (!match) return;
+    const head = match[0].startsWith("@") ? "" : match[0][0];
+    recall(`${inputText.slice(0, match.index)}${head}@${rel} `);
+    setMentionIndex(0);
+    setMentionMuted(null);
+  };
+
+  // Yazı yazarken yukarı ok: yazılanla başlayan geçmişi sıklık+yeniliğe göre
+  // getirir (bash'teki history-search gibi). Boşken kronolojik gezer.
+  const historyList = (): string[] =>
+    prefixMatchesRef.current.length > 0
+      ? prefixMatchesRef.current
+      : history.map((entry) => entry.text);
+
   const historyPrev = (): void => {
     if (history.length === 0) return;
-    const next = historyIndex <= 0 ? history.length - 1 : historyIndex - 1;
+    if (historyIndex === -1) {
+      draftRef.current = inputTokens;
+      const typed = toText(inputTokens).trim();
+      if (typed) {
+        const matches = searchHistory(history, typed).map((entry) => entry.text);
+        if (matches.length > 0) {
+          prefixMatchesRef.current = matches;
+          setHistoryIndex(0);
+          setHistoryBrowsing(true);
+          recall(matches[0]);
+          return;
+        }
+      }
+      prefixMatchesRef.current = [];
+    }
+    const list = historyList();
+    const next = historyIndex <= 0 ? list.length - 1 : historyIndex - 1;
     setHistoryIndex(next);
     recall(history[next]);
   };
@@ -1403,7 +1488,12 @@ export function App({
   const historyNext = (): void => {
     if (historyIndex >= history.length - 1) {
       setHistoryIndex(-1);
-      resetInput();
+      prefixMatchesRef.current = [];
+      setHistoryBrowsing(false);
+      // Gezinme bitince yazılmakta olan taslak geri gelir.
+      const draft = draftRef.current;
+      setInputTokens(draft);
+      setCaret(endCursor(draft));
       return;
     }
     const next = historyIndex + 1;
@@ -1690,6 +1780,11 @@ export function App({
         resetInput();
         return;
       }
+      // Bahsetme menüsü kapanır ama yazılan mesaj silinmez.
+      if (mentionOpen) {
+        setMentionMuted(mentionQuery);
+        return;
+      }
       if (busy) cancelWork();
       return;
     }
@@ -1700,6 +1795,10 @@ export function App({
         setSlashIndex(0);
         return;
       }
+      if (mentionOpen) {
+        acceptMention(mentionItems[mentionActive].value);
+        return;
+      }
       if (!busy) toggleMode();
       return;
     }
@@ -1708,12 +1807,21 @@ export function App({
         void handleSubmit(`/${slashItems[slashActive].value}`);
         return;
       }
+      if (mentionOpen) {
+        acceptMention(mentionItems[mentionActive].value);
+        return;
+      }
       void handleSubmit(inputText);
       return;
     }
     if (slashOpen && slashItems.length > 0 && (key.upArrow || key.downArrow)) {
       if (key.upArrow) setSlashIndex(Math.max(0, slashActive - 1));
       else setSlashIndex(Math.min(slashItems.length - 1, slashActive + 1));
+      return;
+    }
+    if (mentionOpen && (key.upArrow || key.downArrow)) {
+      if (key.upArrow) setMentionIndex(Math.max(0, mentionActive - 1));
+      else setMentionIndex(Math.min(mentionItems.length - 1, mentionActive + 1));
       return;
     }
     if (!busy && history.length > 0 && (key.upArrow || key.downArrow)) {
@@ -1815,6 +1923,7 @@ export function App({
       ) : null}
 
       {slashOpen ? <Menu items={slashItems} index={slashActive} nameWidth={14} /> : null}
+      {mentionOpen ? <Menu items={mentionItems} index={mentionActive} nameWidth={30} /> : null}
 
       <Box flexDirection="column" flexShrink={0} paddingX={1}>
         <InputBar view={inputView} prefix={prefix} disabled={disabled} blinkOn={blink} />

@@ -12,6 +12,7 @@ export default {
   commands: {
     auto: "toggle auto-approve",
     compact: "summarize context (free up space)",
+    editor: "compose the message in your editor",
     exit: "exit",
     help: "show commands",
     init: "generate AGENTS.md for this project",
@@ -54,6 +55,7 @@ export default {
   /me              Account and credits
   /lang            Change language
   /compact         Summarize context (free up space)
+  /editor          Compose the message in your editor
   /new             Clear context
   /sessions        List and load past sessions
   /auto            Toggle auto-approve
@@ -71,6 +73,7 @@ Shortcuts
       ["/key", "Show or update the WenOX API key"],
       ["/lang", "Change the interface language"],
       ["/compact", "Summarize the context and free up space"],
+      ["/editor", "Compose the message in your $EDITOR"],
       ["/sessions", "List past sessions with their titles"],
       ["/clear", "Reset the current conversation context and history"],
       ["/history", "Show the number of messages in the current conversation"],
@@ -240,6 +243,7 @@ Shortcuts
     updated: "updated",
     items: "{count} items",
     matches: "{count} matches",
+    files: "{count} files",
     exitCode: "exit code {code}",
     noOutput: "(no output)",
     running: "running…",
