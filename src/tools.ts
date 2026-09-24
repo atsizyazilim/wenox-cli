@@ -4,7 +4,8 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { createPatch } from "diff";
 import { resolvePath, errorProp } from "./utils.js";
-import { codeIntel } from "./lsp.js";
+import { codeIntel, fileDiagnostics } from "./lsp.js";
+import type { FileDiagnostic } from "./lsp.js";
 import type { CodeIntelResult, LocationEntry, SymbolEntry } from "./lsp.js";
 import { setAbortHandler, clearAbortHandler } from "./cancel.js";
 
@@ -50,6 +51,9 @@ export interface ToolArgs {
   is_regex?: boolean;
   line?: number;
   character?: number;
+  todos?: unknown;
+  pattern?: string;
+  url?: string;
   [key: string]: unknown;
 }
 

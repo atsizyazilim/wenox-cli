@@ -91,6 +91,11 @@ Kısayollar
     noCredits: "—",
   },
 
+  sidebar: {
+    context: "Bağlam",
+    tasks: "Görevler",
+    allDone: "hepsi tamam",
+    files: "Değişen dosyalar",
   todo: {
     header: "Görevler ({done}/{total})",
   images: {

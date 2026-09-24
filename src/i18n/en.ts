@@ -91,6 +91,11 @@ Shortcuts
     noCredits: "—",
   },
 
+  sidebar: {
+    context: "Context",
+    tasks: "Tasks",
+    allDone: "all done",
+    files: "Changed files",
   todo: {
     header: "Tasks ({done}/{total})",
   images: {

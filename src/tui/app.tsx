@@ -60,6 +60,8 @@ import { Transcript } from "./components/transcript.js";
 import type { TextSelection } from "./components/transcript.js";
 import { InputBar } from "./components/input-bar.js";
 import { WorkingIndicator } from "./components/working.js";
+import { Sidebar, sidebarWidthFor } from "./components/sidebar.js";
+import type { ChangedFile } from "./components/sidebar.js";
 import { StatusRow, BottomBar } from "./components/status-bar.js";
 import { Approval } from "./components/approval.js";
 import { Permission } from "./components/permission.js";
@@ -246,8 +248,18 @@ export function App({
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
+  const [sidebarSettings] = useState(() => {
+    const cfg = loadConfig();
+    return { enabled: cfg.sidebar, minColumns: cfg.sidebarMinColumns };
+  });
+  const sidebarEnabled = sidebarSettings.enabled;
+
   const columns = stdout?.columns ?? 100;
-  const width = Math.max(40, columns - 4);
+  // Kenar çubuğu yalnızca geniş terminallerde; transkript kalan genişliği alır.
+  const sidebarWidth = sidebarEnabled
+    ? sidebarWidthFor(columns, sidebarSettings.minColumns)
+    : 0;
+  const width = Math.max(40, columns - 4 - sidebarWidth);
   const blink = useBlink(530);
 
   const initialItems = useMemo(() => {
@@ -279,6 +291,34 @@ export function App({
   const [toast, setToast] = useState<string | null>(null);
   const [lang, setLang] = useState<LanguageCode>(getLocale());
   const [mode, setMode] = useState(agent.mode ?? "plan");
+  const [themeName, setThemeName] = useState(theme.name);
+  const [keybinds] = useState<KeybindMap>(() => loadConfig().keybinds);
+  const [changedFiles, setChangedFiles] = useState<ChangedFile[]>([]);
+  const noteChangedFile = useCallback((name: string, result: ToolResult): void => {
+    if (!result.success || !result.path) return;
+    if (name !== "write_file" && name !== "edit_file") return;
+    const diff = typeof result.diff === "string" ? result.diff : "";
+    const added = (diff.match(/^\+[^+]/gm) ?? []).length;
+    const removed = (diff.match(/^-[^-]/gm) ?? []).length;
+    const rel = path.relative(process.cwd(), result.path) || result.path;
+    setChangedFiles((current) => {
+      const rest = current.filter((entry) => entry.path !== rel);
+      return [{ path: rel, added, removed }, ...rest].slice(0, 20);
+    });
+  }, []);
+
+  const [alerts] = useState(() => {
+    const cfg = loadConfig();
+    return { notify: cfg.notify, sound: cfg.sound };
+  });
+  // Terminal bildirimi + zil: iş bitince ve kullanıcıdan bir şey istenince.
+  const alert = useCallback(
+    (message: string): void => {
+      if (alerts.notify) notify(`WenOX: ${message}`);
+      if (alerts.sound) ring();
+    },
+    [alerts],
+  );
   const [modelId, setModelId] = useState(initialModelId);
   const [autoApprove, setAutoApprove] = useState(initialAutoApprove);
   const [overlay, setOverlay] = useState<OverlayState | null>(null);
