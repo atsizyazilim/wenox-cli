@@ -70,15 +70,15 @@ const MODE_NOTES: Record<string, string> = {
   plan:
     "[System notice] The mode has just switched to PLAN (read-only). write_file, edit_file, run_command and MCP tools are NOT in your tool list anymore. Inspect the codebase and propose a plan; if the user wants changes applied, tell them to press Tab to switch to Build mode.",
 };
-// Her isteğin EN SONUNDA, kullanıcı mesajının ardına eklenen mod hatırlatıcısı.
-// Prompt'un başındaki MODE satırı ve mod değişimi bildirimi yetmiyordu: zayıf
-// modeller modu geçmişteki kendi eski cümlelerinden okuyup Build modunda bile
-// "hâlâ plan modundayım" diyerek yazmayı reddediyordu. En son okunan yer kazanır.
+// Mod hatırlatıcısı: her kullanıcı mesajının ve her araç sonucunun sonuna
+// eklenir. Prompt'un başındaki MODE satırı yetmiyordu: zayıf modeller modu
+// geçmişteki kendi eski cümlelerinden okuyup Build modunda bile "hâlâ plan
+// modundayım" diyerek yazmayı reddediyordu. Kısa tutuluyor çünkü geçmişteki her
+// mesajda tekrar ediyor.
 const MODE_REMINDERS: Record<string, string> = {
   build:
-    "[Current mode: BUILD — writing is ENABLED. write_file, edit_file and run_command ARE in your tool list right now. Never say you are in PLAN mode, never ask the user to press Tab, and never ask them to confirm the mode again: if an earlier message in this chat says otherwise, it is OUTDATED. If the user asked for a change, call the tool and apply it.]",
-  plan:
-    "[Current mode: PLAN (read-only) — write_file, edit_file and run_command are NOT in your tool list in this mode. Do not attempt any change; inspect the code and propose a plan.]",
+    "[mode: BUILD — writing files and running commands is ENABLED right now. Do not claim PLAN mode and do not ask the user to press Tab; any earlier message saying otherwise is outdated.]",
+  plan: "[mode: PLAN (read-only) — no writes in this mode; inspect the code and propose a plan.]",
 };
 
 interface ToolCallAccumulator {
@@ -112,6 +112,11 @@ function withinProject(targetPath: unknown, root: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+// ÖNEK ÖNBELLEĞİ KURALI: isteklerin başı (sistem prompt'u + araç şemaları +
+// geçmiş) oturum boyunca bayt bayt aynı kalmalı. Sağlayıcı önbelleği yalnızca
+// ortak önek üzerinden çalışır; buraya tarih/saat/rastgele veri ya da her
+// istekte değişen bir şey eklersen önbellek tamamen kaçar. Mod değişimi
+// (Tab) bilerek istisnadır: sistem prompt'u ve araç listesi değişir.
 export function getSystemPrompt(mode = "build"): string {
   const cwd = process.cwd();
   const modeLine =
@@ -279,20 +284,22 @@ export class WenOXAgent {
     this.clientInstance = value;
   }
 
-  // Mod hatırlatıcısı yalnızca istek anında, son mesajın sonuna eklenir: kayıtlı
-  // geçmiş kirlenmez, mesaj dizisi de bozulmaz (tur ortasında araya giren ek
-  // mesaj sağlayıcılarda 400'e yol açardı). Son mesaj tur içinde değiştiği için
-  // (kullanıcı → araç sonucu → …) HER istekte eklenmeli: yalnızca kullanıcı
-  // mesajına eklenince araç çağrısından sonraki turlarda kayboluyor ve model
-  // kararını geçmişteki eski "plan modundayım" cümlelerine göre veriyordu.
+  // Mod hatırlatıcısı istek anında, HER kullanıcı mesajının ve HER araç
+  // sonucunun sonuna eklenir; depolanan geçmişe dokunulmaz. Ekleme
+  // deterministiktir: aynı modda aynı mesaj dizisi her istekte aynı metni
+  // üretir, bu yüzden önek önbelleği korunur. Yalnızca SON mesaja eklemek
+  // önbelleği bozuyordu — sonraki istekte "son" değiştiği için bir önceki mesaj
+  // hatırlatıcısız hâline dönüp önek kayıyordu (her turda önbellek kaybı).
   #sdkMessages(): SdkMessage[] {
     const reminder = MODE_REMINDERS[this.mode] ?? "";
-    const last = this.messages[this.messages.length - 1];
-    if (!reminder || !last) return this.messages as unknown as SdkMessage[];
-    const content = Array.isArray(last.content)
-      ? [...last.content, { type: "text" as const, text: reminder }]
-      : `${typeof last.content === "string" ? last.content : ""}\n\n${reminder}`;
-    return [...this.messages.slice(0, -1), { ...last, content }] as unknown as SdkMessage[];
+    if (!reminder) return this.messages as unknown as SdkMessage[];
+    return this.messages.map((message) => {
+      if (message.role !== "user" && message.role !== "tool") return message;
+      const content = Array.isArray(message.content)
+        ? [...message.content, { type: "text" as const, text: reminder }]
+        : `${typeof message.content === "string" ? message.content : ""}\n\n${reminder}`;
+      return { ...message, content };
+    }) as unknown as SdkMessage[];
   }
 
   // Plan modunda yazılan "engellendi" kayıtları Build moduna geçince bayatlar:
@@ -866,29 +873,21 @@ export class WenOXAgent {
   }
 
   async generateTitle(): Promise<string> {
-    const history = this.messages
-      .slice(1)
-      .filter(
-        (message) =>
-          (message.role === "user" || message.role === "assistant") &&
-          typeof message.content === "string" &&
-          message.content.trim(),
-      )
-      .slice(0, 6);
+    if (this.messages.length <= 1) return "";
 
-    if (history.length === 0) return "";
-
+    // Önek önbelleği: istek, konuşmanın TAM önekini kullanır ve talimatı en sona
+    // ekler. Ayrı bir sistem prompt'u + kırpılmış geçmiş kurmak önbelleği
+    // tamamen kaçırırdı; böylece başlık isteği önceki turun önbelleğine oturur.
     const response = await this.#request({
       model: this.modelId,
       temperature: 0.3,
       messages: [
+        ...this.#sdkMessages(),
         {
-          role: "system",
+          role: "user",
           content:
-            "Give the following conversation a short, descriptive title of 2-4 words. Write only the title; do not use quotes, periods, or extra explanation.",
+            "Give this whole conversation a short, descriptive title of 2-4 words. Write only the title; do not use quotes, periods, or extra explanation.",
         },
-        ...(history as unknown as SdkMessage[]),
-        { role: "user", content: "Title for this conversation:" },
       ],
     });
 
@@ -902,28 +901,21 @@ export class WenOXAgent {
   }
 
   async compact(): Promise<{ summary: string; tokens: number }> {
-    const history = this.messages
-      .slice(1)
-      .filter(
-        (message) =>
-          (message.role === "user" || message.role === "assistant") &&
-          typeof message.content === "string" &&
-          message.content.trim(),
-      );
+    if (this.messages.length <= 1) return { summary: "", tokens: 0 };
 
-    if (history.length === 0) return { summary: "", tokens: 0 };
-
+    // Önek önbelleği: sıkıştırma isteği de konuşmanın aynı önekini kullanır
+    // (aynı sistem prompt'u, aynı mesaj dizisi) ve talimatı en sona ekler —
+    // oturumun en büyük isteği bu olduğu için önbellek isabeti burada çok değerli.
     const response = await this.#request({
       model: this.modelId,
       temperature: 0.2,
       messages: [
+        ...this.#sdkMessages(),
         {
-          role: "system",
+          role: "user",
           content:
-            "Summarize the following conversation history concisely, preserving all information useful for next steps (file paths, decisions made, changes applied, open tasks, user preferences). Write only the summary.",
+            "Now summarize this conversation concisely, preserving all information useful for the next steps (file paths, decisions made, changes applied, open tasks, user preferences). Write only the summary.",
         },
-        ...(history as unknown as SdkMessage[]),
-        { role: "user", content: "Now summarize this conversation." },
       ],
     });
 
@@ -942,12 +934,7 @@ export class WenOXAgent {
       },
     ];
 
-    const tokens = Math.ceil(
-      this.messages.reduce(
-        (sum, message) => sum + String(message.content ?? "").length,
-        0,
-      ) / 4,
-    );
+    const tokens = messagesTokenCount(this.messages);
 
     return { summary, tokens };
   }
