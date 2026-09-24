@@ -2,6 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { t } from "./i18n/index.js";
+import { normalizeRules } from "./permission-rules.js";
+import type { PermissionRule } from "./permission-rules.js";
+import { normalizeKeybinds } from "./tui/keybinds.js";
+import { DEFAULT_SIDEBAR_MIN_COLUMNS } from "./tui/components/sidebar.js";
+import type { KeybindMap } from "./tui/keybinds.js";
 
 export const API_BASE_URL =
   process.env.WENOX_API_BASE_URL || "https://api.WenOX.co/v1";

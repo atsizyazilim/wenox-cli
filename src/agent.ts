@@ -8,6 +8,7 @@ import { messagesTokenCount, tokenCount } from "./tokens.js";
 import { t } from "./i18n/index.js";
 import { debugLog } from "./debug.js";
 import { loadGrants, addGrant } from "./permissions.js";
+import { evaluateRules, isSecretFile, permissionTarget } from "./permission-rules.js";
 import { isUnsafeWorkspace } from "./workspace.js";
 import { loadInstructions } from "./instructions.js";
 import { callResultText, connectAll, parseToolName, toolSchemas } from "./mcp.js";
@@ -271,6 +272,35 @@ export class WenOXAgent {
       if (abs === root || abs.startsWith(root + path.sep)) return true;
     }
     return false;
+  }
+
+  // Kural kaynaklı izin sorusu (.env ya da "ask" kalıbı): aynı panel kullanılır.
+  async #askPermission(
+    toolName: string,
+    args: ToolArgs | null | undefined,
+    sink: Sink,
+  ): Promise<boolean> {
+    const targetPath = String(args?.path ?? args?.command ?? "");
+    const abs = targetPath ? path.resolve(this.projectRoot, targetPath) : this.projectRoot;
+    const isDirTool = toolName === "list_dir" || toolName === "search_code";
+    const grant = isDirTool ? abs : path.dirname(abs);
+
+    const decision = sink.askPermission
+      ? await sink.askPermission({
+          tool: toolName,
+          path: args?.path,
+          resolved: abs,
+          grant,
+          pattern: `${grant}${path.sep}*`,
+        })
+      : "reject";
+
+    if (decision === "always") {
+      this.allowedExternal.add(grant);
+      addGrant(this.projectRoot, grant);
+      return true;
+    }
+    return decision === "once";
   }
 
   async #ensurePathAccess(
@@ -587,14 +617,34 @@ export class WenOXAgent {
               }
             }
           } else {
+            const target = permissionTarget(call.name, args);
+            const rule = evaluateRules(loadConfig().permissions, call.name, target);
+
             let allowed = true;
+            let deniedByRule = false;
             try {
-              allowed = await this.#ensurePathAccess(call.name, args, sink);
+              if (rule === "deny") {
+                deniedByRule = true;
+              } else if (rule === "allow") {
+                allowed = true;
+              } else if (rule === "ask") {
+                allowed = await this.#askPermission(call.name, args, sink);
+              } else if (isSecretFile(target)) {
+                // .env gibi sır dosyaları proje içinde olsa bile sorulur.
+                allowed = await this.#askPermission(call.name, args, sink);
+              } else {
+                allowed = await this.#ensurePathAccess(call.name, args, sink);
+              }
             } catch {
               allowed = false;
             }
 
-            if (!allowed) {
+            if (deniedByRule) {
+              toolResult = {
+                success: false,
+                error: `Denied by your permission rules (${call.name}: ${target ?? ""}). The user configured this pattern as "deny"; do not retry it.`,
+              };
+            } else if (!allowed) {
               toolResult = { success: false, error: DENIED_EXTERNAL };
             } else {
               try {
