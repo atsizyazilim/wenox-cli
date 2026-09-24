@@ -5,6 +5,34 @@ import { messagesTokenCount } from "./tokens.js";
 import type { ContentPart } from "./images.js";
 import type { ToolArgs, ToolResult } from "./tools.js";
 
+// Sunucu isteğin hangi oturumdan geldiğini bilmeli: API'ye giden her istek bu
+// başlığı taşır. Kimlik istek anında okunuyor, çünkü istemci kurulduktan sonra
+// da oturum değişebiliyor (ör. TUI'da geçmişten oturum yüklenmesi).
+export const SESSION_HEADER = "x-wenox-session";
+
+let currentSessionId = "";
+
+export function setCurrentSessionId(id: string | null | undefined): void {
+  currentSessionId = String(id ?? "");
+}
+
+type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+// Varsayılan başlıklara oturum kimliğini ekler.
+export function sessionHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return currentSessionId ? { ...extra, [SESSION_HEADER]: currentSessionId } : extra;
+}
+
+// OpenAI SDK'ya verilen fetch: her istekte başlığı tazeleyerek gönderir.
+export function fetchWithSession(base: typeof globalThis.fetch): Fetcher {
+  return (input, init) => {
+    if (!currentSessionId) return base(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set(SESSION_HEADER, currentSessionId);
+    return base(input, { ...init, headers });
+  };
+}
+
 // Sohbet geçmişi ve ekranda gösterilen satırlar. İkisi de oturum dosyasına
 // yazılıp diskten okunuyor; okuma sırasında doğrulanmıyor (kendi yazdığımız
 // dosyalar), bu yüzden alanlar opsiyonel.

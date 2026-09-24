@@ -301,6 +301,7 @@ async function main(): Promise<void> {
   } else {
     session.cwd = process.cwd();
   }
+  setCurrentSessionId(session.id);
 
   if (values.prompt) {
     const reader = createLineReader();

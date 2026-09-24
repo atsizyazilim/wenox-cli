@@ -266,7 +266,11 @@ export class WenOXAgent {
   // başlangıçta boş olabilir ve SDK boş anahtarla kurulmaya izin vermez.
   get client(): OpenAI {
     if (!this.clientInstance) {
-      this.clientInstance = new OpenAI({ apiKey: this.apiKey, baseURL: API_BASE_URL });
+      this.clientInstance = new OpenAI({
+        apiKey: this.apiKey,
+        baseURL: API_BASE_URL,
+        fetch: fetchWithSession(globalThis.fetch),
+      });
     }
     return this.clientInstance;
   }
