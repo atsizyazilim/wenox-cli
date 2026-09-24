@@ -110,6 +110,7 @@ Shortcuts
     files: "Changed files",
   todo: {
     header: "Tasks ({done}/{total})",
+    more: "+{count} more tasks",
   keybind: {
     submit: "send the message",
     cancel: "cancel / close",

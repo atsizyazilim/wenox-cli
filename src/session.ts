@@ -45,6 +45,23 @@ export interface ChatMessage {
   name?: string;
 }
 
+// Modelin tuttuğu görev listesi (todo aracı). Oturumla birlikte saklanır.
+export interface TodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+// Modelin görebildiği mesaj metni; görselli mesajlarda metin parçası.
+export function messageText(message: ChatMessage): string {
+  const content = message.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((part): part is { type: "text"; text: string } => part?.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
 export type TranscriptRole =
   | "user"
   | "assistant"
@@ -97,6 +114,7 @@ export interface Session {
   updatedAt: number;
   messages: ChatMessage[];
   items: TranscriptItem[];
+  todos?: TodoItem[];
 }
 
 function sessionsDir(): string {

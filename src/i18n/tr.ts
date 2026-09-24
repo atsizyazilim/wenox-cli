@@ -110,6 +110,7 @@ Kısayollar
     files: "Değişen dosyalar",
   todo: {
     header: "Görevler ({done}/{total})",
+    more: "+{count} görev daha",
   keybind: {
     submit: "mesajı gönder",
     cancel: "iptal et / kapat",

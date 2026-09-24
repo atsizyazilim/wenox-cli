@@ -21,6 +21,7 @@ import type {
   ChatMessage,
   ItemId,
   Session,
+  TodoItem,
   TranscriptItem,
   TranscriptMeta,
 } from "../session.js";
@@ -224,13 +225,12 @@ function rebuildItems(messages: ChatMessage[]): TranscriptItem[] {
   const out: TranscriptItem[] = [];
   let id = 0;
   for (const message of messages) {
-    if (message.role === "user" && typeof message.content === "string" && message.content.trim()) {
-      out.push({ id: (id += 1), role: "user", text: message.content });
-    } else if (
-      message.role === "assistant" &&
-      typeof message.content === "string" &&
-      message.content.trim()
-    ) {
+    // Görselli mesajlarda içerik parça dizisi olur; ekranda metin parçası
+    // gösterilir (görsel işaretleri metnin içinde duruyor).
+    const text = messageText(message);
+    if (message.role === "user" && text.trim()) {
+      out.push({ id: (id += 1), role: "user", text });
+    } else if (message.role === "assistant" && text.trim()) {
       out.push({
         id: (id += 1),
         role: "assistant",
