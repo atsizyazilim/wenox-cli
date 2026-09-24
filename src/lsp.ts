@@ -57,6 +57,14 @@ function fileUri(filePath: string): string {
   return pathToFileURL(filePath).href;
 }
 
+// Sunucu URI'yi kendi biçimiyle gönderiyor (sürücü harfi küçük, yüzde kodlamalı);
+// tanılamaları yol anahtarıyla saklayınca karşılaştırma şaşmıyor.
+function diagnosticsKey(target: string): string {
+  const filePath = /^file:/i.test(target) ? uriToPath(target) : target;
+  const resolved = path.resolve(filePath);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
 // Gelen konumlar sunucudan geldiği gibi; bozuk bir URI'de eski davranış
 // (girdiyi olduğu gibi döndürmek) korunuyor.
 function uriToPath(uri: unknown): string {
@@ -92,6 +100,9 @@ interface JsonRpcResponse {
   id?: unknown;
   result?: unknown;
   error?: { message?: string } | null;
+  // Sunucudan gelen bildirimler (id'siz): tanılamalar bu yolla düşer.
+  method?: string;
+  params?: unknown;
 }
 
 interface PendingRequest {
@@ -112,6 +123,23 @@ export interface LocationEntry {
   character: number;
 }
 
+// Dil sunucusunun gönderdiği ham tanılamalar (LSP biçimi).
+export interface RawDiagnostic {
+  range?: { start?: { line?: number; character?: number } };
+  severity?: number;
+  message?: string;
+  source?: string;
+}
+
+// Modelin okuyacağı sade biçim.
+export interface FileDiagnostic {
+  line: number;
+  character: number;
+  severity: "error" | "warning" | "info" | "hint";
+  message: string;
+  source?: string;
+}
+
 export interface CodeIntelResult {
   success: boolean;
   error?: string;
@@ -127,21 +155,28 @@ class LspClient {
   readonly server: LspServer;
   child: ChildProcess | null;
   buffer: Buffer;
+  version: number;
   nextId: number;
   pending: Map<number, PendingRequest>;
   started: boolean;
   opened: Set<string>;
   starting: Promise<void> | null;
+  // Dil sunucusunun bildirdiği son tanılamalar (uri -> liste) ve ne zaman.
+  diagnostics: Map<string, RawDiagnostic[]>;
+  diagnosticsAt: Map<string, number>;
 
   constructor(server: LspServer) {
     this.server = server;
     this.child = null;
     this.buffer = Buffer.alloc(0);
+    this.version = 1;
     this.nextId = 1;
     this.pending = new Map();
     this.started = false;
     this.opened = new Set();
     this.starting = null;
+    this.diagnostics = new Map();
+    this.diagnosticsAt = new Map();
   }
 
   async start(): Promise<void> {
@@ -190,6 +225,9 @@ class LspClient {
           references: {},
           hover: {},
           documentSymbol: {},
+          // Bu bildirilmezse bazı sunucular (typescript-language-server)
+          // tanılamaları hiç yayınlamıyor.
+          publishDiagnostics: { versionSupport: true },
         },
       },
     });
@@ -238,6 +276,17 @@ class LspClient {
   }
 
   #dispatch(message: JsonRpcResponse): void {
+    if (message.method === "textDocument/publishDiagnostics") {
+      const params = message.params as
+        | { uri?: string; diagnostics?: RawDiagnostic[] }
+        | undefined;
+      if (params?.uri) {
+        const key = diagnosticsKey(params.uri);
+        this.diagnostics.set(key, params.diagnostics ?? []);
+        this.diagnosticsAt.set(key, Date.now());
+      }
+      return;
+    }
     if (message.id != null && this.pending.has(message.id as number)) {
       const id = message.id as number;
       const entry = this.pending.get(id);
@@ -294,6 +343,37 @@ class LspClient {
     });
     this.opened.add(uri);
     return uri;
+  }
+
+  // Düzenlemeden sonra sunucudaki kopya tazelenir ve YENİ bir tanı lama
+  // bildirimi beklenir. Taze bildirim gelmezse null döner: eski liste "hata yok"
+  // sanılmasın.
+  async refreshDiagnostics(filePath: string, waitMs: number): Promise<RawDiagnostic[] | null> {
+    const uri = fileUri(filePath);
+    const key = diagnosticsKey(filePath);
+    const changedAt = Date.now();
+    const text = fs.readFileSync(filePath, "utf8");
+    if (!this.opened.has(uri)) {
+      this.#notify("textDocument/didOpen", {
+        textDocument: { uri, languageId: this.server.languageId, version: 1, text },
+      });
+      this.opened.add(uri);
+    } else {
+      this.version += 1;
+      this.#notify("textDocument/didChange", {
+        textDocument: { uri, version: this.version },
+        contentChanges: [{ text }],
+      });
+    }
+
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      if ((this.diagnosticsAt.get(key) ?? 0) >= changedAt) {
+        return this.diagnostics.get(key) ?? [];
+      }
+      if (Date.now() >= deadline) return null;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
   async definition(filePath: string, line: number, character: number): Promise<unknown> {
@@ -361,6 +441,39 @@ function flattenSymbols(symbols: unknown, out: SymbolEntry[] = []): SymbolEntry[
     if (Array.isArray(symbol.children)) flattenSymbols(symbol.children, out);
   }
   return out;
+}
+
+const DIAGNOSTIC_WAIT_MS = 4000;
+const MAX_DIAGNOSTICS = 20;
+// LSP önem dereceleri: 1 hata, 2 uyarı, 3 bilgi, 4 ipucu.
+const SEVERITY_NAMES = ["error", "warning", "info", "hint"] as const;
+
+// Düzenleme sonrası dosyanın tanılamaları. Sunucu yoksa/kurulu değilse null:
+// bu bilgi "edit başarısız" anlamına gelmez, sadece ek bilgi yoktur.
+export async function fileDiagnostics(filePath: string): Promise<FileDiagnostic[] | null> {
+  const server = serverFor(filePath);
+  if (!server) return null;
+
+  const client = getClient(server);
+  try {
+    await client.start();
+  } catch {
+    return null;
+  }
+
+  try {
+    const raw = await client.refreshDiagnostics(filePath, DIAGNOSTIC_WAIT_MS);
+    if (!raw) return null;
+    return raw.slice(0, MAX_DIAGNOSTICS).map((entry) => ({
+      line: (entry.range?.start?.line ?? 0) + 1,
+      character: (entry.range?.start?.character ?? 0) + 1,
+      severity: SEVERITY_NAMES[(entry.severity ?? 2) - 1] ?? "warning",
+      message: String(entry.message ?? "").trim().slice(0, 300),
+      source: entry.source,
+    }));
+  } catch {
+    return null;
+  }
 }
 
 export async function codeIntel(args: Record<string, unknown> = {}): Promise<CodeIntelResult> {

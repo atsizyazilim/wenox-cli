@@ -89,6 +89,8 @@ Kısayollar
     noCredits: "—",
   },
 
+  todo: {
+    header: "Görevler ({done}/{total})",
   images: {
     reading: "Görsel alınıyor…",
     noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",

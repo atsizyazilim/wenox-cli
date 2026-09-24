@@ -1,5 +1,5 @@
 import type { ToolArgs, ToolResult } from "./tools.js";
-import type { TranscriptMeta } from "./session.js";
+import type { TodoItem, TranscriptMeta } from "./session.js";
 
 // Ajanın arayüze konuştuğu sözleşme. Her olay opsiyonel: hem düz terminal
 // sink'i (ui.ts) hem TUI sink'i (tui/app.tsx) bunu uygular, ikisi de
@@ -37,6 +37,7 @@ export interface Sink {
   assistantClear?(): void;
   toolCall?(name: string, args: ToolArgs): void;
   toolResult?(name: string, result: ToolResult): void;
+  todo?(todos: TodoItem[]): void;
   info?(text: string): void;
   error?(text: string): void;
   askPermission?(request: AskPermissionRequest): Promise<PermissionDecision>;

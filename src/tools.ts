@@ -94,6 +94,8 @@ export interface ToolResult {
   locations?: LocationEntry[];
   question?: string;
   answer?: string;
+  // Düzenleme sonrası dil sunucusunun bildirdiği hatalar/uyarılar.
+  diagnostics?: FileDiagnostic[];
 }
 
 // Fırlatılan değer Error olmak zorunda değil; eski kod `${error.message}`
@@ -415,6 +417,88 @@ export function listDir(pathArg: unknown = ".", maxDepth: unknown = 2): ToolResu
   };
 }
 
+// `**` her derinliği, `*` tek yol parçasını, `?` tek karakteri, `{a,b}` seçenek
+// listesini eşler. Desende `/` yoksa her derinlikte aranır (`**/` eklenir).
+const MAX_GLOB_RESULTS = 200;
+
+function globToRegExp(pattern: string): RegExp | null {
+  const source = pattern.includes("/") ? pattern : `**/${pattern}`;
+  let out = "";
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === "*") {
+      if (source[i + 1] === "*") {
+        i += 1;
+        if (source[i + 1] === "/") {
+          i += 1;
+          out += "(?:[^/]*/)*";
+        } else {
+          out += ".*";
+        }
+      } else {
+        out += "[^/]*";
+      }
+      continue;
+    }
+    if (char === "?") {
+      out += "[^/]";
+      continue;
+    }
+    if (char === "{") {
+      const close = source.indexOf("}", i);
+      if (close !== -1) {
+        const options = source.slice(i + 1, close).split(",");
+        out += `(?:${options.map((option) => escapeRegExp(option)).join("|")})`;
+        i = close;
+        continue;
+      }
+    }
+    out += escapeRegExp(char);
+  }
+  try {
+    return new RegExp(`^${out}$`, "i");
+  } catch {
+    return null;
+  }
+}
+
+export function globFiles(pattern: unknown, pathArg: unknown = "."): ToolResult {
+  const raw = String(pattern ?? "").trim();
+  if (!raw) return { success: false, error: "Pattern cannot be empty." };
+
+  const matcher = globToRegExp(raw);
+  if (!matcher) return { success: false, error: `Invalid pattern: ${raw}` };
+
+  const targetDir = resolvePath(pathArg);
+  if (!fs.existsSync(targetDir)) {
+    return { success: false, error: `Path not found: ${String(pathArg)}` };
+  }
+  const root = fs.statSync(targetDir).isDirectory() ? targetDir : path.dirname(targetDir);
+
+  const found: { relative: string; mtime: number }[] = [];
+  walkDirectory(root, 99, (fullPath, type) => {
+    if (type !== "file" || found.length >= MAX_GLOB_RESULTS * 5) return;
+    const relative = path.relative(root, fullPath).split(path.sep).join("/");
+    if (!matcher.test(relative)) return;
+    let mtime = 0;
+    try {
+      mtime = fs.statSync(fullPath).mtimeMs;
+    } catch {
+      // zaman okunamazsa sıralamada en sona düşer
+    }
+    found.push({ relative, mtime });
+  });
+
+  // En son değişenler önce (opencode'daki glob da böyle sıralıyor).
+  found.sort((a, b) => b.mtime - a.mtime);
+  const items: ToolListItem[] = found.slice(0, MAX_GLOB_RESULTS).map((entry) => ({
+    name: entry.relative,
+    type: "file",
+  }));
+
+  return { success: true, count: items.length, base_path: root, items };
+}
+
 export function searchCode(
   query: unknown,
   pathArg: unknown = ".",
@@ -515,6 +599,101 @@ export function killsOwnProcess(command: unknown): string | null {
   if (new RegExp(`\\bkill\\b[^|;&]*\\b${self}\\b`).test(cmd)) return `kill ${self}`;
 
   return null;
+}
+
+// --- webfetch: bir URL'yi indirip modele okunur metin olarak verir ---------
+
+const WEB_TIMEOUT_MS = 20_000;
+const WEB_MAX_BYTES = 2 * 1024 * 1024;
+const WEB_MAX_CHARS = 40_000;
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match);
+}
+
+// Kaba ama yeterli bir HTML -> metin dönüşümü: script/style atılır, blok
+// etiketleri satır sonuna çevrilir, kalan etiketler silinir.
+export function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<\/(p|div|section|article|li|tr|h[1-6]|pre|blockquote)>/gi, "\n")
+      .replace(/<(br|hr)\s*\/?>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "- ")
+      .replace(/<[^>]+>/g, ""),
+  )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+export async function webFetch(urlArg: unknown): Promise<ToolResult> {
+  const raw = String(urlArg ?? "").trim();
+  if (!raw) return { success: false, error: "URL cannot be empty." };
+
+  let target: URL;
+  try {
+    target = new URL(raw);
+  } catch {
+    return { success: false, error: `Invalid URL: ${raw}` };
+  }
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    return { success: false, error: "Only http:// and https:// URLs can be fetched." };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WEB_TIMEOUT_MS);
+  try {
+    const response = await fetch(target, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "user-agent": "WenOX-CLI", accept: "text/html,text/plain,application/json,*/*" },
+    });
+    if (!response.ok) {
+      return { success: false, error: `Request failed with status ${response.status}.` };
+    }
+
+    const type = response.headers.get("content-type") ?? "";
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > WEB_MAX_BYTES) {
+      return { success: false, error: `Response is too large (${buffer.length} bytes).` };
+    }
+
+    const body = buffer.toString("utf8");
+    const isHtml = /html/i.test(type) || /^\s*<(!doctype|html)/i.test(body);
+    let text = isHtml ? htmlToText(body) : body.trim();
+    const truncated = text.length > WEB_MAX_CHARS;
+    if (truncated) text = `${text.slice(0, WEB_MAX_CHARS)}\n[... truncated ...]`;
+
+    return {
+      success: true,
+      operation: "webfetch",
+      content: text,
+      total_lines: text.split("\n").length,
+      chars_written: text.length,
+      message: `${target.href} (${type || "unknown type"}${truncated ? ", truncated" : ""})`,
+    };
+  } catch (error) {
+    const message = error instanceof Error && error.name === "AbortError" ? "request timed out" : errText(error);
+    return { success: false, error: `Could not fetch URL: ${message}` };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function runCommand(command: unknown): Promise<ToolResult> {
@@ -631,12 +810,20 @@ export function changeDirectory(pathArg: unknown): ToolResult {
 
 type SyncToolHandler = (args: ToolArgs) => ToolResult;
 
+// Dosya değiştikten sonra dil sunucusuna sorulur; model kendi soktuğu hatayı
+// görsün diye sonuç tanılamalarla birlikte döner (sunucu yoksa ek bilgi olmaz).
+async function withDiagnostics(result: ToolResult): Promise<ToolResult> {
+  if (!result.success || !result.path) return result;
+  const diagnostics = await fileDiagnostics(result.path);
+  if (!diagnostics || diagnostics.length === 0) return result;
+  return { ...result, diagnostics };
+}
+
 const SYNC_TOOLS: Record<string, SyncToolHandler> = {
   read_file: (args) => readFile(args.path, args.start_line, args.end_line),
-  write_file: (args) => writeFile(args.path, args.content),
-  edit_file: (args) => editFile(args.path, args.target, args.replacement),
   list_dir: (args) => listDir(args.path ?? ".", args.max_depth ?? 2),
   search_code: (args) => searchCode(args.query, args.path ?? ".", args.is_regex ?? false),
+  glob: (args) => globFiles(args.pattern, args.path ?? "."),
 };
 
 export async function executeTool(
@@ -646,6 +833,18 @@ export async function executeTool(
   try {
     if (name === "ask_user") {
       return { success: false, error: "ask_user can only be run through the interface." };
+    }
+    if (name === "todo_write") {
+      return { success: false, error: "todo_write can only be run through the agent." };
+    }
+    if (name === "webfetch") {
+      return await webFetch(args.url);
+    }
+    if (name === "write_file") {
+      return await withDiagnostics(writeFile(args.path, args.content));
+    }
+    if (name === "edit_file") {
+      return await withDiagnostics(editFile(args.path, args.target, args.replacement));
     }
     if (name === "run_command") {
       return await runCommand(args.command);
@@ -855,6 +1054,73 @@ export const TOOLS_SCHEMA: ToolSchema[] = [
           },
         },
         required: ["question", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "glob",
+      description:
+        "Finds files by glob pattern (e.g. '**/*.tsx', 'src/**/*.test.ts', '*.json'). Results are ordered by modification time, newest first. Use it to locate files before reading them.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Glob pattern. Without a '/', it matches at any depth.",
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in (default: project root)",
+          },
+        },
+        required: ["pattern"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "webfetch",
+      description:
+        "Downloads a web page or API response and returns its text content. Use it to read documentation, changelogs or issue pages when you need information that is not in the repository.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Absolute http(s) URL to fetch" },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "todo_write",
+      description:
+        "Records the task list for a long, multi-step piece of work (building a feature, creating a project, touching many files). Send the FULL list every time; it replaces the previous one. Keep exactly one task in_progress while working on it and mark it completed before moving on. Do NOT use it for questions, small edits, single commands or quick fixes - just do those directly and say what you did.",
+      parameters: {
+        type: "object",
+        properties: {
+          todos: {
+            type: "array",
+            description: "The complete, ordered task list",
+            items: {
+              type: "object",
+              properties: {
+                content: { type: "string", description: "Short description of the task" },
+                status: {
+                  type: "string",
+                  enum: ["pending", "in_progress", "completed"],
+                  description: "Current state of the task",
+                },
+              },
+              required: ["content", "status"],
+            },
+          },
+        },
+        required: ["todos"],
       },
     },
   },

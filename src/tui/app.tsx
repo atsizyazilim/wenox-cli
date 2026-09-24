@@ -257,6 +257,9 @@ export function App({
   }, [session]);
 
   const [items, setItems] = useState<TranscriptItem[]>(initialItems);
+  const [todos, setTodos] = useState<TodoItem[]>(session?.todos ?? []);
+  const todosRef = useRef<TodoItem[]>(todos);
+  todosRef.current = todos;
   const [liveText, setLiveText] = useState("");
   const [liveThinking, setLiveThinking] = useState("");
   const [liveThinkingExpanded, setLiveThinkingExpandedState] = useState(false);
@@ -365,6 +368,7 @@ export function App({
       if (!session) return;
       session.messages = agent.messages.slice(1);
       session.items = itemsRef.current;
+      session.todos = todosRef.current;
       session.tokens = tokensRef.current;
       session.usedTokens = usedTokensRef.current;
       session.model = agent.modelId;
@@ -436,6 +440,9 @@ export function App({
         session.tokens = loaded.tokens ?? 0;
         session.cwd = loaded.cwd ?? process.cwd();
         session.model = loaded.model ?? agent.modelId;
+        session.todos = [...(loaded.todos ?? [])];
+        setTodos(session.todos);
+        if (agent.todos) agent.todos = [...session.todos];
       }
 
       setSessionTitle(loaded.title ?? "");
@@ -547,8 +554,11 @@ export function App({
         setLiveText("");
         push({ role: "tool-call", name, args });
       },
-      toolResult: (name: string, result: ToolResult) =>
-        push({ role: "tool-result", name, result }),
+      toolResult: (name: string, result: ToolResult) => {
+        noteChangedFile(name, result);
+        push({ role: "tool-result", name, result });
+      },
+      todo: (next: TodoItem[]) => setTodos(next),
       info: (text: string) => push({ role: "info", text }),
       error: (text: string) => {
         setLiveText("");
@@ -596,6 +606,7 @@ export function App({
           tokensRef.current = 0;
           usedTokensRef.current = 0;
           warnedRef.current = false;
+          setTodos([]);
           push({ role: "info", text: t("context.cleared") });
           return;
         case "compact": {
@@ -1672,6 +1683,16 @@ export function App({
         ) : (
           <Home height={viewportHeight} />
         )}
+      </Box>
+      {sidebarWidth > 0 && started ? (
+        <Sidebar
+          width={sidebarWidth}
+          tokens={tokens}
+          contextWindow={contextWindow}
+          todos={todos}
+          files={changedFiles}
+        />
+      ) : null}
       </Box>
 
       {overlay ? (

@@ -89,6 +89,8 @@ Shortcuts
     noCredits: "—",
   },
 
+  todo: {
+    header: "Tasks ({done}/{total})",
   images: {
     reading: "Reading image…",
     noVision: "The selected model does not support images ({model}). Switch with /model.",

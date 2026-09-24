@@ -140,9 +140,12 @@ Your Available Tools:
 3. \`edit_file\`: Safely replaces a specific code block (target) in a file with a new one (replacement).
 4. \`list_dir\`: Lists files and folders in the project.
 5. \`search_code\`: Searches file contents for a keyword or regex.
-6. \`run_command\`: Runs a shell command in the terminal.
-7. \`code_intel\`: Queries a language server for definition / references / hover / document symbols.
-8. \`ask_user\`: Asks the user a multiple-choice question (when a genuine preference is needed).
+6. \`glob\`: Finds files by pattern (e.g. \`**/*.tsx\`), newest first.
+7. \`run_command\`: Runs a shell command in the terminal.
+8. \`code_intel\`: Queries a language server for definition / references / hover / document symbols.
+9. \`webfetch\`: Downloads a URL and returns its text (docs, changelogs).
+10. \`ask_user\`: Asks the user a multiple-choice question (when a genuine preference is needed).
+11. \`todo_write\`: Task list for long multi-step work (project-scale). Skip it for small requests.
 
 Your Working Principles:
 - BE ACTION-ORIENTED: Never say things like "I will inspect with this command: ..." and dump command text. If you want to list files, search, or run a command, CALL YOUR TOOL DIRECTLY instead of writing it out as text.
@@ -159,6 +162,26 @@ Your Working Principles:
 - The CLI you run inside is a Node process (pid ${process.pid}). NEVER run commands that kill every Node process (\`taskkill /IM node.exe\`, \`pkill node\`, \`killall node\`, \`Get-Process node | Stop-Process\`) or that kill pid ${process.pid} — that would terminate you. Kill only the exact PID/process you identified, by name and port.
 - Always respond in the same language the user writes in.
 - Always write characters correctly in UTF-8, never produce garbled characters (including Turkish characters such as ı, İ, ş, ğ, ü, ö, ç when replying in Turkish).`;
+}
+
+// Model görev listesini serbest biçimde gönderiyor; alanlar burada doğrulanıp
+// sadeleştiriliyor (boş/aşırı uzun girdiler atılır).
+const MAX_TODOS = 50;
+const MAX_TODO_LENGTH = 200;
+
+function normalizeTodos(raw: unknown): TodoItem[] {
+  if (!Array.isArray(raw)) return [];
+  const todos: TodoItem[] = [];
+  for (const entry of raw) {
+    const item = entry as { content?: unknown; status?: unknown } | null;
+    const content = String(item?.content ?? "").trim().slice(0, MAX_TODO_LENGTH);
+    if (!content) continue;
+    const status =
+      item?.status === "in_progress" || item?.status === "completed" ? item.status : "pending";
+    todos.push({ content, status });
+    if (todos.length >= MAX_TODOS) break;
+  }
+  return todos;
 }
 
 function parseToolArgs(raw: unknown): ToolArgs {
@@ -326,6 +349,7 @@ export class WenOXAgent {
 
   clearHistory(): void {
     this.messages = [{ role: "system", content: getSystemPrompt(this.mode) }];
+    this.todos = [];
   }
 
   updateCwd(): void {
@@ -750,7 +774,16 @@ export class WenOXAgent {
               toolResult = { success: false, error: DENIED_EXTERNAL };
             } else {
               try {
-                if (call.name === "ask_user") {
+                if (call.name === "todo_write") {
+                  this.todos = normalizeTodos(args.todos);
+                  sink.todo?.(this.todos);
+                  const done = this.todos.filter((todo) => todo.status === "completed").length;
+                  toolResult = {
+                    success: true,
+                    count: this.todos.length,
+                    message: `${done}/${this.todos.length} completed`,
+                  };
+                } else if (call.name === "ask_user") {
                   const options = Array.isArray(args.options) ? args.options : [];
                   const response = sink.askUser
                     ? await sink.askUser({ question: String(args.question ?? ""), options })
