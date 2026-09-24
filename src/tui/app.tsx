@@ -57,6 +57,7 @@ import {
 import type { Cursor, InputToken } from "./input-model.js";
 import { Home } from "./screens/home.js";
 import { Transcript } from "./components/transcript.js";
+import { toastCard } from "./components/toast.js";
 import type { TextSelection } from "./components/transcript.js";
 import { InputBar } from "./components/input-bar.js";
 import { WorkingIndicator } from "./components/working.js";
@@ -158,6 +159,12 @@ const LANG_ITEMS: OverlayItem[] = LANGUAGES.map((lang) => ({
   value: lang.code,
   left: lang.label,
   right: lang.code,
+}));
+
+const THEME_ITEMS: OverlayItem[] = themeNames().map((name) => ({
+  value: name,
+  left: name,
+  right: "",
 }));
 
 function commandItems(): OverlayItem[] {
@@ -587,6 +594,8 @@ export function App({
         }
         setLiveThinkingExpanded(false);
         if (text && text.trim()) push({ role: "assistant", text, meta });
+        // Kısa yanıtlarda bildirim gürültü olur; uzun işlerde haber veriyoruz.
+        if ((meta?.durationMs ?? 0) >= 8000) alert(t("notify.done"));
       },
       assistantClear: () => {
         setLiveText("");
@@ -608,14 +617,17 @@ export function App({
       },
       askApproval: (command: string) =>
         new Promise<boolean>((resolve) => {
+          alert(t("notify.permission"));
           setApproval({ command, resolve, allow: true });
         }),
       askPermission: ({ tool, path: target, resolved, grant, pattern }: AskPermissionRequest) =>
         new Promise<PermissionDecision>((resolve) => {
+          alert(t("notify.permission"));
           setPermission({ tool, path: target, resolved, grant, pattern, choice: 0, resolve });
         }),
       askUser: ({ question: promptText, options }: AskUserRequest) =>
         new Promise<AskUserAnswer>((resolve) => {
+          alert(t("notify.question"));
           setQuestion({
             question: promptText,
             options: options ?? [],
@@ -694,6 +706,21 @@ export function App({
           return;
         case "lang":
           setOverlay({ kind: "lang", query: "", index: 0, items: LANG_ITEMS });
+          return;
+        case "theme":
+          setOverlay({ kind: "themes", query: "", index: 0, items: THEME_ITEMS });
+          return;
+        case "keys":
+          setOverlay({
+            kind: "keys",
+            query: "",
+            index: 0,
+            items: KEYBINDS.map((spec) => ({
+              value: spec.id,
+              left: keybinds[spec.id],
+              right: `${t(`keybind.${spec.id}`)}${spec.locked ? " ·" : ""}`,
+            })),
+          });
           return;
         case "model": {
           const items = await loadRemoteModels();
@@ -1108,6 +1135,13 @@ export function App({
     push({ role: "info", text: t("lang.selected", { name }) });
   };
 
+  const selectTheme = (name: string): void => {
+    const applied = applyTheme(name);
+    saveConfig({ theme: applied });
+    setThemeName(applied);
+    push({ role: "info", text: t("theme.selected", { name: applied }) });
+  };
+
   const toggleMode = (): void => {
     const next = mode === "build" ? "plan" : "build";
     agent.setMode(next);
@@ -1301,6 +1335,10 @@ export function App({
     }
     if (state.kind === "lang") {
       selectLanguage(selected.value);
+      return;
+    }
+    if (state.kind === "themes") {
+      selectTheme(selected.value);
       return;
     }
     selectModel(selected.value);
@@ -1632,7 +1670,7 @@ export function App({
       scrollBy(Math.floor(viewportHeight / 2));
       return;
     }
-    if (key.ctrl && char === "p") {
+    if (matchesKey(keybinds.palette, char, key)) {
       setOverlay({ kind: "palette", query: "", index: 0 });
       return;
     }
@@ -1655,7 +1693,7 @@ export function App({
       if (busy) cancelWork();
       return;
     }
-    if (key.tab) {
+    if (matchesKey(keybinds.mode, char, key)) {
       if (slashOpen && slashItems.length > 0) {
         const filled = `/${slashItems[slashActive].value}`;
         recall(filled);
@@ -1723,7 +1761,18 @@ export function App({
             contentWidth={Math.max(10, columns - 4)}
           />
         ) : (
-          <Home height={viewportHeight} />
+          // Boş oturumda da bilgi kartı görünmeli: ilk iş olarak görsel
+          // yapıştırıldığında uyarı sessizce kaybolmasın.
+          <Box flexDirection="column" height={viewportHeight}>
+            {toast ? (
+              <Box flexDirection="column" alignItems="flex-end" flexShrink={0}>
+                {toastCard(toast).rows.map((toastRow, index) => (
+                  <Box key={index}>{toastRow}</Box>
+                ))}
+              </Box>
+            ) : null}
+            <Home height={viewportHeight - (toast ? 3 : 0)} />
+          </Box>
         )}
       </Box>
       {sidebarWidth > 0 && started ? (

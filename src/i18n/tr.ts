@@ -16,12 +16,14 @@ export default {
     help: "komutları göster",
     init: "projeye AGENTS.md üret",
     key: "API anahtarını güncelle",
+    keys: "kısayolları göster",
     lang: "dili değiştir",
     me: "hesap ve kredi bilgisi",
     model: "modeli değiştir",
     new: "bağlamı temizle (yeni oturum)",
     sessions: "geçmiş oturumları listele",
     status: "oturum durumu",
+    theme: "tema seç",
   },
 
   help: {
@@ -98,6 +100,19 @@ Kısayollar
     files: "Değişen dosyalar",
   todo: {
     header: "Görevler ({done}/{total})",
+  keybind: {
+    submit: "mesajı gönder",
+    cancel: "iptal et / kapat",
+    mode: "mod değiştir (Build/Plan)",
+    palette: "komut paleti",
+    image: "panodaki görseli ekle",
+    history: "geçmişte gez · taslağı geri getir",
+  notify: {
+    done: "yanıt hazır",
+    question: "bir soru bekliyor",
+    permission: "izin bekliyor",
+  theme: {
+    selected: "Tema: {name}",
   images: {
     reading: "Görsel alınıyor…",
     noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",

@@ -16,12 +16,14 @@ export default {
     help: "show commands",
     init: "generate AGENTS.md for this project",
     key: "update API key",
+    keys: "show shortcuts",
     lang: "change language",
     me: "account and credits",
     model: "change model",
     new: "clear context (new session)",
     sessions: "list past sessions",
     status: "session status",
+    theme: "choose a theme",
   },
 
   help: {
@@ -98,6 +100,19 @@ Shortcuts
     files: "Changed files",
   todo: {
     header: "Tasks ({done}/{total})",
+  keybind: {
+    submit: "send the message",
+    cancel: "cancel / close",
+    mode: "switch mode (Build/Plan)",
+    palette: "command palette",
+    image: "attach clipboard image",
+    history: "browse history · restore draft",
+  notify: {
+    done: "the answer is ready",
+    question: "a question is waiting",
+    permission: "permission needed",
+  theme: {
+    selected: "Theme: {name}",
   images: {
     reading: "Reading image…",
     noVision: "The selected model does not support images ({model}). Switch with /model.",
