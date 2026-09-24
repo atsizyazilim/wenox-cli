@@ -15,7 +15,15 @@ import {
 import { WenOXAgent, getSystemPrompt } from "./agent.js";
 import { runRepl } from "./repl.js";
 import { changeDirectory } from "./tools.js";
-import { createSession, loadSession, saveSession } from "./session.js";
+import {
+  createSession,
+  loadSession,
+  saveSession,
+  setCurrentSessionId,
+  listSessions,
+  messageText,
+} from "./session.js";
+import { runSubcommand } from "./cli-commands.js";
 import type { Session } from "./session.js";
 import { startCancelScope, stopCancelScope } from "./cancel.js";
 import { isUnsafeWorkspace } from "./workspace.js";
@@ -44,6 +52,9 @@ ${chalk.bold(t("help.usage"))}
 ${chalk.bold(t("help.options"))}
 ${tList("help.optionLines").map((line) => `  ${line}`).join("\n")}
 
+${chalk.bold(t("help.commands"))}
+${tList("help.commandLines").map((line) => `  ${line}`).join("\n")}
+
 ${chalk.bold(t("help.examples"))}
 ${tList("help.exampleLines").map((line) => `  ${line}`).join("\n")}`;
 }
@@ -60,6 +71,9 @@ function parseCliArgs(argv: string[]) {
         session: { type: "string", short: "s" },
         cwd: { type: "string", short: "d" },
         "auto-approve": { type: "boolean", short: "y" },
+        continue: { type: "boolean", short: "c" },
+        fork: { type: "boolean" },
+        format: { type: "string" },
         prompt: { type: "string", short: "p" },
         version: { type: "boolean", short: "v" },
         help: { type: "boolean", short: "h" },
@@ -233,6 +247,23 @@ async function main(): Promise<void> {
   let session = values.session ? loadSession(values.session) : null;
   if (values.session && !session) {
     ui.printError(t("session.notFound", { id: values.session }));
+  }
+
+  // -c/--continue: en son oturuma devam et. --fork: o oturumun kopyası olarak
+  // yeni bir oturum aç (geçmiş korunur, kimlik ayrılır).
+  if (!session && (values.continue || values.fork)) {
+    session = listSessions()[0] ?? null;
+    if (!session) ui.printError(t("session.none"));
+  }
+  if (values.fork && session) {
+    const source = session;
+    const forked = createSession({ cwd: source.cwd, model: source.model });
+    forked.title = source.title;
+    forked.messages = [...(source.messages ?? [])];
+    forked.items = [...(source.items ?? [])];
+    forked.todos = [...(source.todos ?? [])];
+    session = forked;
+    ui.printSuccess(t("session.forked", { id: forked.id, from: source.id }));
   }
   if (session?.cwd && fs.existsSync(session.cwd)) {
     try {

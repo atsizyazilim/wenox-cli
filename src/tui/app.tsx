@@ -128,7 +128,7 @@ interface OverlayItem extends MenuItem {
   session?: Session | null;
 }
 
-type OverlayKind = "palette" | "lang" | "models" | "sessions";
+type OverlayKind = "palette" | "lang" | "models" | "sessions" | "themes" | "keys";
 
 interface OverlayState {
   kind: OverlayKind;
@@ -503,6 +503,8 @@ export function App({
 
       if (session) {
         session.id = loaded.id;
+        // Bundan sonraki API istekleri yüklenen oturumun kimliğini taşımalı.
+        setCurrentSessionId(loaded.id);
         session.title = loaded.title ?? "";
         session.messages = [...(loaded.messages ?? [])];
         session.items = restored;

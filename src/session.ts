@@ -129,6 +129,17 @@ export function loadSession(id: string): Session | null {
   }
 }
 
+export function deleteSession(id: string): boolean {
+  try {
+    const file = path.join(sessionsDir(), `${id}.json`);
+    if (!fs.existsSync(file)) return false;
+    fs.rmSync(file, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function listSessions(): Session[] {
   try {
     const dir = sessionsDir();

@@ -36,12 +36,19 @@ export default {
       "-m, --model <id|no>    Model to use (1: Grok 4.6, 2: GLM 5.3 Flash, 3: Big Pickle)",
       "-k, --key <key>        WenOX API key (saved permanently)",
       "-s, --session <id>     Resume a saved session",
+      "-c, --continue         Resume the most recent session",
+      "--fork                 Fork the most recent session into a new one",
+      "--format json          With -p, print the result as JSON",
       "-d, --cwd <path>       Starting working directory / project path",
       "-y, --auto-approve     Run commands without confirmation",
       "-p, --prompt <text>    Run a one-shot command and exit",
       "-v, --version          Show version",
       "-h, --help             Show this help",
     ],
+    commands: "Commands:",
+    commandLines: [
+      "wenox models [--format json]   List models",
+      "wenox stats [--format json]    Token usage summary",
     examples: "Examples:",
     exampleLines: [
       "wenox",
@@ -179,6 +186,7 @@ Shortcuts
     none: "No saved sessions.",
     past: "Past sessions:",
     pastHint: "To continue: wenox -s <id>",
+    forked: "New session forked from {from}: {id}",
   },
 
   context: {
@@ -331,6 +339,23 @@ Shortcuts
   },
 
   cli: {
+    modelsTitle: "Models:",
+    modelsLegend: "● active   ·   context   ·   vision support (✓ yes, — no, ? unknown)",
+    modelsUnavailable: "Could not fetch models. Check your connection and API key.",
+    modelsEmpty: "The server returned an empty model list.",
+    sessionIdRequired: "A session id is required: wenox session delete <id>",
+    sessionDeleted: "Session deleted: {id}",
+    statsTitle: "Usage summary:",
+    statsSessions: "Sessions",
+    statsTokens: "Total tokens",
+    statsSessionShort: "sessions",
+    statsTokensShort: "tokens",
+    mcpTitle: "MCP servers:",
+    mcpNone: "No MCP servers configured.",
+    mcpAdded: "MCP server added: {name}",
+    mcpRemoved: "MCP server removed: {name}",
+    mcpUsage:
+      "Usage: wenox mcp list | wenox mcp add <name> <command> [args] | wenox mcp remove <name>",
     mcpFailed: "Could not connect to the MCP server — {message}",
     argError: "Argument error: {message}",
     unexpectedError: "Unexpected error: {message}",

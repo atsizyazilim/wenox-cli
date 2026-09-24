@@ -36,12 +36,19 @@ export default {
       "-m, --model <id|no>    Kullanılacak model (1: Grok 4.6, 2: GLM 5.3 Flash, 3: Big Pickle)",
       "-k, --key <anahtar>    WenOX API anahtarı (kalıcı olarak kaydedilir)",
       "-s, --session <id>     Kayıtlı bir oturuma devam et",
+      "-c, --continue         Son oturuma devam et",
+      "--fork                 Son oturumun kopyası olarak yeni oturum aç",
+      "--format json          -p ile birlikte sonucu JSON olarak yaz",
       "-d, --cwd <yol>        Başlangıç çalışma dizini / proje yolu",
       "-y, --auto-approve     Komutları onay sormadan otomatik çalıştır",
       "-p, --prompt <metin>   Tek seferlik komut çalıştır ve çık",
       "-v, --version          Sürümü göster",
       "-h, --help             Bu yardımı göster",
     ],
+    commands: "Komutlar:",
+    commandLines: [
+      "wenox models [--format json]   Modelleri listele",
+      "wenox stats [--format json]    Token kullanım özeti",
     examples: "Örnekler:",
     exampleLines: [
       "wenox",
@@ -179,6 +186,7 @@ Kısayollar
     none: "Kayıtlı oturum yok.",
     past: "Geçmiş oturumlar:",
     pastHint: "Devam etmek için: wenox -s <id>",
+    forked: "Oturum {from} kaynağından yeni oturum açıldı: {id}",
   },
 
   context: {
@@ -331,6 +339,22 @@ Kısayollar
   },
 
   cli: {
+    modelsTitle: "Modeller:",
+    modelsLegend: "● aktif   ·   bağlam   ·   görsel desteği (✓ var, — yok, ? bilinmiyor)",
+    modelsUnavailable: "Modeller alınamadı. Bağlantını ve API anahtarını kontrol et.",
+    modelsEmpty: "Sunucu model listesi boş döndü.",
+    sessionIdRequired: "Silinecek oturum kimliği gerekli: wenox session delete <id>",
+    sessionDeleted: "Oturum silindi: {id}",
+    statsTitle: "Kullanım özeti:",
+    statsSessions: "Oturum",
+    statsTokens: "Toplam token",
+    statsSessionShort: "oturum",
+    statsTokensShort: "token",
+    mcpTitle: "MCP sunucuları:",
+    mcpNone: "Tanımlı MCP sunucusu yok.",
+    mcpAdded: "MCP sunucusu eklendi: {name}",
+    mcpRemoved: "MCP sunucusu kaldırıldı: {name}",
+    mcpUsage:
     mcpFailed: "MCP sunucusuna bağlanılamadı — {message}",
     argError: "Argüman hatası: {message}",
     unexpectedError: "Beklenmeyen hata: {message}",
