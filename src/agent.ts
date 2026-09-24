@@ -1,8 +1,8 @@
 import path from "node:path";
 import OpenAI from "openai";
-import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
+import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo, loadConfig } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
-import type { ToolArgs } from "./tools.js";
+import type { ToolArgs, ToolResult } from "./tools.js";
 import { sanitizeOutput, errorProp } from "./utils.js";
 import { messagesTokenCount, tokenCount } from "./tokens.js";
 import { t } from "./i18n/index.js";
@@ -56,7 +56,7 @@ export class RequestTimeoutError extends Error {
   }
 }
 
-const PATH_TOOLS = new Set(["read_file", "write_file", "edit_file", "list_dir", "search_code"]);
+const PATH_TOOLS = new Set(["read_file", "write_file", "edit_file", "list_dir", "search_code", "glob"]);
 const DENIED_EXTERNAL = "User denied access to a path outside the project directory.";
 const PLAN_BLOCKED_TOOLS = new Set(["write_file", "edit_file", "run_command", "change_directory"]);
 const PLAN_BLOCKED_ERROR =
@@ -116,7 +116,7 @@ export function getSystemPrompt(mode = "build"): string {
   const cwd = process.cwd();
   const modeLine =
     mode === "plan"
-      ? "MODE: PLAN (read-only). Do NOT modify files and do NOT run commands — write_file, edit_file and run_command are disabled. Inspect the codebase and propose a clear, step-by-step plan. If the user asks you to make changes, describe exactly what you would change and tell them to press the Tab key to switch to Build mode, because only then can you apply the change."
+      ? "MODE: PLAN (read-only). write_file, edit_file, run_command and MCP tools are NOT available in this mode — they are not even in your tool list, so never call them. Inspect the codebase and propose a clear, step-by-step plan. If the user asks you to make changes, describe exactly what you would change and tell them to press the Tab key to switch to Build mode, because only then can you apply the change."
       : "MODE: BUILD. You may inspect the codebase, modify files and run commands to complete the task. Pressing the Tab key switches to Plan mode (read-only).";
   // Mod oyunu: geçmişteki eski mod mesajları geçersiz. Model yazma aracını
   // görebiliyorsa yazma izni de vardır.
@@ -141,7 +141,7 @@ You have direct access to the local file system and can use the tools below to i
 ${modeLine}
 ${modeAuthority}
 ${workspaceNote}
-Environment:
+${instructions}Environment:
 - Operating System: ${process.platform === "win32" ? "Windows" : process.platform}
 - Working / Project Directory: ${cwd}
 
@@ -279,6 +279,12 @@ export class WenOXAgent {
     this.clientInstance = value;
   }
 
+  // Mod hatırlatıcısı yalnızca istek anında, son mesajın sonuna eklenir: kayıtlı
+  // geçmiş kirlenmez, mesaj dizisi de bozulmaz (tur ortasında araya giren ek
+  // mesaj sağlayıcılarda 400'e yol açardı). Son mesaj tur içinde değiştiği için
+  // (kullanıcı → araç sonucu → …) HER istekte eklenmeli: yalnızca kullanıcı
+  // mesajına eklenince araç çağrısından sonraki turlarda kayboluyor ve model
+  // kararını geçmişteki eski "plan modundayım" cümlelerine göre veriyordu.
   #sdkMessages(): SdkMessage[] {
     const reminder = MODE_REMINDERS[this.mode] ?? "";
     const last = this.messages[this.messages.length - 1];

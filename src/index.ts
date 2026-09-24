@@ -316,7 +316,7 @@ async function main(): Promise<void> {
       await agent.chatStep(values.prompt, sink);
     } finally {
       stopCancelScope();
-      reader.close();
+      reader?.close();
     }
     session.messages = agent.messages.slice(1);
     if (asJson) {

@@ -107,6 +107,7 @@ export interface Session {
   title: string;
   cwd: string;
   model: string;
+  // Son isteğin bağlam boyutu (bağlam göstergesi buradan beslenir).
   tokens: number;
   // Oturum boyunca harcanan toplam token (istatistikler için).
   usedTokens?: number;
