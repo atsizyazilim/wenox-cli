@@ -363,7 +363,8 @@ Kısayollar
   onboarding: {
     needKey: "WenOX AI'yı kullanmak için bir API anahtarı gerekir.",
     getKeyHere: "API anahtarını buradan al: {url}",
-    openHint: "Boş kutuda Enter = sayfayı tarayıcıda aç",
+    openHint: "ctrl+o  ·  anahtar sayfasını aç",
+    pasteKey: "Önce API anahtarını yapıştır.",
     openFailed: "Tarayıcı açılamadı. Şu adresi elle aç: {url}",
     opening: "Sayfa tarayıcıda açılıyor…",
     verifying: "Anahtar doğrulanıyor…",

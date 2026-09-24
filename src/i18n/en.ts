@@ -364,7 +364,8 @@ Shortcuts
   onboarding: {
     needKey: "To use WenOX AI you need an API key.",
     getKeyHere: "Get your API key here: {url}",
-    openHint: "Press Enter on the empty box to open the page in your browser",
+    openHint: "ctrl+o  ·  open the key page",
+    pasteKey: "Paste your API key first.",
     openFailed: "Could not open the browser. Open this manually: {url}",
     opening: "Opening the page in your browser…",
     verifying: "Verifying key…",

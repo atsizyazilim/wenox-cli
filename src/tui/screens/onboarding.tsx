@@ -71,11 +71,16 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
     setStep("apikey");
   };
 
+  // Tarayıcı kendiliğinden açılmıyor: kullanıcı istediğinde ctrl+o'ya basıyor.
+  const openKeyPage = () => {
+    const opened = openUrl(API_KEY_URL);
+    setNote(t(opened ? "onboarding.opening" : "onboarding.openFailed", { url: API_KEY_URL }));
+  };
+
   const submitKey = async () => {
     const key = toText(tokens).trim();
     if (!key) {
-      const opened = openUrl(API_KEY_URL);
-      setNote(t(opened ? "onboarding.opening" : "onboarding.openFailed", { url: API_KEY_URL }));
+      setNote(t("onboarding.pasteKey"));
       return;
     }
     setNote("");
@@ -114,6 +119,8 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
     if (step === "apikey") {
       if (key.return) {
         void submitKey();
+      } else if (key.ctrl && (char === "o" || char === "O")) {
+        openKeyPage();
       } else if (key.leftArrow) {
         setCaret((current) => moveLeft(tokens, current));
       } else if (key.rightArrow) {
@@ -130,6 +137,7 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
         const next = insertText(tokens, caret, char.replace(/\r?\n/g, ""));
         setTokens(next.tokens);
         setCaret(next.cursor);
+        if (note) setNote("");
       }
       return;
     }
