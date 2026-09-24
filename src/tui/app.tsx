@@ -272,6 +272,7 @@ export function App({
   const [sessionTitle, setSessionTitle] = useState(session?.title ?? "");
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [usage, setUsage] = useState<AccountInfo["usage_limits"] | null>(null);
   const [remoteModels, setRemoteModels] = useState<OverlayItem[] | null>(null);
   const [modelMeta, setModelMeta] = useState<Record<string, ModelMeta>>({});
   const [selection, setSelection] = useState<TextSelection | null>(null);
@@ -361,6 +362,7 @@ export function App({
     if (!info) return;
     setAccount(info);
     if (typeof info.credits_remaining === "number") setCredits(info.credits_remaining);
+    setUsage(info.usage_limits ?? null);
   }, [agent]);
 
   const syncSession = useCallback(
@@ -1746,6 +1748,7 @@ export function App({
             cwd={process.cwd()}
             tokens={tokens}
             credits={credits}
+            usage={usage}
             contextWindow={contextWindow}
           />
         )}

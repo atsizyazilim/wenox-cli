@@ -86,6 +86,8 @@ Shortcuts
     commands: "commands",
     imageHint: "ctrl+v image   ",
     credits: "Credits: ",
+    limit5h: "5h",
+    resets: "resets",
     noCredits: "—",
   },
 
@@ -334,6 +336,9 @@ Shortcuts
   },
 
   account: {
+    window5h: "5 hours: ",
+    windowWeekly: "Weekly: ",
+    windowMonthly: "Monthly: ",
     failed: "Could not retrieve account info.",
     name: "Name:     ",
     email: "Email:    ",

@@ -86,6 +86,8 @@ Kısayollar
     commands: "komutlar",
     imageHint: "ctrl+v görsel   ",
     credits: "Credits: ",
+    limit5h: "5 saat",
+    resets: "yenilenme",
     noCredits: "—",
   },
 
@@ -334,6 +336,9 @@ Kısayollar
   },
 
   account: {
+    window5h: "5 saat: ",
+    windowWeekly: "Haftalık: ",
+    windowMonthly: "Aylık: ",
     failed: "Hesap bilgisi alınamadı.",
     name: "Ad:       ",
     email: "E-posta:  ",
