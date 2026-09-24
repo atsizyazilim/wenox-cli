@@ -244,6 +244,7 @@ function rebuildItems(messages: ChatMessage[]): TranscriptItem[] {
       out.push({
         id: (id += 1),
         role: "assistant",
+        text,
         meta: { modelName: "" },
       });
     }
