@@ -63,6 +63,7 @@ function parseCliArgs(argv: string[]) {
         prompt: { type: "string", short: "p" },
         version: { type: "boolean", short: "v" },
         help: { type: "boolean", short: "h" },
+        debug: { type: "boolean" },
       },
     });
   } catch (error) {
@@ -173,8 +174,14 @@ async function resolveApiKey(values: { key?: string }): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  setLocale(detectLanguage(loadConfig().language));
-  const { values } = parseCliArgs(process.argv.slice(2));
+  const { values: early } = parseCliArgs(process.argv.slice(2));
+  // Tanı kaydı en baştan açılmalı: --debug bayrağı env değişkeniyle aynı işi yapar.
+  if (early.debug) process.env.WENOX_DEBUG = "1";
+
+  const startupConfig = loadConfig();
+  setLocale(detectLanguage(startupConfig.language));
+  applyTheme(startupConfig.theme);
+  const { values, positionals } = parseCliArgs(process.argv.slice(2));
 
   if (values.help) {
     console.log(

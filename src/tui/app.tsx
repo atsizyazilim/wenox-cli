@@ -28,7 +28,11 @@ import { t, setLocale, getLocale, localeTag, LANGUAGES } from "../i18n/index.js"
 import type { LanguageCode } from "../i18n/index.js";
 import { requestCancel } from "../cancel.js";
 import { useBlink } from "./hooks.js";
-import { theme } from "./theme.js";
+import { applyTheme, theme, themeNames } from "./theme.js";
+import { KEYBINDS, matchesKey } from "./keybinds.js";
+import { notify, ring } from "./notify.js";
+import { debugEnabled, debugLog } from "../debug.js";
+import type { KeybindMap } from "./keybinds.js";
 import { setTitle, parseMouse, disableMouse } from "./screen.js";
 import { buildTranscript } from "./view.js";
 import {
@@ -798,7 +802,15 @@ export function App({
   }, []);
 
   // İptal: çalışan isteği durdur + kuyruktaki bekleyen mesajları da bırak
+  // Sürükleme durumunu ve seçimi bırakır: iptal/kapatma sırasında çağrılır.
+  const clearSelectionDrag = (): void => {
+    draggingRef.current = false;
+    pressRef.current = null;
+    setSel(null);
+  };
+
   const cancelWork = useCallback((): void => {
+    debugLog("cancelWork çağrıldı");
     requestCancel();
     if (queuedRef.current.length > 0) {
       const ids = new Set(queuedRef.current.map((item) => item.id));
@@ -1087,6 +1099,12 @@ export function App({
   };
 
   useInput((char, key) => {
+    if (debugEnabled()) {
+      debugLog(
+        `tuş char=${JSON.stringify(char)} esc=${Boolean(key.escape)} ctrl=${Boolean(key.ctrl)} ` +
+          `busy=${busyRef.current} sel=${Boolean(selectionRef.current)} overlay=${Boolean(overlay)}`,
+      );
+    }
     const mouse = parseMouse(char);
     if (mouse) {
       if (mouse.type === "wheel-up") {
@@ -1167,11 +1185,12 @@ export function App({
         resetInput();
         return;
       }
-      if (copySelection()) return;
-      if (busy) cancelWork();
-      else {
-        disableMouse();
-        exit();
+      // İş sürerken Ctrl+C her zaman iptal eder: seçim kopyalamak iptali
+      // geciktirmemeli.
+      if (busy) {
+        clearSelectionDrag();
+        cancelWork();
+        return;
       }
       return;
     }
@@ -1343,11 +1362,15 @@ export function App({
       return;
     }
     if (isEsc) {
+      // İş sürerken Esc her zaman iptal eder; seçim varsa o da birlikte
+      // temizlenir (yoksa ilk Esc yalnızca seçimi silip iptali geciktirirdi).
+      if (busy) {
+        clearSelectionDrag();
+        cancelWork();
+        return;
+      }
       if (selectionRef.current) {
-        // İptal edilen sürükleme, bırakıldığında tık sayılmasın.
-        draggingRef.current = false;
-        pressRef.current = null;
-        setSel(null);
+        clearSelectionDrag();
         return;
       }
       if (slashOpen) {

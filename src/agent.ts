@@ -5,12 +5,15 @@ import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import type { ToolArgs } from "./tools.js";
 import { sanitizeOutput, errorProp } from "./utils.js";
 import { t } from "./i18n/index.js";
+import { debugLog } from "./debug.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { isUnsafeWorkspace } from "./workspace.js";
 import type { ChatMessage, TranscriptMeta } from "./session.js";
 import type { Sink } from "./sink.js";
 import {
+  CancelledError,
   isCancelled,
+  raceWithCancel,
   resetCancel,
   setAbortHandler,
   clearAbortHandler,
@@ -260,6 +263,7 @@ export class WenOXAgent {
     const requestOptions = { signal: controller.signal };
     setAbortHandler(() => controller.abort());
 
+    debugLog("istek gönderiliyor");
     const startedAt = Date.now();
     let timedOut = false;
     let idleTimer: NodeJS.Timeout | null = null;
@@ -279,12 +283,14 @@ export class WenOXAgent {
     try {
       let stream;
       if (this.supportsUsage === false) {
-        stream = await this.client.chat.completions.create(params, requestOptions);
+        stream = await raceWithCancel(this.client.chat.completions.create(params, requestOptions));
       } else {
         try {
-          stream = await this.client.chat.completions.create(
-            { ...params, stream_options: { include_usage: true } },
-            requestOptions,
+          stream = await raceWithCancel(
+            this.client.chat.completions.create(
+              { ...params, stream_options: { include_usage: true } },
+              requestOptions,
+            ),
           );
         } catch (error) {
           if (
@@ -292,7 +298,9 @@ export class WenOXAgent {
             /stream_options/i.test(String(errorProp(error, "message") ?? ""))
           ) {
             this.supportsUsage = false;
-            stream = await this.client.chat.completions.create(params, requestOptions);
+            stream = await raceWithCancel(
+              this.client.chat.completions.create(params, requestOptions),
+            );
           } else {
             throw error;
           }
@@ -306,9 +314,18 @@ export class WenOXAgent {
       let firstVisibleAt: number | null = null;
       const toolCalls: ToolCallAccumulator[] = [];
       let lastRender = 0;
-      let rawChars = 0;
+      let rawText = "";
 
-      for await (const chunk of stream) {
+      // Akış adım adım okunuyor: her bekleme iptalle yarışıyor, böylece sağlayıcı
+      // abort'a tepki vermese bile tur takılı kalmıyor.
+      const iterator = (stream as AsyncIterable<unknown>)[Symbol.asyncIterator]();
+      for (;;) {
+        const step = await raceWithCancel(iterator.next() as Promise<IteratorResult<unknown>>);
+        if (step.done) break;
+        const chunk = step.value as {
+          usage?: OpenAI.CompletionUsage;
+          choices?: { delta?: StreamDelta; finish_reason?: string | null }[];
+        };
         armIdle();
 
         if (chunk.usage) usage = chunk.usage;
@@ -362,6 +379,7 @@ export class WenOXAgent {
           }
         }
       }
+      debugLog("akış bitti");
       if (timedOut) throw new RequestTimeoutError();
 
       const promptChars = this.messages.reduce(
@@ -411,16 +429,19 @@ export class WenOXAgent {
     }, timeoutMs);
     setAbortHandler(() => controller.abort());
     try {
-      return await this.client.chat.completions.create(params, {
-        signal: controller.signal,
-      });
+      return await raceWithCancel(
+        this.client.chat.completions.create(params, {
+          signal: controller.signal,
+        }),
+      );
     } finally {
       clearTimeout(timer);
       clearAbortHandler();
     }
   }
 
-  async chatStep(userPrompt: string, sink: Sink = {}): Promise<void> {
+  async chatStep(userPrompt: string, sink: Sink = {}, attachments: Attachment[] = []): Promise<void> {
+    debugLog("chatStep başladı");
     resetCancel();
     this.messages.push({ role: "user", content: userPrompt });
 
@@ -437,6 +458,10 @@ export class WenOXAgent {
         result = await this.#streamCompletion(sink, modelInfo.name);
       } catch (error) {
         sink.assistantClear?.();
+        if (error instanceof CancelledError) {
+          sink.info?.(t("agent.cancelled"));
+          return;
+        }
         this.#reportError(error, sink);
         return;
       }
@@ -635,8 +660,12 @@ export class WenOXAgent {
     } else if (error instanceof OpenAI.APIConnectionError) {
       sink.error?.(t("agent.connection", { url: API_BASE_URL }));
     } else if (error instanceof OpenAI.APIError) {
+      // HTTP durumu olmayabilir (akış ortasında gelen hata); o durumda sunucunun
+      // hata kodunu gösteriyoruz, "Kod: ?" kullanıcıyı yanıltıyordu.
+      const detail = error as { code?: unknown; type?: unknown };
+      const code = error.status ?? detail.code ?? detail.type;
       sink.error?.(
-        t("agent.apiError", { status: error.status ?? "?", message: error.message }),
+        t("agent.apiError", { status: code ?? "?", message: error.message }),
       );
     } else if (error instanceof RequestTimeoutError) {
       sink.error?.(t("agent.timeout", { seconds: Math.round(REQUEST_TIMEOUT_MS / 1000) }));
