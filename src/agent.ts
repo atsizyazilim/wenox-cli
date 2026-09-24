@@ -4,6 +4,7 @@ import { API_BASE_URL, DEFAULT_MODEL_ID, getModelInfo } from "./config.js";
 import { TOOLS_SCHEMA, executeTool } from "./tools.js";
 import type { ToolArgs } from "./tools.js";
 import { sanitizeOutput, errorProp } from "./utils.js";
+import { messagesTokenCount, tokenCount } from "./tokens.js";
 import { t } from "./i18n/index.js";
 import { debugLog } from "./debug.js";
 import { loadGrants, addGrant } from "./permissions.js";
@@ -363,7 +364,7 @@ export class WenOXAgent {
 
         if (reasoningDelta || textDelta) {
           if (!firstTokenAt) firstTokenAt = Date.now();
-          rawChars += reasoningDelta.length + textDelta.length;
+          rawText += reasoningDelta + textDelta;
           const now = Date.now();
           if (now - lastRender >= RENDER_INTERVAL_MS) {
             lastRender = now;
@@ -388,10 +389,8 @@ export class WenOXAgent {
       debugLog("akış bitti");
       if (timedOut) throw new RequestTimeoutError();
 
-      const promptChars = this.messages.reduce(
-        (sum, message) => sum + String(message.content ?? "").length,
-        0,
-      );
+      // Bağlam boyutu: API usage verdiyse o, yoksa gerçek tokenizer ile tahmin.
+      const promptTokens = messagesTokenCount(this.messages);
       const meta: TranscriptMeta = {
         durationMs: Date.now() - startedAt,
         thinkingMs: firstTokenAt ? firstTokenAt - startedAt : undefined,
@@ -402,10 +401,10 @@ export class WenOXAgent {
         usage:
           usage ??
           {
-            prompt_tokens: Math.ceil(promptChars / 4),
-            // Tahmin ham uzunluğa göre: düşünme de token harcıyor.
-            completion_tokens: Math.ceil(rawChars / 4),
-            total_tokens: Math.ceil((promptChars + rawChars) / 4),
+            prompt_tokens: promptTokens,
+            // Ham akış uzunluğu sayılır: düşünme de token harcıyor.
+            completion_tokens: tokenCount(rawText),
+            total_tokens: promptTokens + tokenCount(rawText),
             estimated: true,
           },
       };

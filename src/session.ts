@@ -63,6 +63,8 @@ export interface Session {
   cwd: string;
   model: string;
   tokens: number;
+  // Oturum boyunca harcanan toplam token (istatistikler için).
+  usedTokens?: number;
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
@@ -75,6 +77,15 @@ function sessionsDir(): string {
 
 function randomId(): string {
   return Math.random().toString(36).slice(2, 8);
+}
+
+// Eski oturumlarda `tokens` yanlışlıkla turların TOPLAMI olarak yazılmıştı;
+// bağlam göstergesini düzeltmek için mesajlardan gerçek tokenizer ile sayılıyor.
+export function estimateContextTokens(messages: ChatMessage[] | null | undefined): number {
+  if (!Array.isArray(messages)) return 0;
+  return messagesTokenCount(
+    messages.map((message) => ({ content: messageText(message) })),
+  );
 }
 
 export function createSession({ cwd, model }: { cwd: string; model: string }): Session {

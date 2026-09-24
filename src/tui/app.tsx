@@ -296,6 +296,7 @@ export function App({
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
   const tokensRef = useRef(session?.tokens ?? 0);
+  const usedTokensRef = useRef(session?.usedTokens ?? 0);
   const contextWindowRef = useRef(CONTEXT_WINDOW);
   const warnedRef = useRef(false);
   const liveThinkingExpandedRef = useRef(false);
@@ -361,6 +362,7 @@ export function App({
       session.messages = agent.messages.slice(1);
       session.items = itemsRef.current;
       session.tokens = tokensRef.current;
+      session.usedTokens = usedTokensRef.current;
       session.model = agent.modelId;
       session.cwd = process.cwd();
       if (persist) saveSession(session);
@@ -455,7 +457,11 @@ export function App({
         setLiveText("");
         setLiveThinking("");
         if (meta?.usage?.total_tokens) {
-          tokensRef.current += meta.usage.total_tokens;
+          // Bağlam göstergesi SON isteğin boyutunu gösterir; tur tur toplamak
+          // bağlamı olduğundan çok büyük gösteriyordu (ve otomatik compact'ı
+          // erken tetikliyordu). Harcanan toplam ayrı sayaçta tutulur.
+          usedTokensRef.current += meta.usage.total_tokens;
+          tokensRef.current = meta.usage.total_tokens;
           setTokens(tokensRef.current);
           if (!warnedRef.current && tokensRef.current > contextWindowRef.current * 0.7) {
             warnedRef.current = true;
@@ -533,6 +539,7 @@ export function App({
           setItems([]);
           setTokens(0);
           tokensRef.current = 0;
+          usedTokensRef.current = 0;
           warnedRef.current = false;
           push({ role: "info", text: t("context.cleared") });
           return;
