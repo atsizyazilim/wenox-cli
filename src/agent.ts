@@ -87,6 +87,17 @@ interface ToolCallAccumulator {
   arguments: string;
 }
 
+// Akış parçasının kullandığımız alanları (SDK tipi çok geniş).
+interface StreamDelta {
+  content?: string | null;
+  reasoning_content?: unknown;
+  tool_calls?: {
+    index?: number;
+    id?: string;
+    function?: { name?: string; arguments?: string };
+  }[];
+}
+
 interface StreamResult {
   content: string;
   toolCalls: ToolCallAccumulator[];
@@ -535,7 +546,7 @@ export class WenOXAgent {
 
         // Düşünme ayrı alanda gelir (`reasoning_content`), cevap `content`'te
         // kalır; ikisi de kendi akışında parça parça okunur.
-        const thought = (delta as { reasoning_content?: unknown }).reasoning_content;
+        const thought = delta.reasoning_content;
         const reasoningDelta = typeof thought === "string" ? thought : "";
         const textDelta = typeof delta.content === "string" ? delta.content : "";
 

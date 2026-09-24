@@ -67,6 +67,17 @@ export function Transcript({
   const card = toast ? toastCard(toast) : null;
   const leftWidth = card ? Math.max(1, contentWidth - card.width) : 0;
 
+  // Hızlı yol: bildirim kartı ve seçim yokken tüm görünür blok TEK metin olarak
+  // çizilir. Satır başına düğüm oluşturmak, akış sırasında (saniyede ~20 çizim)
+  // Ink'in düzeni yeniden ölçmesine yol açıp arayüzü kilitliyordu.
+  if (!card && !selection) {
+    return (
+      <Box flexDirection="column" height={height} overflow="hidden">
+        <Text>{visible.join("\n")}</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" height={height} overflow="hidden">
       {visible.map((line, i) => {

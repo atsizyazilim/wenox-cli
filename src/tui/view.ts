@@ -14,13 +14,19 @@ const TOOL_ICONS: Record<string, string> = {
   list_dir: "📁",
   search_code: "🔍",
   run_command: "⚡",
+  glob: "🗂️",
   code_intel: "🧭",
 };
 
+// Tema renkleri çalışma zamanında seçildiği için adları `string`; chalk'a
+// indeksleme bu küçük yardımcıdan geçiyor.
+const paint = (color: string, text: string): string =>
+  ((chalk as unknown as Record<string, (value: string) => string>)[color] ?? chalk.reset)(text);
+
 // Komut bloğu: `$ komut` başlığı ve çıktısı, solda renkli şerit ile.
 // (Tam genişlik arka plan kullanmıyoruz: kırpma/taşmada hizası bozuluyordu.)
-function commandBar(text: string, colorName: "green" | "red" | "cyan"): string {
-  return `${chalk[colorName]("│")} ${text}`;
+function commandBar(text: string, colorName: string): string {
+  return `${paint(colorName, "│")} ${text}`;
 }
 
 const MAX_COMMAND_LINES = 6;
@@ -45,7 +51,7 @@ function commandOutput(
   if (out) body.push(...wrapLines(out, inner));
   if (err) body.push(...wrapLines(err, inner).map((line) => chalk.red(line)));
   if (body.length === 0) body.push(chalk.dim(t("tool.noOutput")));
-  if (code !== 0) body.push(chalk[color](t("tool.exitCode", { code })));
+  if (code !== 0) body.push(paint(color, t("tool.exitCode", { code })));
 
   // Uzun çıktıyı varsayılan olarak kısalt; karta tıklayınca tamamı görülebilir
   const hidden = Math.max(0, body.length - MAX_COMMAND_LINES);
@@ -82,6 +88,8 @@ function detailOf(name: string, args: ToolArgs | null | undefined): string | und
         : args.path;
     case "search_code":
       return `'${args.query ?? ""}'`;
+    case "glob":
+      return args.pattern ?? "";
     case "list_dir":
       return args.path ?? ".";
     case "run_command":
@@ -105,6 +113,8 @@ function summaryOf(name: string, result: ToolResult): string {
       return t("tool.items", { count: result.total_items ?? 0 });
     case "search_code":
       return t("tool.matches", { count: result.match_count ?? 0 });
+    case "glob":
+      return t("tool.files", { count: result.count ?? 0 });
     case "run_command":
       return t("tool.exitCode", { code: result.returncode ?? 0 });
     case "code_intel":
@@ -220,6 +230,11 @@ function itemLines(
       const resultLines = [
         chalk.hex(theme.menuDesc)(`  ↳ ${summaryOf(item.name ?? "", result)}`),
       ];
+      // Düzenleme sonrası dil sunucusunun bulduğu hatalar kısa listede gösterilir.
+      for (const diag of (result.diagnostics ?? []).slice(0, 5)) {
+        const color = diag.severity === "error" ? chalk.red : chalk.yellow;
+        resultLines.push(`  ${color(`${diag.line}:${diag.character} ${diag.message}`)}`);
+      }
       if (result.diff) {
         for (const line of String(result.diff).replace(/\n$/, "").split("\n").slice(0, 60)) {
           let color = chalk.dim;
@@ -244,6 +259,20 @@ function itemLines(
   }
 }
 
+// Öğe çizimi pahalı (markdown + sarma); akış sırasında saniyede ~20 kez tüm
+// transkript yeniden çiziliyordu ve arayüz CPU'ya boğuluyordu. Geçmiş öğeler
+// değişmediği için satırları önbellekte tutuluyor: yalnızca akan öğe yeniden
+// hesaplanıyor. Kimlik karşılaştırması için WeakMap kullanılıyor (öğeler
+// değişmez nesneler).
+interface ItemCacheEntry {
+  width: number;
+  isLast: boolean;
+  expanded: boolean | undefined;
+  lines: string[];
+}
+
+const itemCache = new WeakMap<TranscriptItem, ItemCacheEntry>();
+
 // `owners`: her satırın hangi öğeye ait olduğu (tıklayınca aç/kapa için)
 export function buildTranscript(
   items: TranscriptItem[],
@@ -253,10 +282,17 @@ export function buildTranscript(
   const lines: string[] = [];
   const owners: ItemId[] = [];
   items.forEach((item, index) => {
-    const block = itemLines(item, width, {
-      ...options,
-      isLast: index === items.length - 1,
-    });
+    const isLast = index === items.length - 1;
+    const cached = itemCache.get(item);
+    const block =
+      cached && cached.width === width && cached.isLast === isLast && cached.expanded === item.expanded
+        ? cached.lines
+        : itemLines(item, width, { ...options, isLast });
+
+    if (block !== cached?.lines) {
+      itemCache.set(item, { width, isLast, expanded: item.expanded, lines: block });
+    }
+
     for (const line of block) {
       lines.push(line);
       owners.push(item.id);
