@@ -216,6 +216,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Alt komutlar (models/sessions/stats/mcp) TUI'yi hiç açmadan çalışır ve
+  // anahtar doğrulaması istemez; yalnızca `models` kayıtlı anahtarı kullanır.
+  const [subcommand, ...subRest] = positionals.map(String);
+  if (subcommand) {
+    const handled = await runSubcommand(subcommand, subRest, {
+      apiKey: loadConfig().apiKey,
+      currentModel: loadConfig().currentModel,
+      json: values.format === "json",
+    });
+    if (handled) return;
+  }
+
   const apiKey = await resolveApiKey(values);
 
   let session = values.session ? loadSession(values.session) : null;
@@ -243,6 +255,10 @@ async function main(): Promise<void> {
   if (session?.messages?.length) {
     agent.messages = [{ role: "system", content: getSystemPrompt() }, ...session.messages];
   }
+
+  // MCP sunucularına bağlan; bağlanamayanlar uyarı olarak gösterilir.
+  const mcpErrors = await agent.loadMcp();
+  for (const message of mcpErrors) ui.printWarning(t("cli.mcpFailed", { message }));
 
   if (values.cwd) {
     const result = changeDirectory(values.cwd);

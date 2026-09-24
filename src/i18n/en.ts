@@ -302,6 +302,7 @@ Shortcuts
   },
 
   cli: {
+    mcpFailed: "Could not connect to the MCP server — {message}",
     argError: "Argument error: {message}",
     unexpectedError: "Unexpected error: {message}",
   },

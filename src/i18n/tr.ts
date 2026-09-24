@@ -302,6 +302,7 @@ Kısayollar
   },
 
   cli: {
+    mcpFailed: "MCP sunucusuna bağlanılamadı — {message}",
     argError: "Argüman hatası: {message}",
     unexpectedError: "Beklenmeyen hata: {message}",
   },

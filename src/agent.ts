@@ -130,6 +130,17 @@ export class WenOXAgent {
   projectRoot: string;
   unsafeRoot: boolean;
   allowedExternal: Set<string>;
+  // Modelin tuttuğu görev listesi; oturumla birlikte saklanıyor.
+  todos: TodoItem[] = [];
+  // Aynı araç+argümanın üst üste kaç kez çağrıldığı (döngü koruması).
+  repeatSignature = "";
+  repeatCount = 0;
+  // Çıktı sınırında kesilen yanıt kaç kez sürdürüldü (sonsuz sürdürmeye karşı).
+  truncatedContinues = 0;
+  // Mod değişiminde sistem prompt'una eklenen bildirim (geçmişi geçersiz kılar).
+  modeNote = "";
+  // Bağlı MCP sunucuları ve araçları.
+  mcpConnections: McpConnection[] = [];
   // Kasıtlı olarak başlatılmıyor: `undefined`, "stream_options destekleniyor
   // varsay" demek. Yalnızca 400 alındığında false'a çekiliyor.
   supportsUsage?: boolean;
@@ -168,7 +179,40 @@ export class WenOXAgent {
   }
 
   #sdkMessages(): SdkMessage[] {
-    return this.messages as unknown as SdkMessage[];
+    const reminder = MODE_REMINDERS[this.mode] ?? "";
+    const last = this.messages[this.messages.length - 1];
+    if (!reminder || !last) return this.messages as unknown as SdkMessage[];
+    const content = Array.isArray(last.content)
+      ? [...last.content, { type: "text" as const, text: reminder }]
+      : `${typeof last.content === "string" ? last.content : ""}\n\n${reminder}`;
+    return [...this.messages.slice(0, -1), { ...last, content }] as unknown as SdkMessage[];
+  }
+
+  // Plan modunda yazılan "engellendi" kayıtları Build moduna geçince bayatlar:
+  // model bunları sistemin kesin bilgisi sayıp yazmayı reddediyordu.
+  #defusePlanBlocks(): void {
+    for (const message of this.messages) {
+      if (message.role !== "tool") continue;
+      const text = typeof message.content === "string" ? message.content : "";
+      if (!text.includes("PLAN mode")) continue;
+      message.content = JSON.stringify({
+        success: false,
+        error:
+          "This call was blocked earlier, while the agent was in PLAN mode. The mode is now BUILD: writing is enabled, so call the tool again and apply the change.",
+      });
+    }
+  }
+
+  // Plan modunda yazma/komut araçları şemadan tamamen çıkarılır: model onları
+  // hiç görmediği için denemez, "engellendi" gürültüsü de oluşmaz. Çalışma
+  // anındaki plan kontrolü eski oturumlardan gelen çağrılara karşı duruyor.
+  #activeToolSchemas(): typeof TOOLS_SCHEMA {
+    if (this.mode !== "plan") {
+      return [...TOOLS_SCHEMA, ...toolSchemas(this.mcpConnections)] as typeof TOOLS_SCHEMA;
+    }
+    return TOOLS_SCHEMA.filter(
+      (tool) => !PLAN_BLOCKED_TOOLS.has(tool.function.name),
+    ) as typeof TOOLS_SCHEMA;
   }
 
   setModel(modelId: string): void {
@@ -193,6 +237,18 @@ export class WenOXAgent {
   setApiKey(apiKey: string): void {
     this.apiKey = apiKey;
     this.clientInstance = null;
+  }
+
+  // MCP sunucularına bağlanır; bağlanamayanların hatası çağırana döner.
+  async loadMcp(): Promise<string[]> {
+    const { connections, errors } = await connectAll();
+    this.mcpConnections = connections;
+    return errors;
+  }
+
+  closeMcp(): void {
+    for (const connection of this.mcpConnections) connection.close();
+    this.mcpConnections = [];
   }
 
   clearHistory(): void {
@@ -508,9 +564,28 @@ export class WenOXAgent {
           const args = parseToolArgs(call.arguments);
           sink.toolCall?.(call.name, args);
 
+          const mcpCall = parseToolName(call.name);
           let toolResult;
-          if (this.mode === "plan" && PLAN_BLOCKED_TOOLS.has(call.name)) {
+          if (this.mode === "plan" && (PLAN_BLOCKED_TOOLS.has(call.name) || mcpCall)) {
             toolResult = { success: false, error: PLAN_BLOCKED_ERROR };
+          } else if (mcpCall) {
+            // MCP araçlarının ne yaptığı bilinmiyor: izin sorulur.
+            const connection = this.mcpConnections.find((entry) => entry.name === mcpCall.server);
+            const allowed = connection
+              ? this.autoApprove || (await this.#askPermission(call.name, args, sink))
+              : false;
+            if (!connection) {
+              toolResult = { success: false, error: `MCP server is not connected: ${mcpCall.server}` };
+            } else if (!allowed) {
+              toolResult = { success: false, error: DENIED_EXTERNAL };
+            } else {
+              try {
+                const result = await connection.call(mcpCall.tool, args as Record<string, unknown>);
+                toolResult = { success: true, message: callResultText(result) };
+              } catch (error) {
+                toolResult = { success: false, error: String(errorProp(error, "message") ?? "MCP call failed") };
+              }
+            }
           } else {
             let allowed = true;
             try {

@@ -46,11 +46,48 @@ export function getModelInfo(modelIdOrKey: unknown): ModelInfo {
   return { id: key, name: key || t("models.unknown"), custom: true };
 }
 
+export interface McpServerConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+}
+
+// MCP sunucu tanımları doğrulanır: komutu ya da adresi olmayanlar atılır.
+export function normalizeMcp(raw: unknown): Record<string, McpServerConfig> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, McpServerConfig> = {};
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    const entry = value as McpServerConfig | null;
+    if (!entry || typeof entry !== "object") continue;
+    if (!entry.command && !entry.url) continue;
+    out[name] = {
+      ...(entry.command ? { command: String(entry.command) } : {}),
+      ...(Array.isArray(entry.args) ? { args: entry.args.map(String) } : {}),
+      ...(entry.env && typeof entry.env === "object" ? { env: entry.env } : {}),
+      ...(entry.url ? { url: String(entry.url) } : {}),
+    };
+  }
+  return out;
+}
+
 export interface Config {
   apiKey: string;
   currentModel: string;
   language: string;
   apiBaseUrl: string;
+  // Kullanıcının elle yazdığı izin kalıpları (tool + pattern + action).
+  permissions: PermissionRule[];
+  // Değiştirilebilir kısayollar (mode/palette/image).
+  keybinds: KeybindMap;
+  // İş bitince / soru gelince terminal bildirimi ve zil.
+  notify: boolean;
+  sound: boolean;
+  // MCP sunucuları: ad -> { command, args, env } ya da { url }.
+  mcp: Record<string, McpServerConfig>;
+  // Kenar çubuğu: açık/kapalı ve açılacağı en az kolon sayısı.
+  sidebar: boolean;
+  sidebarMinColumns: number;
 }
 
 export function loadConfig(): Config {
@@ -79,7 +116,23 @@ export function loadConfig(): Config {
   ).trim();
   const language = String(data.language || "").trim();
 
-  return { apiKey, currentModel, language, apiBaseUrl: API_BASE_URL };
+  return {
+    apiKey,
+    currentModel,
+    language,
+    theme: String(data.theme ?? "").trim(),
+    apiBaseUrl: API_BASE_URL,
+    permissions: normalizeRules(data.permissions),
+    keybinds: normalizeKeybinds(data.keybinds),
+    notify: data.notify !== false,
+    sound: data.sound === true,
+    mcp: normalizeMcp(data.mcp),
+    sidebar: data.sidebar !== false,
+    sidebarMinColumns: Math.max(
+      60,
+      Number(data.sidebarMinColumns) || DEFAULT_SIDEBAR_MIN_COLUMNS,
+    ),
+  };
 }
 
 export interface SaveConfigInput {
@@ -100,6 +153,13 @@ export function saveConfig({ apiKey, currentModel, language }: SaveConfigInput =
     currentModel: cfg.currentModel,
     language: cfg.language ?? "",
     apiBaseUrl: API_BASE_URL,
+    permissions: cfg.permissions ?? [],
+    keybinds: cfg.keybinds ?? {},
+    notify: cfg.notify !== false,
+    sound: cfg.sound === true,
+    mcp: cfg.mcp ?? {},
+    sidebar: cfg.sidebar !== false,
+    sidebarMinColumns: cfg.sidebarMinColumns ?? DEFAULT_SIDEBAR_MIN_COLUMNS,
   };
   fs.writeFileSync(configFile(), `${JSON.stringify(payload, null, 2)}\n`, {
     encoding: "utf8",
