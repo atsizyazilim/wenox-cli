@@ -39,6 +39,7 @@ export default {
       "-c, --continue         Resume the most recent session",
       "--fork                 Fork the most recent session into a new one",
       "--format json          With -p, print the result as JSON",
+      "--debug                Write a diagnostic log (~/.wenox/debug.log)",
       "-d, --cwd <path>       Starting working directory / project path",
       "-y, --auto-approve     Run commands without confirmation",
       "-p, --prompt <text>    Run a one-shot command and exit",
@@ -48,7 +49,10 @@ export default {
     commands: "Commands:",
     commandLines: [
       "wenox models [--format json]   List models",
+      "wenox sessions                 List past sessions",
+      "wenox session delete <id>      Delete a session",
       "wenox stats [--format json]    Token usage summary",
+      "wenox mcp list|add|remove        Manage MCP servers",
     examples: "Examples:",
     exampleLines: [
       "wenox",
@@ -108,9 +112,11 @@ Shortcuts
     tasks: "Tasks",
     allDone: "all done",
     files: "Changed files",
+  },
   todo: {
     header: "Tasks ({done}/{total})",
     more: "+{count} more tasks",
+  },
   keybind: {
     submit: "send the message",
     cancel: "cancel / close",
@@ -118,12 +124,15 @@ Shortcuts
     palette: "command palette",
     image: "attach clipboard image",
     history: "browse history · restore draft",
+  },
   notify: {
     done: "the answer is ready",
     question: "a question is waiting",
     permission: "permission needed",
+  },
   theme: {
     selected: "Theme: {name}",
+  },
   images: {
     reading: "Reading image…",
     noVision: "The selected model does not support images ({model}). Switch with /model.",
@@ -131,6 +140,7 @@ Shortcuts
     added: "{count} image(s) added.",
     tooLarge: "Image is too large ({mb} MB max).",
     readFailed: "Could not read the image.",
+  },
   approval: {
     title: "The model wants to run a command",
     hint: "←/→ or Tab: select    ·    Enter: confirm    ·    Esc: reject",

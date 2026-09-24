@@ -90,7 +90,7 @@ export function clampCursor(
   const i = Math.max(0, Math.min(tokens.length, cursor?.i ?? 0));
   if (i === tokens.length) return { i, o: 0 };
   const token = tokens[i];
-  if (token.type === "paste") return { i, o: 0 };
+  if (isChip(token)) return { i, o: 0 };
   const o = Math.max(0, Math.min(token.value.length, cursor?.o ?? 0));
   return { i, o };
 }
@@ -102,7 +102,7 @@ export function emptyCursor(): Cursor {
 export function endCursor(tokens: InputToken[]): Cursor {
   if (tokens.length === 0) return { i: 0, o: 0 };
   const last = tokens[tokens.length - 1];
-  if (last.type === "paste") return { i: tokens.length, o: 0 };
+  if (isChip(last)) return { i: tokens.length, o: 0 };
   return { i: tokens.length - 1, o: last.value.length };
 }
 
@@ -184,7 +184,7 @@ export function backspace(
 
   if (c.i === next.length) {
     const last = next[next.length - 1];
-    if (last.type === "paste" || last.value.length <= 1) {
+    if (isChip(last) || last.value.length <= 1) {
       next.pop();
       return { tokens: next, cursor: { i: next.length, o: 0 } };
     }
@@ -203,7 +203,7 @@ export function backspace(
   if (c.i === 0) return { tokens: next, cursor: c };
 
   const prev = next[c.i - 1];
-  if (prev.type === "paste" || prev.value.length <= 1) {
+  if (isChip(prev) || prev.value.length <= 1) {
     next.splice(c.i - 1, 1);
     return { tokens: next, cursor: { i: c.i - 1, o: 0 } };
   }
@@ -220,7 +220,7 @@ export function deleteForward(
   if (c.i === next.length) return { tokens: next, cursor: c };
 
   const token = next[c.i];
-  if (token.type === "paste") {
+  if (isChip(token)) {
     next.splice(c.i, 1);
     return { tokens: next, cursor: { i: c.i, o: 0 } };
   }
@@ -233,7 +233,7 @@ export function deleteForward(
   }
   const nx = next[c.i + 1];
   if (!nx) return { tokens: next, cursor: c };
-  if (nx.type === "paste" || nx.value.length <= 1) {
+  if (isChip(nx) || nx.value.length <= 1) {
     next.splice(c.i + 1, 1);
     return { tokens: next, cursor: c };
   }
@@ -249,14 +249,14 @@ export function moveLeft(
   if (c.i === tokens.length) {
     if (tokens.length === 0) return c;
     const last = tokens[tokens.length - 1];
-    if (last.type === "paste") return { i: tokens.length - 1, o: 0 };
+    if (isChip(last)) return { i: tokens.length - 1, o: 0 };
     return { i: tokens.length - 1, o: last.value.length };
   }
   const token = tokens[c.i];
   if (c.o > 0) return { i: c.i, o: c.o - 1 };
   if (c.i === 0) return c;
   const prev = tokens[c.i - 1];
-  if (prev.type === "paste") return { i: c.i - 1, o: 0 };
+  if (isChip(prev)) return { i: c.i - 1, o: 0 };
   return { i: c.i - 1, o: prev.value.length };
 }
 
@@ -267,7 +267,7 @@ export function moveRight(
   const c = clampCursor(tokens, cursor);
   if (c.i === tokens.length) return c;
   const token = tokens[c.i];
-  if (token.type === "paste") return { i: c.i + 1, o: 0 };
+  if (isChip(token)) return { i: c.i + 1, o: 0 };
   if (c.o < token.value.length) return { i: c.i, o: c.o + 1 };
   return { i: c.i + 1, o: 0 };
 }
@@ -297,8 +297,8 @@ export function buildView(
 
   const c = clampCursor(tokens, cursor);
   let cursorUnit = 0;
-  for (let i = 0; i < c.i; i += 1) {
-    cursorUnit += tokens[i].type === "paste" ? 1 : tokens[i].value.length;
+  for (const token of tokens.slice(0, c.i)) {
+    cursorUnit += isChip(token) ? 1 : token.value.length;
   }
   if (c.i < tokens.length && tokens[c.i].type === "text") cursorUnit += c.o;
 

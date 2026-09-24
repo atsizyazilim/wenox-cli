@@ -4,9 +4,15 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import wrapAnsi from "wrap-ansi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, useApp, useInput, usePaste, useStdout } from "ink";
 import type { Key } from "ink";
-import { AVAILABLE_MODELS, CONTEXT_WINDOW, getModelInfo, saveConfig } from "../config.js";
+import {
+  AVAILABLE_MODELS,
+  CONTEXT_WINDOW,
+  getModelInfo,
+  loadConfig,
+  saveConfig,
+} from "../config.js";
 import { getSystemPrompt } from "../agent.js";
 import {
   listSessions,
@@ -184,15 +190,19 @@ function commandItems(): OverlayItem[] {
   return [
     { value: "auto", desc: t("commands.auto") },
     { value: "compact", desc: t("commands.compact") },
+    { value: "editor", desc: t("commands.editor") },
     { value: "exit", desc: t("commands.exit") },
     { value: "help", desc: t("commands.help") },
+    { value: "init", desc: t("commands.init") },
     { value: "key", desc: t("commands.key") },
+    { value: "keys", desc: t("commands.keys") },
     { value: "lang", desc: t("commands.lang") },
     { value: "me", desc: t("commands.me") },
     { value: "model", desc: t("commands.model") },
     { value: "new", desc: t("commands.new") },
     { value: "sessions", desc: t("commands.sessions") },
     { value: "status", desc: t("commands.status") },
+    { value: "theme", desc: t("commands.theme") },
   ].map((command) => ({
     value: command.value,
     left: `/${command.value}`,
@@ -297,6 +307,11 @@ export function App({
   const [busy, setBusy] = useState(false);
   const [inputTokens, setInputTokens] = useState<InputToken[]>([]);
   const [caret, setCaret] = useState<Cursor>({ i: 0, o: 0 });
+  // Pano okuması asenkron; eklenen görsel en güncel token'lara oturmalı.
+  const inputTokensRef = useRef<InputToken[]>(inputTokens);
+  const caretRef = useRef<Cursor>(caret);
+  inputTokensRef.current = inputTokens;
+  caretRef.current = caret;
   const [slashIndex, setSlashIndex] = useState(0);
   const [mentionIndex, setMentionIndex] = useState(0);
   // Esc ile kapatılan bahsetme: aynı sorgu yazıldığı sürece menü açılmaz.
@@ -1241,7 +1256,7 @@ export function App({
     inputText.startsWith("/") && !inputText.includes(" ") ? inputText.slice(1) : null;
   const slashItems = slashQuery !== null ? filterBy(commands, slashQuery) : [];
   const interactive = !approval && !permission && !overlay && !keyMode;
-  const slashOpen = interactive && slashQuery !== null;
+  const slashOpen = interactive && slashQuery !== null && !historyBrowsing;
   const slashActive = Math.min(slashIndex, Math.max(0, slashItems.length - 1));
 
   // `@dosya` bahsetme: imleç metnin sonundaysa son @parçası sorgu sayılır.
@@ -1399,6 +1414,8 @@ export function App({
   };
 
   const editInput = (char: string | undefined, key: Key): void => {
+    // Kullanıcı yazmaya başlayınca geçmiş gezinmesi biter; menüler yine açılır.
+    setHistoryBrowsing(false);
     if (key.leftArrow) {
       setCaret((current) => moveLeft(inputTokens, current));
       return;
@@ -1427,19 +1444,17 @@ export function App({
       return;
     }
     if (char && !key.ctrl && !key.meta) {
-      const charLines = char.split("\n").length;
-      if (charLines > 2 || char.length > 120) {
-        const next = insertPaste(inputTokens, caret, char, charLines);
-        setInputTokens(next.tokens);
-        setCaret(next.cursor);
-      } else {
-        const next = insertText(inputTokens, caret, char.replace(/\r?\n/g, " "));
-        setInputTokens(next.tokens);
-        setCaret(next.cursor);
-      }
+      // Yazılan karakter: boşluk da olsa doğrudan metne girer, panoya bakılmaz.
+      const next = insertText(inputTokens, caret, char.replace(/\r?\n/g, " "));
+      setInputTokens(next.tokens);
+      setCaret(next.cursor);
       setSlashIndex(0);
     }
   };
+
+  // Yapıştırma ayrı kanaldan gelir. Panoda görsel varken Windows Terminal (<1.25)
+  // boş bir yapıştırma gönderiyor: onu "görseli al" işareti sayıyoruz.
+  usePaste(applyPastedText);
 
   const recall = (text: string): void => {
     const restored = createTokens(text);
@@ -1488,7 +1503,8 @@ export function App({
   };
 
   const historyNext = (): void => {
-    if (historyIndex >= history.length - 1) {
+    const list = historyList();
+    if (historyIndex >= list.length - 1) {
       setHistoryIndex(-1);
       prefixMatchesRef.current = [];
       setHistoryBrowsing(false);
@@ -1597,6 +1613,9 @@ export function App({
         cancelWork();
         return;
       }
+      if (copySelection()) return;
+      disableMouse();
+      exit();
       return;
     }
 
@@ -1848,6 +1867,7 @@ export function App({
 
   return (
     <Box flexDirection="column" height={Math.max(10, rows - 1)} width={columns}>
+      <Box flexGrow={1} flexShrink={1} flexDirection="row" overflow="hidden">
       <Box
         flexGrow={1}
         flexShrink={1}
@@ -1868,7 +1888,7 @@ export function App({
             height={viewportHeight}
             selection={selection}
             toast={toast}
-            contentWidth={Math.max(10, columns - 4)}
+            contentWidth={Math.max(10, width)}
           />
         ) : (
           // Boş oturumda da bilgi kartı görünmeli: ilk iş olarak görsel

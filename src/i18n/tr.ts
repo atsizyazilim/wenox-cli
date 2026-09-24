@@ -39,6 +39,7 @@ export default {
       "-c, --continue         Son oturuma devam et",
       "--fork                 Son oturumun kopyası olarak yeni oturum aç",
       "--format json          -p ile birlikte sonucu JSON olarak yaz",
+      "--debug                Tanı kaydı tut (~/.wenox/debug.log)",
       "-d, --cwd <yol>        Başlangıç çalışma dizini / proje yolu",
       "-y, --auto-approve     Komutları onay sormadan otomatik çalıştır",
       "-p, --prompt <metin>   Tek seferlik komut çalıştır ve çık",
@@ -48,7 +49,10 @@ export default {
     commands: "Komutlar:",
     commandLines: [
       "wenox models [--format json]   Modelleri listele",
+      "wenox sessions                 Geçmiş oturumları listele",
+      "wenox session delete <id>      Bir oturumu sil",
       "wenox stats [--format json]    Token kullanım özeti",
+      "wenox mcp list|add|remove        MCP sunucularını yönet",
     examples: "Örnekler:",
     exampleLines: [
       "wenox",
@@ -108,9 +112,11 @@ Kısayollar
     tasks: "Görevler",
     allDone: "hepsi tamam",
     files: "Değişen dosyalar",
+  },
   todo: {
     header: "Görevler ({done}/{total})",
     more: "+{count} görev daha",
+  },
   keybind: {
     submit: "mesajı gönder",
     cancel: "iptal et / kapat",
@@ -118,12 +124,15 @@ Kısayollar
     palette: "komut paleti",
     image: "panodaki görseli ekle",
     history: "geçmişte gez · taslağı geri getir",
+  },
   notify: {
     done: "yanıt hazır",
     question: "bir soru bekliyor",
     permission: "izin bekliyor",
+  },
   theme: {
     selected: "Tema: {name}",
+  },
   images: {
     reading: "Görsel alınıyor…",
     noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",
@@ -131,6 +140,7 @@ Kısayollar
     added: "{count} görsel eklendi.",
     tooLarge: "Görsel çok büyük (en fazla {mb} MB).",
     readFailed: "Görsel okunamadı.",
+  },
   approval: {
     title: "Model bir komut çalıştırmak istiyor",
     hint: "←/→ veya Tab: seç    ·    Enter: onayla    ·    Esc: reddet",
@@ -356,6 +366,7 @@ Kısayollar
     mcpAdded: "MCP sunucusu eklendi: {name}",
     mcpRemoved: "MCP sunucusu kaldırıldı: {name}",
     mcpUsage:
+      "Kullanım: wenox mcp list | wenox mcp add <ad> <komut> [argümanlar] | wenox mcp remove <ad>",
     mcpFailed: "MCP sunucusuna bağlanılamadı — {message}",
     argError: "Argüman hatası: {message}",
     unexpectedError: "Beklenmeyen hata: {message}",
