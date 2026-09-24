@@ -53,6 +53,7 @@ export default {
       "wenox session delete <id>      Bir oturumu sil",
       "wenox stats [--format json]    Token kullanım özeti",
       "wenox mcp list|add|remove        MCP sunucularını yönet",
+    ],
     examples: "Örnekler:",
     exampleLines: [
       "wenox",
@@ -113,10 +114,12 @@ Kısayollar
     allDone: "hepsi tamam",
     files: "Değişen dosyalar",
   },
+
   todo: {
     header: "Görevler ({done}/{total})",
     more: "+{count} görev daha",
   },
+
   keybind: {
     submit: "mesajı gönder",
     cancel: "iptal et / kapat",
@@ -125,14 +128,17 @@ Kısayollar
     image: "panodaki görseli ekle",
     history: "geçmişte gez · taslağı geri getir",
   },
+
   notify: {
     done: "yanıt hazır",
     question: "bir soru bekliyor",
     permission: "izin bekliyor",
   },
+
   theme: {
     selected: "Tema: {name}",
   },
+
   images: {
     reading: "Görsel alınıyor…",
     noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",
@@ -141,6 +147,7 @@ Kısayollar
     tooLarge: "Görsel çok büyük (en fazla {mb} MB).",
     readFailed: "Görsel okunamadı.",
   },
+
   approval: {
     title: "Model bir komut çalıştırmak istiyor",
     hint: "←/→ veya Tab: seç    ·    Enter: onayla    ·    Esc: reddet",

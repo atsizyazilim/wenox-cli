@@ -244,7 +244,6 @@ function rebuildItems(messages: ChatMessage[]): TranscriptItem[] {
       out.push({
         id: (id += 1),
         role: "assistant",
-        text: message.content,
         meta: { modelName: "" },
       });
     }
@@ -1499,7 +1498,8 @@ export function App({
     const list = historyList();
     const next = historyIndex <= 0 ? list.length - 1 : historyIndex - 1;
     setHistoryIndex(next);
-    recall(history[next]);
+    setHistoryBrowsing(true);
+    recall(list[next]);
   };
 
   const historyNext = (): void => {
@@ -1516,7 +1516,8 @@ export function App({
     }
     const next = historyIndex + 1;
     setHistoryIndex(next);
-    recall(history[next]);
+    setHistoryBrowsing(true);
+    recall(list[next]);
   };
 
   useInput((char, key) => {

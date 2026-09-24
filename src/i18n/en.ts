@@ -53,6 +53,7 @@ export default {
       "wenox session delete <id>      Delete a session",
       "wenox stats [--format json]    Token usage summary",
       "wenox mcp list|add|remove        Manage MCP servers",
+    ],
     examples: "Examples:",
     exampleLines: [
       "wenox",
@@ -113,10 +114,12 @@ Shortcuts
     allDone: "all done",
     files: "Changed files",
   },
+
   todo: {
     header: "Tasks ({done}/{total})",
     more: "+{count} more tasks",
   },
+
   keybind: {
     submit: "send the message",
     cancel: "cancel / close",
@@ -125,14 +128,17 @@ Shortcuts
     image: "attach clipboard image",
     history: "browse history · restore draft",
   },
+
   notify: {
     done: "the answer is ready",
     question: "a question is waiting",
     permission: "permission needed",
   },
+
   theme: {
     selected: "Theme: {name}",
   },
+
   images: {
     reading: "Reading image…",
     noVision: "The selected model does not support images ({model}). Switch with /model.",
@@ -141,6 +147,7 @@ Shortcuts
     tooLarge: "Image is too large ({mb} MB max).",
     readFailed: "Could not read the image.",
   },
+
   approval: {
     title: "The model wants to run a command",
     hint: "←/→ or Tab: select    ·    Enter: confirm    ·    Esc: reject",
