@@ -1,6 +1,6 @@
 {
   "name": "@wenox/cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Official CLI for WenOX AI — an agentic coding assistant for your terminal",
   "type": "module",
   "bin": {
