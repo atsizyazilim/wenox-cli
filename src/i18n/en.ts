@@ -385,6 +385,7 @@ Shortcuts
     getKeyHere: "Get your API key here: {url}",
     openHint: "ctrl+o  ·  open the key page",
     pasteKey: "Paste your API key first.",
+    pasteEmpty: "The clipboard has no text to paste.",
     openFailed: "Could not open the browser. Open this manually: {url}",
     opening: "Opening the page in your browser…",
     verifying: "Verifying key…",

@@ -385,6 +385,7 @@ Kısayollar
     getKeyHere: "API anahtarını buradan al: {url}",
     openHint: "ctrl+o  ·  anahtar sayfasını aç",
     pasteKey: "Önce API anahtarını yapıştır.",
+    pasteEmpty: "Panoda yapıştırılacak metin yok.",
     openFailed: "Tarayıcı açılamadı. Şu adresi elle aç: {url}",
     opening: "Sayfa tarayıcıda açılıyor…",
     verifying: "Anahtar doğrulanıyor…",

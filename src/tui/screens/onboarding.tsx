@@ -17,6 +17,7 @@ import {
 } from "../input-model.js";
 import type { Cursor, InputToken } from "../input-model.js";
 import { verifyApiKey, verifyFailureMessage } from "../../account.js";
+import { readClipboardText } from "../../images.js";
 import type { AccountInfo } from "../../account.js";
 import { API_KEY_URL, saveConfig } from "../../config.js";
 import { openUrl } from "../../utils.js";
@@ -41,7 +42,14 @@ function Typewriter({ text, interval = 24 }: { text: string; interval?: number }
   return <Text color="white">{text.slice(0, shown)}</Text>;
 }
 
-export function Onboarding({ onComplete }: { onComplete: (key: string) => void }) {
+export function Onboarding({
+  onComplete,
+  clipboard = readClipboardText,
+}: {
+  onComplete: (key: string) => void;
+  // Testte panoyu taklit edebilmek için enjekte edilebilir.
+  clipboard?: () => Promise<string>;
+}) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
@@ -75,6 +83,22 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
   const openKeyPage = () => {
     const opened = openUrl(API_KEY_URL);
     setNote(t(opened ? "onboarding.opening" : "onboarding.openFailed", { url: API_KEY_URL }));
+  };
+
+  // Ctrl+V: yeni terminaller yapıştırmayı kendileri gönderiyor, ama eski
+  // cmd/conhost Ctrl+V'yi yalnızca tuş olarak iletiyor (yapıştırma yok). O
+  // yüzden panoyu kendimiz okuyup yazıyoruz. Anahtar tek satır olduğu için
+  // boşluklar/satır sonları atılır.
+  const pasteKey = async (): Promise<void> => {
+    const text = (await clipboard()).replace(/\s+/g, "");
+    if (!text) {
+      setNote(t("onboarding.pasteEmpty"));
+      return;
+    }
+    const next = insertText(tokens, caret, text);
+    setTokens(next.tokens);
+    setCaret(next.cursor);
+    setNote("");
   };
 
   const submitKey = async () => {
@@ -121,6 +145,8 @@ export function Onboarding({ onComplete }: { onComplete: (key: string) => void }
         void submitKey();
       } else if (key.ctrl && (char === "o" || char === "O")) {
         openKeyPage();
+      } else if (key.ctrl && (char === "v" || char === "V")) {
+        void pasteKey();
       } else if (key.leftArrow) {
         setCaret((current) => moveLeft(tokens, current));
       } else if (key.rightArrow) {
