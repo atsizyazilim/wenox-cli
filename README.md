@@ -44,6 +44,10 @@
   pick it up later exactly where you left off.
 - **Speaks your language.** Turkish and English interface, with the model replying
   in whichever language you write in.
+- **Extensible.** MCP servers (stdio or HTTP) plug in as tools, and you can paste
+  an image from the clipboard straight into the conversation.
+- **Stays cheap in long sessions.** Requests are built so that the provider's
+  prefix cache hits; the part that doesn't change is never recomputed.
 
 <img src="slimbanner.png" width="100%">
 
@@ -63,7 +67,7 @@ native build.
 Start `wenox` and it walks you through setup:
 
 1. **Language** — Turkish or English (Enter keeps the detected one)
-2. **API key** — the key page opens in your browser on Enter, or paste the key
+2. **API key** — paste the key; `Ctrl+O` opens the key page in your browser
 3. **Verification** — the key is checked before it is ever saved
 4. **Welcome** — your name, subscription and remaining credits
 
@@ -78,6 +82,8 @@ wenox                                   # interactive session
 wenox -p "how many files are in here?"  # one-shot answer, then exit
 wenox -m <id> -y                        # pick a model, auto-approve commands
 wenox -s ses_f78edf902ffe               # resume a saved session
+wenox -c                                # continue the most recent session
+wenox stats                             # token usage summary
 ```
 
 | Option | Description |
@@ -88,8 +94,22 @@ wenox -s ses_f78edf902ffe               # resume a saved session
 | `-d, --cwd <path>` | Starting working directory |
 | `-y, --auto-approve` | Run commands without asking |
 | `-p, --prompt <text>` | Run a single prompt and exit |
+| `-c, --continue` | Continue the most recent session |
+| `--fork` | Fork the most recent session into a new one |
+| `--format json` | With `-p`, print the result as JSON |
+| `--debug` | Write a diagnostic log (`~/.wenox/debug.log`) |
 | `-v, --version` | Show version |
 | `-h, --help` | Show help |
+
+There are also commands that never open the TUI:
+
+| Command | Description |
+| --- | --- |
+| `wenox models [--format json]` | List models (context window, vision support) |
+| `wenox sessions` | List past sessions |
+| `wenox session delete <id>` | Delete a session |
+| `wenox stats [--format json]` | Token usage summary |
+| `wenox mcp list \| add \| remove` | Manage MCP servers |
 
 <img src="slimbanner.png" width="100%">
 
@@ -106,16 +126,23 @@ your message is queued and sent the moment the current turn ends.
 | --- | --- |
 | `Enter` | Send |
 | `/` | Command menu — filters as you type, `↑/↓` to pick |
+| `@` | File mention menu — inserts the file into the message as a chip |
+| `!command` | Runs the command directly, without going to the model |
 | `Tab` | Switch mode: **Build** / **Plan** |
 | `Ctrl+P` | Command palette |
+| `Ctrl+V` / `Alt+V` | Attach the image from your clipboard |
 | `Esc` | Close a menu · cancel the reply **or the running command** |
 | `Ctrl+C` | Works anywhere: closes a panel, cancels, or exits |
-| `↑` / `↓` | Input history |
+| `↑` / `↓` | Input history (your draft is restored) |
 | `PgUp` / `PgDn` | Scroll the conversation |
 | Mouse wheel | Scroll the conversation |
 
 Drag with the mouse to select text, then `Ctrl+C` to copy it. Prefer your
 terminal's own selection and scrolling? Start with `WENOX_NO_MOUSE=1`.
+
+On wide terminals a panel sits on the right: context usage, open tasks, plan
+limits and the files changed in this session. It is not drawn on narrow
+terminals; tune it from the config (`sidebar`, `sidebarMinColumns`).
 
 <img src="slimbanner.png" width="100%">
 
@@ -123,8 +150,8 @@ terminal's own selection and scrolling? Start with `WENOX_NO_MOUSE=1`.
 
 The assistant works on your project through these tools:
 
-`read_file` · `write_file` · `edit_file` · `list_dir` · `search_code` ·
-`run_command` · `code_intel` · `ask_user`
+`read_file` · `write_file` · `edit_file` · `list_dir` · `search_code` · `glob` ·
+`run_command` · `code_intel` · `webfetch` · `ask_user` · `todo_write`
 
 **`code_intel`** uses a real language server:
 
@@ -141,6 +168,24 @@ never just fails.
 **`ask_user`** lets the assistant ask a short multiple-choice question when a real
 decision is needed. It won't nag you with questions it can answer itself.
 
+**Paste images.** `Ctrl+V` (or `Alt+V` on Windows Terminal) attaches the image on
+your clipboard to the message: screenshots, design frames and error pictures are
+read directly. `/model` shows which models support images; with one that doesn't,
+the CLI warns you.
+
+**Large files are written in pieces.** The assistant doesn't try to fit a whole
+file into one giant output: it starts with `write_file` and appends section by
+section with `edit_file`. If the response hits the output limit it continues from
+where it stopped, and a half-finished tool call is never executed.
+
+**Your project rules are read.** An `AGENTS.md` (or `CLAUDE.md`) in the project
+root and in parent directories is added to the system prompt. If you don't have
+one, `/init` inspects the project and writes it for you.
+
+**MCP servers.** Connect one over stdio with
+`wenox mcp add <name> <command> [args]`, or over HTTP by setting `url` in the
+config; its tools are added to the assistant's tool list.
+
 <img src="slimbanner.png" width="100%">
 
 ## 🔒 Safety
@@ -156,6 +201,12 @@ decision is needed. It won't nag you with questions it can answer itself.
   itself is one of them.
 - **`Esc` stops the work.** A running command is killed together with its child
   processes — a forgotten dev server included.
+- **You can write permission rules.** Put entries like
+  `{ "tool": "run_command", "pattern": "git *", "action": "ask" }` into the
+  `permissions` list in the config: `deny` never runs it, `allow` never asks,
+  `ask` asks every time.
+- **Secret files ask separately.** Reading or writing a file like `.env` needs
+  permission even when it is inside your project.
 
 <img src="slimbanner.png" width="100%">
 
@@ -165,11 +216,12 @@ The active mode sits in the status bar; `Tab` switches.
 
 | Mode | Behaviour |
 | --- | --- |
-| **Plan** — default | Read-only. Inspects and proposes a plan; writes and commands are blocked. |
+| **Plan** — default | Read-only. The writing and command tools are **not in the tool list at all**, so the assistant never even attempts them. It inspects and proposes a plan. |
 | **Build** | Reads, edits files and runs commands to get the job done. |
 
 Start in Plan, see what the assistant intends to do, then `Tab` into Build to let
-it happen.
+it happen. The current mode is also repeated on every request, so older messages
+in the conversation can't mislead it.
 
 <img src="slimbanner.png" width="100%">
 
@@ -193,8 +245,11 @@ the terminal shows how to come back:
   Continue  wenox -s ses_f78edf902ffe
 ```
 
-Resuming restores the messages, the token counter, the model and the working
-directory. `/sessions` lists everything and loads whichever you pick.
+Resuming restores the messages, the token counter, the model, the task list and
+the working directory. `/sessions` lists everything and loads whichever you
+pick; `wenox -c` continues the most recent session and `--fork` copies it into a
+new one. From the terminal you can also list them with `wenox sessions` and drop
+one with `wenox session delete <id>`.
 
 <img src="slimbanner.png" width="100%">
 
@@ -203,21 +258,28 @@ directory. `/sessions` lists everything and loads whichever you pick.
 Everything is driven from inside the session — change the model, the language or
 the key, inspect the account, manage the context. Settings can also be supplied
 through environment variables: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`,
-`WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`.
+`WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`, `WENOX_DEBUG`.
 
 | Command | Description |
 | --- | --- |
 | `/help` | Commands and shortcuts |
-| `/model` | Change model |
+| `/model` | Change model (listed with context window and vision support) |
 | `/lang` | Change interface language |
 | `/key` | Update the API key (verified before saving) |
-| `/me` | Account and remaining credits |
+| `/me` | Account, plan and limits (5-hour / weekly / monthly) |
+| `/theme` | Pick a theme |
+| `/keys` | Show the shortcuts |
+| `/editor` | Compose the message in your `$EDITOR` |
+| `/init` | Inspect the project and write `AGENTS.md` |
 | `/compact` | Summarise the context to free space |
 | `/new` | Clear the context |
 | `/sessions` | List and load past sessions |
 | `/auto` | Toggle auto-approve |
 | `/status` | Session status |
 | `/exit` | Quit |
+
+Plan limits (5-hour / weekly / monthly) show up in the status bar and the side
+panel with their percentage and reset time.
 
 <img src="slimbanner.png" width="100%">
 
