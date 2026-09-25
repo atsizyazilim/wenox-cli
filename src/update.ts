@@ -9,8 +9,17 @@ export const REGISTRY_URL =
 
 export const UPGRADE_COMMAND = "npm i -g @wenox/cli";
 
-// Sürüm sorgusu her açılışta değil, en fazla bu aralıkta bir yapılır.
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Sürüm sorgusu her açılışta yapılmaz ama güncellemeyi de gizlememeli.
+// Tek bir "taze" penceresi vardı ve 6 saatlik olduğu için, yayınlanan yeni sürüm
+// o pencere bitene kadar görünmüyordu. Artık üç ayrı pencere var:
+//  - Önbellek "zaten eski sürümdesin" diyorsa: ağa hiç çıkılmaz, uyarı hemen.
+//  - Önbellek "güncel sürümdesin" diyorsa: kısa aralıkla tazelenir, çünkü yeni
+//    bir sürüm her an yayınlanmış olabilir.
+//  - Sorgu başarısız olduysa: kısa süre sonra tekrar denenir; başarısız sorgu
+//    uzun bir "taze" penceresi bırakırsa güncelleme saatlerce gizlenirdi.
+const CURRENT_TTL_MS = 15 * 60 * 1000;
+const STALE_TTL_MS = 6 * 60 * 60 * 1000;
+const RETRY_MS = 5 * 60 * 1000;
 const TIMEOUT_MS = 1500;
 
 export function updateCacheFile(): string {
@@ -38,6 +47,8 @@ export function isNewer(candidate: unknown, current: unknown): boolean {
 interface UpdateCache {
   latest?: string | null;
   checkedAt?: number;
+  // Son sorgu başarısız olduysa işaretlenir: kısa süre sonra tekrar denenir.
+  failed?: boolean;
 }
 
 function readCache(): UpdateCache | null {
@@ -49,12 +60,12 @@ function readCache(): UpdateCache | null {
   }
 }
 
-function writeCache(latest: string | null, checkedAt: number): void {
+function writeCache(latest: string | null, checkedAt: number, failed = false): void {
   try {
     fs.mkdirSync(configDir(), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       updateCacheFile(),
-      `${JSON.stringify({ latest, checkedAt }, null, 2)}\n`,
+      `${JSON.stringify({ latest, checkedAt, failed }, null, 2)}\n`,
       { encoding: "utf8", mode: 0o600 },
     );
   } catch {
@@ -143,21 +154,23 @@ export async function checkForUpdate(
   }
 
   const cached = readCache();
+  const cachedLatest = typeof cached?.latest === "string" ? cached.latest : null;
   const checkedAt = Number(cached?.checkedAt ?? 0);
-  const fresh = Number.isFinite(checkedAt) && now - checkedAt < CHECK_INTERVAL_MS;
+  const age = Number.isFinite(checkedAt) ? now - checkedAt : Number.POSITIVE_INFINITY;
 
-  let latest = fresh ? (cached?.latest ?? null) : null;
+  // Önbellek zaten "eski sürümdesin" diyorsa ağa hiç çıkılmaz: uyarı hemen
+  // gösterilir. Aksi halde (ya da son sorgu başarısızsa) tazeleme penceresi kısa.
+  const cachedOutdated = cachedLatest !== null && isNewer(cachedLatest, current);
+  const window = cached?.failed ? RETRY_MS : cachedOutdated ? STALE_TTL_MS : CURRENT_TTL_MS;
+  const fresh = age >= 0 && age < window;
+
+  let latest = cachedLatest;
 
   if (!fresh) {
-    latest = await fetchLatestVersion({ fetchImpl });
-    if (latest) {
-      writeCache(latest, now);
-    } else {
-      // Ağ/sunucu hatasında son bilinen sürüme düşülür ve bir sonraki deneme
-      // için zaman damgası ilerletilir; açılışta tekrar tekrar beklemeyelim.
-      latest = cached?.latest ?? null;
-      writeCache(latest, now);
-    }
+    const fetched = await fetchLatestVersion({ fetchImpl });
+    latest = fetched ?? cachedLatest;
+    // Başarısız sorgu uzun süre "taze" sayılmaz; kısa süre sonra tekrar denenir.
+    writeCache(latest, now, !fetched);
   }
 
   // Hangi sürümün güncel olduğu bilinmiyorsa kullanıcı engellenmez.
