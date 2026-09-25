@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { configDir } from "./config.js";
@@ -82,6 +83,44 @@ export async function fetchLatestVersion(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export interface UpgradeResult {
+  code: number | null;
+  failed: boolean;
+}
+
+interface UpgradeChild {
+  on(event: string, handler: (...args: unknown[]) => void): unknown;
+}
+
+// Güncellemeyi kullanıcı adına çalıştırır. Ekran Ink'i askıya alıp terminali
+// sürece devreder, böylece npm'in çıktısı doğrudan kullanıcıya görünür; burada
+// yalnızca süreç yönetimi var, o yüzden testte sahte spawn ile sınanabiliyor.
+export type UpgradeSpawn = (
+  command: string,
+  args: string[],
+  options: { stdio: "inherit"; shell: boolean },
+) => UpgradeChild;
+
+export function runUpgrade(
+  spawnImpl: UpgradeSpawn = spawn as unknown as UpgradeSpawn,
+): Promise<UpgradeResult> {
+  return new Promise((resolve) => {
+    try {
+      const child = spawnImpl("npm", ["install", "-g", "@wenox/cli"], {
+        stdio: "inherit",
+        shell: true,
+      });
+      child.on("close", (code) => {
+        const status = typeof code === "number" ? code : null;
+        resolve({ code: status, failed: status !== 0 });
+      });
+      child.on("error", () => resolve({ code: null, failed: true }));
+    } catch {
+      resolve({ code: null, failed: true });
+    }
+  });
 }
 
 export interface UpdateCheckResult {

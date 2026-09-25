@@ -440,7 +440,11 @@ Shortcuts
     installed: "Installed  ",
     available: "Available  ",
     body: "This version is no longer supported.",
-    hint: "Restart after updating    ·    Q quit",
+    hint: "U to update    ·    Q quit",
+    exitHint: "Press any key to quit",
+    upgrading: "Updating… (npm install -g @wenox/cli)",
+    upgraded: "Updated. Quit and run `wenox` again.",
+    upgradeFailed: "Update failed (code {code}). Run the command above yourself.",
     forced: "Installed v{current}, latest v{latest}. This version is no longer supported.",
   },
 

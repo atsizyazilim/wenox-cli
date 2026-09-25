@@ -440,7 +440,11 @@ Kısayollar
     installed: "Kurulu     ",
     available: "Güncel     ",
     body: "Bu sürüm artık desteklenmiyor.",
-    hint: "Güncelledikten sonra yeniden başlat    ·    Q çık",
+    hint: "U ile güncelle    ·    Q çık",
+    exitHint: "Çıkmak için bir tuşa bas",
+    upgrading: "Güncelleniyor… (npm install -g @wenox/cli)",
+    upgraded: "Güncellendi. Çıkıp `wenox` komutunu yeniden çalıştır.",
+    upgradeFailed: "Güncelleme başarısız (kod {code}). Yukarıdaki komutu elle çalıştır.",
     forced: "Kurulu sürüm v{current}, güncel sürüm v{latest}. Bu sürüm artık desteklenmiyor.",
   },
 
