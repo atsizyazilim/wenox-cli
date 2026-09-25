@@ -31,7 +31,13 @@ import type {
   TranscriptItem,
   TranscriptMeta,
 } from "../session.js";
-import { attachmentPathsIn, readAttachmentFile, readClipboardImage, mbLimit } from "../images.js";
+import {
+  attachmentPathsIn,
+  readAttachmentFile,
+  readClipboardImage,
+  readClipboardText,
+  mbLimit,
+} from "../images.js";
 import { isImage } from "../images.js";
 import type { Attachment } from "../images.js";
 import { executeTool } from "../tools.js";
@@ -889,27 +895,6 @@ export function App({
     [modelId, modelMeta],
   );
 
-  // Panodaki görseli alır; panoda görsel yoksa kısa bir bilgi gösterir.
-  const pasteClipboardImage = useCallback(async (): Promise<void> => {
-    // Panoda yalnızca görsel olabilir; model desteklemiyorsa hiç okumaya girişme.
-    if (modelMeta[modelId]?.vision === false) {
-      setToast(t("images.noVision", { model: getModelInfo(modelId).name }));
-      return;
-    }
-    // Pano okuması platform komutu başlattığı için bir an sürüyor.
-    setToast(t("images.reading"));
-    const result = await readClipboardImage();
-    if (result.attachment) {
-      addAttachment(result.attachment);
-      return;
-    }
-    setToast(
-      result.error === "tooLarge"
-        ? t("images.tooLarge", { mb: result.limitMb ?? mbLimit() })
-        : t("images.none"),
-    );
-  }, [addAttachment, modelId, modelMeta]);
-
   // Terminale sürüklenen dosya yol olarak yapışır: yolları eke çevirir.
   const pasteAttachmentPaths = useCallback(
     (paths: string[]): void => {
@@ -933,17 +918,12 @@ export function App({
     [addAttachment, canAttach],
   );
 
-  // Yapıştırma kanalı: satır sonları normalize edilir, metnin tamamı ek dosyası
-  // yoluysa eke çevrilir, uzun yapıştırma çip olur. Boş yapıştırma "panodaki
-  // görseli al" demektir — ama bu YALNIZCA yapıştırma için geçerli; yazılan
-  // boşluk bir yapıştırma değildir (o yüzden ayrı fonksiyon).
-  const applyPastedText = useCallback(
+  // Panodan gelen metni girdiye koyar: satır sonları normalize edilir, metnin
+  // tamamı dosya yoluysa eke çevrilir, uzun yapıştırma çip olur.
+  const insertPastedChunk = useCallback(
     (raw: string): void => {
       const text = raw.replace(/\r\n?/g, "\n");
-      if (!text.trim()) {
-        void pasteClipboardImage();
-        return;
-      }
+      if (!text.trim()) return;
       const paths = attachmentPathsIn(text);
       if (paths) {
         pasteAttachmentPaths(paths);
@@ -958,7 +938,49 @@ export function App({
       setCaret(next.cursor);
       setSlashIndex(0);
     },
-    [caret, inputTokens, pasteAttachmentPaths, pasteClipboardImage],
+    [caret, inputTokens, pasteAttachmentPaths],
+  );
+
+  // Ctrl+V / Alt+V: panoda görsel varsa ek yapar, YOKSA metni yapıştırır.
+  // (Önceden yalnızca görsel aranıyordu: panoda metin varken "görsel yok" deyip
+  // hiçbir şey yapıştırmıyordu.)
+  const pasteFromClipboard = useCallback(async (): Promise<void> => {
+    // Pano okuması platform komutu başlattığı için bir an sürüyor.
+    setToast(t("images.reading"));
+    const result = await readClipboardImage();
+    if (result.attachment) {
+      if (modelMeta[modelId]?.vision === false) {
+        setToast(t("images.noVision", { model: getModelInfo(modelId).name }));
+        return;
+      }
+      addAttachment(result.attachment);
+      return;
+    }
+    if (result.error === "tooLarge") {
+      setToast(t("images.tooLarge", { mb: result.limitMb ?? mbLimit() }));
+      return;
+    }
+    const text = await readClipboardText();
+    if (text.trim()) {
+      insertPastedChunk(text);
+      // "Okunuyor" bildirimi metin girince anlamsız kalıyor.
+      setToast(null);
+      return;
+    }
+    setToast(t("images.empty"));
+  }, [addAttachment, insertPastedChunk, modelId, modelMeta]);
+
+  // Yapıştırma kanalı (bracketed paste): boş yapıştırma "panodaki görseli al"
+  // demektir — Windows Terminal <1.25 görsel varken boş yapıştırma gönderiyor.
+  const applyPastedText = useCallback(
+    (raw: string): void => {
+      if (!raw.replace(/\r\n?/g, "\n").trim()) {
+        void pasteFromClipboard();
+        return;
+      }
+      insertPastedChunk(raw);
+    },
+    [insertPastedChunk, pasteFromClipboard],
   );
 
   // `!komut`: modele gitmez, doğrudan çalışır ve çıktısı komut kartında görünür.
@@ -1438,9 +1460,10 @@ export function App({
       setSlashIndex(0);
       return;
     }
-    // Panodaki görseli al: Ctrl+V çoğu terminalde terminale ait, Alt+V yedek.
+    // Panodan yapıştır: görsel varsa ek, yoksa metin. Ctrl+V çoğu terminalde
+    // terminale ait; Alt+V yedek.
     if (matchesKey(keybinds.image, char, key) || matchesKey("alt+v", char, key)) {
-      void pasteClipboardImage();
+      void pasteFromClipboard();
       return;
     }
     if (char && !key.ctrl && !key.meta) {

@@ -167,6 +167,34 @@ export async function readClipboardImage(): Promise<AttachmentRead> {
   return readClipboardLinux();
 }
 
+// Çok büyük panolara karşı üst sınır (karakter). Metin yapıştırması zaten
+// girdi modelinde kırpılıyor; buradaki sınır belleği korumak için.
+export const MAX_CLIPBOARD_TEXT = 200_000;
+
+export function limitClipboardText(raw: string): string {
+  return raw.slice(0, MAX_CLIPBOARD_TEXT);
+}
+
+// Panodaki düz metin. Pano yalnızca görsel içeriyorsa ya da okunamıyorsa "" döner.
+// Ctrl+V'nin görsel bulamayınca metne düşebilmesi için var.
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32" || process.env.WSL_DISTRO_NAME) {
+    const out = await run("powershell.exe", [
+      "-NonInteractive",
+      "-NoProfile",
+      "-command",
+      "Get-Clipboard -Raw",
+    ]);
+    return limitClipboardText(out.toString("utf8"));
+  }
+  if (process.platform === "darwin") {
+    return limitClipboardText((await run("pbpaste", [])).toString("utf8"));
+  }
+  const wayland = await run("wl-paste", ["-n"]);
+  if (wayland.length > 0) return limitClipboardText(wayland.toString("utf8"));
+  return limitClipboardText((await run("xclip", ["-selection", "clipboard", "-o"])).toString("utf8"));
+}
+
 export function readAttachmentFile(filePath: string): AttachmentRead {
   const mime = MIME_BY_EXT[path.extname(filePath).toLowerCase()];
   if (!mime) return { error: "unreadable" };

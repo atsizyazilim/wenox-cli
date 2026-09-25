@@ -143,7 +143,7 @@ Shortcuts
   images: {
     reading: "Reading image…",
     noVision: "The selected model does not support images ({model}). Switch with /model.",
-    none: "No image in the clipboard.",
+    empty: "Nothing to paste — the clipboard has no image or text.",
     added: "{count} image(s) added.",
     tooLarge: "Image is too large ({mb} MB max).",
     readFailed: "Could not read the image.",

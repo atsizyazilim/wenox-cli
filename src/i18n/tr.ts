@@ -143,7 +143,7 @@ Kısayollar
   images: {
     reading: "Görsel alınıyor…",
     noVision: "Seçili model görsel desteklemiyor ({model}). /model ile değiştirebilirsin.",
-    none: "Panoda görsel yok.",
+    empty: "Panoda görsel veya metin yok.",
     added: "{count} görsel eklendi.",
     tooLarge: "Görsel çok büyük (en fazla {mb} MB).",
     readFailed: "Görsel okunamadı.",
