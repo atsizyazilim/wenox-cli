@@ -77,6 +77,14 @@ import {
   deleteForward,
   moveLeft,
   moveRight,
+  moveLineStart,
+  moveLineEnd,
+  moveWordLeft,
+  moveWordRight,
+  deleteToLineStart,
+  deleteToLineEnd,
+  deleteWordBack,
+  deleteWordForward,
   MAX_INPUT_LINES,
 } from "./input-model.js";
 import type { Cursor, InputToken } from "./input-model.js";
@@ -1465,6 +1473,56 @@ export function App({
     if (matchesKey(keybinds.image, char, key) || matchesKey("alt+v", char, key)) {
       void pasteFromClipboard();
       return;
+    }
+    // Option/Alt + ok: kelime atla (mac'te Option+←/→ bunu gönderir).
+    if (key.meta && (key.leftArrow || key.rightArrow)) {
+      setCaret(
+        key.leftArrow
+          ? moveWordLeft(inputTokens, caret)
+          : moveWordRight(inputTokens, caret),
+      );
+      return;
+    }
+    // Option+Delete / Option+Backspace: kelime sil.
+    if (key.meta && (key.delete || key.backspace)) {
+      const next = key.delete
+        ? deleteWordForward(inputTokens, caret)
+        : deleteWordBack(inputTokens, caret);
+      setInputTokens(next.tokens);
+      setCaret(next.cursor);
+      return;
+    }
+    // Ctrl harfleri: mac/okuyucu alışkanlıkları (satır başı-sonu, satır sil,
+    // kelime sil) + Ctrl+B/F ile karakter ilerleme.
+    if (key.ctrl && !key.meta && char) {
+      const letter = char.toLowerCase();
+      if (letter === "a" || letter === "e") {
+        setCaret(
+          letter === "a" ? moveLineStart(inputTokens, caret) : moveLineEnd(inputTokens, caret),
+        );
+        return;
+      }
+      if (letter === "u" || letter === "k") {
+        const next =
+          letter === "u"
+            ? deleteToLineStart(inputTokens, caret)
+            : deleteToLineEnd(inputTokens, caret);
+        setInputTokens(next.tokens);
+        setCaret(next.cursor);
+        setSlashIndex(0);
+        return;
+      }
+      if (letter === "w") {
+        const next = deleteWordBack(inputTokens, caret);
+        setInputTokens(next.tokens);
+        setCaret(next.cursor);
+        setSlashIndex(0);
+        return;
+      }
+      if (letter === "b" || letter === "f") {
+        setCaret(letter === "b" ? moveLeft(inputTokens, caret) : moveRight(inputTokens, caret));
+        return;
+      }
     }
     if (char && !key.ctrl && !key.meta) {
       // Yazılan karakter: boşluk da olsa doğrudan metne girer, panoya bakılmaz.

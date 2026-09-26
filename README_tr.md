@@ -136,6 +136,10 @@ kuyruğa alınır ve tur biter bitmez gönderilir.
 | `Esc` | Menüyü kapat · yanıtı **veya çalışan komutu** iptal et |
 | `Ctrl+C` | Her yerde çalışır: panel kapatır, iptal eder ya da çıkar |
 | `↑` / `↓` | Girdi geçmişi (yazdığınız taslak korunur) |
+| `Ctrl+A` / `Ctrl+E` | Satır başı / satır sonu |
+| `Ctrl+U` / `Ctrl+K` | İmleçten satır başına / satır sonuna kadar sil |
+| `Ctrl+W` | Önceki kelimeyi sil |
+| `Alt`/`Option` + `←` `→` | Kelime atla |
 | `PgUp` / `PgDn` | Konuşmayı kaydır |
 | Fare tekeri | Konuşmayı kaydır |
 

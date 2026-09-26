@@ -272,6 +272,124 @@ export function moveRight(
   return { i: c.i + 1, o: 0 };
 }
 
+// --- readline/mac uyumlu düzenleme tuşları ---------------------------------
+// macOS terminallerinde (ve okuma satırı alışkanlığı olan herkeste) beklenen
+// tuşlar: Ctrl+A/E satır başı-sonu, Ctrl+U/K satırı sil, Ctrl+W kelime sil,
+// Option+←/→ kelime atla, Option+Delete kelime sil.
+
+// Harf (Türkçe dahil tüm Unicode harfler), rakam ve kod/patik metninde geçen
+// işaretler kelime sayılır; aksi halde "dünya" kelimesi "ü"de bölünüyordu.
+const WORD_CHAR = /[\p{L}\p{N}_\-./~\\]/u;
+
+function textTokenAt(tokens: InputToken[], c: Cursor): TextToken | null {
+  const token = tokens[c.i];
+  return token && token.type === "text" ? token : null;
+}
+
+// İmlecin bulunduğu satırın başı (çip üzerindeyse yerinde kalır).
+export function moveLineStart(tokens: InputToken[], cursor: Cursor | null | undefined): Cursor {
+  const c = clampCursor(tokens, cursor);
+  const token = textTokenAt(tokens, c);
+  if (!token) return c;
+  const index = token.value.slice(0, c.o).lastIndexOf("\n");
+  return { i: c.i, o: index < 0 ? 0 : index + 1 };
+}
+
+export function moveLineEnd(tokens: InputToken[], cursor: Cursor | null | undefined): Cursor {
+  const c = clampCursor(tokens, cursor);
+  const token = textTokenAt(tokens, c);
+  if (!token) return c;
+  const index = token.value.slice(c.o).indexOf("\n");
+  return { i: c.i, o: index < 0 ? token.value.length : c.o + index };
+}
+
+// Bir önceki kelimenin başına; metin parçasının başında bir önceki token'a geçer
+// (çip tek birim sayılır).
+export function moveWordLeft(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): Cursor {
+  const c = clampCursor(tokens, cursor);
+  const token = textTokenAt(tokens, c);
+  if (!token || c.o === 0) {
+    if (c.i === 0) return c;
+    const prev = tokens[c.i - 1];
+    if (prev.type === "text") return moveWordLeft(tokens, { i: c.i - 1, o: prev.value.length });
+    return { i: c.i - 1, o: 0 };
+  }
+  let i = c.o;
+  while (i > 0 && !WORD_CHAR.test(token.value[i - 1])) i -= 1;
+  while (i > 0 && WORD_CHAR.test(token.value[i - 1])) i -= 1;
+  return { i: c.i, o: i };
+}
+
+export function moveWordRight(
+  tokens: InputToken[],
+  cursor: Cursor | null | undefined,
+): Cursor {
+  const c = clampCursor(tokens, cursor);
+  const token = textTokenAt(tokens, c);
+  if (!token || c.o >= token.value.length) {
+    if (c.i >= tokens.length - 1) return c;
+    const next = tokens[c.i + 1];
+    if (next.type === "text") return moveWordRight(tokens, { i: c.i + 1, o: 0 });
+    return { i: c.i + 1, o: 0 };
+  }
+  // readline gibi: önce kelime olmayanı atla, sonra kelimeyi geç — imleç
+  // kelimenin SONUNDA durur (bash/zsh'teki Option+→ davranışı).
+  let i = c.o;
+  while (i < token.value.length && !WORD_CHAR.test(token.value[i])) i += 1;
+  while (i < token.value.length && WORD_CHAR.test(token.value[i])) i += 1;
+  return { i: c.i, o: i };
+}
+
+// İki imleç arasını siler; imleç silmenin başında kalır. Aralıktaki çipler
+// tümüyle kaldırılır, metin parçaları kırpılır.
+export function deleteRange(tokens: InputToken[], from: Cursor, to: Cursor): EditResult {
+  const a = clampCursor(tokens, from);
+  const b = clampCursor(tokens, to);
+  const start = a.i < b.i || (a.i === b.i && a.o <= b.o) ? a : b;
+  const end = start === a ? b : a;
+
+  const next: InputToken[] = [];
+  let cursor: Cursor = { i: 0, o: 0 };
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (i < start.i || i > end.i) {
+      next.push(token);
+      continue;
+    }
+    const atStart = i === start.i;
+    if (token.type !== "text") {
+      if (atStart) cursor = { i: next.length, o: 0 };
+      continue;
+    }
+    const from2 = atStart ? start.o : 0;
+    const to2 = i === end.i ? end.o : token.value.length;
+    const left = token.value.slice(0, from2);
+    const merged = left + token.value.slice(to2);
+    if (atStart) cursor = { i: next.length, o: left.length };
+    if (merged) next.push({ type: "text", value: merged });
+  }
+  return { tokens: next, cursor };
+}
+
+export function deleteToLineStart(tokens: InputToken[], cursor: Cursor | null | undefined): EditResult {
+  return deleteRange(tokens, moveLineStart(tokens, cursor), clampCursor(tokens, cursor));
+}
+
+export function deleteToLineEnd(tokens: InputToken[], cursor: Cursor | null | undefined): EditResult {
+  return deleteRange(tokens, clampCursor(tokens, cursor), moveLineEnd(tokens, cursor));
+}
+
+export function deleteWordBack(tokens: InputToken[], cursor: Cursor | null | undefined): EditResult {
+  return deleteRange(tokens, moveWordLeft(tokens, cursor), clampCursor(tokens, cursor));
+}
+
+export function deleteWordForward(tokens: InputToken[], cursor: Cursor | null | undefined): EditResult {
+  return deleteRange(tokens, clampCursor(tokens, cursor), moveWordRight(tokens, cursor));
+}
+
 export function buildView(
   tokens: InputToken[],
   width: number,

@@ -134,6 +134,10 @@ your message is queued and sent the moment the current turn ends.
 | `Esc` | Close a menu · cancel the reply **or the running command** |
 | `Ctrl+C` | Works anywhere: closes a panel, cancels, or exits |
 | `↑` / `↓` | Input history (your draft is restored) |
+| `Ctrl+A` / `Ctrl+E` | Start / end of line |
+| `Ctrl+U` / `Ctrl+K` | Delete to line start / line end |
+| `Ctrl+W` | Delete the previous word |
+| `Alt`/`Option` + `←` `→` | Jump by word |
 | `PgUp` / `PgDn` | Scroll the conversation |
 | Mouse wheel | Scroll the conversation |
 

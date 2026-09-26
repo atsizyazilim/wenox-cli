@@ -12,6 +12,11 @@ import {
   deleteForward,
   moveLeft,
   moveRight,
+  moveLineStart,
+  moveLineEnd,
+  deleteRange,
+  deleteWordBack,
+  endCursor,
   toText,
   MAX_INPUT_LINES,
 } from "../input-model.js";
@@ -147,6 +152,19 @@ export function Onboarding({
         openKeyPage();
       } else if (key.ctrl && (char === "v" || char === "V")) {
         void pasteKey();
+      } else if (key.ctrl && (char === "a" || char === "A")) {
+        setCaret(moveLineStart(tokens, caret));
+      } else if (key.ctrl && (char === "e" || char === "E")) {
+        setCaret(moveLineEnd(tokens, caret));
+      } else if (key.ctrl && (char === "u" || char === "U")) {
+        const next = deleteRange(tokens, { i: 0, o: 0 }, endCursor(tokens));
+        setTokens(next.tokens);
+        setCaret(next.cursor);
+        setNote("");
+      } else if (key.ctrl && (char === "w" || char === "W")) {
+        const next = deleteWordBack(tokens, caret);
+        setTokens(next.tokens);
+        setCaret(next.cursor);
       } else if (key.leftArrow) {
         setCaret((current) => moveLeft(tokens, current));
       } else if (key.rightArrow) {

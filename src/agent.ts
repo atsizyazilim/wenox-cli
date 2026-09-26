@@ -112,6 +112,14 @@ function withinProject(targetPath: unknown, root: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+// Sistem prompt'unda okunur bir işletim sistemi adı: "darwin" yazmak yerine
+// "macOS" diyoruz ki model kabuk komutlarını doğru platforma göre kursun.
+function platformName(): string {
+  if (process.platform === "win32") return "Windows";
+  if (process.platform === "darwin") return "macOS";
+  return process.platform;
+}
+
 // ÖNEK ÖNBELLEĞİ KURALI: isteklerin başı (sistem prompt'u + araç şemaları +
 // geçmiş) oturum boyunca bayt bayt aynı kalmalı. Sağlayıcı önbelleği yalnızca
 // ortak önek üzerinden çalışır; buraya tarih/saat/rastgele veri ya da her
@@ -147,7 +155,7 @@ ${modeLine}
 ${modeAuthority}
 ${workspaceNote}
 ${instructions}Environment:
-- Operating System: ${process.platform === "win32" ? "Windows" : process.platform}
+- Operating System: ${platformName()}
 - Working / Project Directory: ${cwd}
 
 Your Available Tools:
