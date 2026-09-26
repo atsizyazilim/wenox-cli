@@ -1483,6 +1483,18 @@ export function App({
       );
       return;
     }
+    // Option/Alt + B/F/D: readline'ın kelime tuşları (ESC b/f/d). mac ve Unix
+    // terminallerinde kelime atlamanın en yaygın yolu bu.
+    if (key.meta && (char === "b" || char === "f" || char === "d")) {
+      if (char === "d") {
+        const next = deleteWordForward(inputTokens, caret);
+        setInputTokens(next.tokens);
+        setCaret(next.cursor);
+        return;
+      }
+      setCaret(char === "b" ? moveWordLeft(inputTokens, caret) : moveWordRight(inputTokens, caret));
+      return;
+    }
     // Option+Delete / Option+Backspace: kelime sil.
     if (key.meta && (key.delete || key.backspace)) {
       const next = key.delete
