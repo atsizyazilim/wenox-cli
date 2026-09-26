@@ -33,7 +33,7 @@ export default {
     usageLine: "wenox [options]",
     options: "Options:",
     optionLines: [
-      "-m, --model <id|no>    Model to use (1: Grok 4.6, 2: GLM 5.3 Flash, 3: Big Pickle)",
+      "-m, --model <id|no>    Model to use (1: WenOX Code, 2: WenOX Code Flash, 3: MiniMax M3)",
       "-k, --key <key>        WenOX API key (saved permanently)",
       "-s, --session <id>     Resume a saved session",
       "-c, --continue         Resume the most recent session",
@@ -450,8 +450,8 @@ Shortcuts
   },
 
   modelDescriptions: {
-    "grok-4.6": "Powerful reasoning and coding model by xAI",
-    "z-ai/glm-5.3-flash": "Very fast, lightweight and optimized coding model",
-    "big-pickle": "Advanced problem solving and large-context model",
+    "wenox-code": "WenOX's main model for coding and agent work",
+    "wenox-code-flash": "Very fast, lightweight coding model",
+    "minimax-m3": "Large-context model with strong reasoning",
   },
 };

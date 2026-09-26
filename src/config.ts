@@ -28,15 +28,20 @@ export interface ModelInfo {
   custom?: boolean;
 }
 
+// Sunucudan model listesi alınamazsa kullanılan yerel liste: kimlikler
+// gateway'in gerçek kimlikleriyle aynı olmalı, varsayılan da bunların ilki.
 export const AVAILABLE_MODELS: Record<string, ModelInfo> = {
-  "1": { id: "grok-4.6", name: "Grok 4.6" },
-  "2": { id: "z-ai/glm-5.3-flash", name: "GLM 5.3 Flash" },
-  "3": { id: "big-pickle", name: "Big Pickle" },
+  "1": { id: "wenox-code", name: "WenOX Code" },
+  "2": { id: "wenox-code-flash", name: "WenOX Code Flash" },
+  "3": { id: "minimax-m3", name: "MiniMax M3" },
 };
 
-export const DEFAULT_MODEL_ID = "grok-4.6";
+export const DEFAULT_MODEL_ID = "wenox-code";
 
-export const CONTEXT_WINDOW = Number(process.env.WENOX_CONTEXT_WINDOW) || 128_000;
+// Sunucudan bağlam penceresi gelmezse kullanılan yedek. Varsayılan modelin
+// penceresi 1M; 128K'lık yedek göstergeyi şişirip otomatik sıkıştırmayı
+// olması gerekenden çok erken tetikliyordu.
+export const CONTEXT_WINDOW = Number(process.env.WENOX_CONTEXT_WINDOW) || 1_000_000;
 
 export function getModelInfo(modelIdOrKey: unknown): ModelInfo {
   const key = String(modelIdOrKey ?? "");

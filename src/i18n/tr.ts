@@ -33,7 +33,7 @@ export default {
     usageLine: "wenox [seçenekler]",
     options: "Seçenekler:",
     optionLines: [
-      "-m, --model <id|no>    Kullanılacak model (1: Grok 4.6, 2: GLM 5.3 Flash, 3: Big Pickle)",
+      "-m, --model <id|no>    Kullanılacak model (1: WenOX Code, 2: WenOX Code Flash, 3: MiniMax M3)",
       "-k, --key <anahtar>    WenOX API anahtarı (kalıcı olarak kaydedilir)",
       "-s, --session <id>     Kayıtlı bir oturuma devam et",
       "-c, --continue         Son oturuma devam et",
@@ -450,8 +450,8 @@ Kısayollar
   },
 
   modelDescriptions: {
-    "grok-4.6": "xAI tarafından geliştirilmiş güçlü mantık ve kodlama modeli",
-    "z-ai/glm-5.3-flash": "Çok hızlı yanıt veren hafif ve optimize kodlama modeli",
-    "big-pickle": "Gelişmiş problem çözme ve büyük bağlam modeli",
+    "wenox-code": "WenOX'un kodlama ve ajan işleri için ana modeli",
+    "wenox-code-flash": "Çok hızlı yanıt veren hafif kodlama modeli",
+    "minimax-m3": "Büyük bağlamlı, güçlü akıl yürütme modeli",
   },
 };
