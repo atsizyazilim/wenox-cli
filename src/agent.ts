@@ -27,7 +27,14 @@ import {
   clearAbortHandler,
 } from "./cancel.js";
 
-const MAX_TURNS = 100;
+// Uzun görevler (ör. 30 dosyalık bir iş + doğrulama turları) 100 turu
+// yaklaşabiliyordu; sınır gevşetildi, tur limiti mesajı yine bilgilendiriyor.
+const MAX_TURNS = 200;
+// Aynı çağrı bir turda en fazla bu kadar kez reddedilir; sonrasında tur biter.
+const MAX_REPEAT_BLOCKS = 3;
+// Aynı çağrıyı tekrarlayan modele geri bildirim: çağrı çalıştırılmaz.
+const LOOP_ERROR =
+  "You already called this exact tool with these exact arguments and its result is above. Repeating it changes nothing. Change something — a different path, different content, a different command — or tell the user why you are stuck.";
 // Çıktı sınırına takılan yanıt kaç kez otomatik sürdürülür (sonsuz döngü olmasın).
 const MAX_TRUNCATED_CONTINUES = 3;
 // Kesilen araç çağrısı ASLA çalıştırılmaz: argümanları yarımdır ve bozuk bir
@@ -247,6 +254,8 @@ export class WenOXAgent {
   repeatCount = 0;
   // Çıktı sınırında kesilen yanıt kaç kez sürdürüldü (sonsuz sürdürmeye karşı).
   truncatedContinues = 0;
+  // Aynı çağrı bu turda kaç kez reddedildi (ısrar edilirse tur biter).
+  repeatBlockCount = 0;
   // Mod değişiminde sistem prompt'una eklenen bildirim (geçmişi geçersiz kılar).
   modeNote = "";
   // Bağlı MCP sunucuları ve araçları.
@@ -671,6 +680,7 @@ export class WenOXAgent {
     this.repeatSignature = "";
     this.repeatCount = 0;
     this.truncatedContinues = 0;
+    this.repeatBlockCount = 0;
     this.messages.push({
       role: "user",
       content: attachments.length > 0 ? contentParts(userPrompt, attachments) : userPrompt,
@@ -728,7 +738,11 @@ export class WenOXAgent {
           const args = parseToolArgs(call.arguments);
 
           // Aynı araç aynı argümanlarla üst üste üç kez çağrıldıysa döngü var
-          // demektir: kullanıcıyı bilgilendirip duruyoruz.
+          // demektir. Uzun görevlerde aynı araç onlarca kez çağrılabilir (her
+          // dosya farklı bir çağrıdır) — bu yüzden yalnızca BİREBİR aynı olan
+          // çağrı sayılır ve yalnızca o çağrı reddedilir; tur devam eder ki
+          // model yaklaşımını değiştirebilsin. Turu bitirmek uzun bir işi
+          // ortasında kesiyor ve kullanıcı yeniden yazmak zorunda kalıyordu.
           const signature = `${call.name}:${call.arguments}`;
           if (signature === this.repeatSignature) this.repeatCount += 1;
           else {
@@ -736,8 +750,20 @@ export class WenOXAgent {
             this.repeatCount = 1;
           }
           if (this.repeatCount >= 3) {
+            this.repeatBlockCount += 1;
             sink.info?.(t("agent.doomLoop", { tool: call.name }));
-            return;
+            const loopResult: ToolResult = { success: false, error: LOOP_ERROR };
+            sink.toolCall?.(call.name, {});
+            sink.toolResult?.(call.name, loopResult);
+            this.messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(loopResult),
+            });
+            // Israrla aynı çağrıyı denemeye devam ederse tur burada biter:
+            // sonsuz döngü yine engellenir ama tek bir tekrar turu kesmez.
+            if (this.repeatBlockCount >= MAX_REPEAT_BLOCKS) return;
+            continue;
           }
 
           // Çıktı sınırında kesilen çağrı çalıştırılmaz: argümanları yarım

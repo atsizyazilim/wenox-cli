@@ -424,7 +424,7 @@ Kısayollar
     cancelledTools: "⚠️  ESC ile iptal — kalan araçlar atlandı.",
     turnLimit:
       "⚠️ Bu adım için araç çağırma tur limitine ({max}) ulaşıldı. Kalan işleme devam etmek için 'devam et' yazabilirsiniz.",
-    doomLoop: "⚠️ {tool} aracı üst üste üç kez aynı argümanlarla çağrıldı — döngü olabilir, durdurdum. Devam etmek için tekrar yaz.",
+    doomLoop: "⚠️ {tool} aracı üst üste üç kez aynı argümanlarla çağrıldı — döngü gibi görünüyor; o çağrıyı atladım ve farklı bir yol denemesini söyledim.",
     truncated: "⚠️  Yanıt çıktı sınırına takıldı — kaldığı yerden daha küçük parçalarla devam ediliyor.",
     authError: "❌ Geçersiz veya yetkisiz WenOX API Anahtarı.",
     authHint: "Anahtarı '/key' komutu ile güncelleyebilirsiniz.",
