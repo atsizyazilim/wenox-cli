@@ -7,6 +7,12 @@ import { sanitizeOutput, errorProp } from "./utils.js";
 import { messagesTokenCount, tokenCount } from "./tokens.js";
 import { t } from "./i18n/index.js";
 import { debugLog } from "./debug.js";
+import {
+  parseQuotaExceeded,
+  quotaWindowLabel,
+  formatPercent,
+  formatReset,
+} from "./quota.js";
 import { loadGrants, addGrant } from "./permissions.js";
 import { evaluateRules, isSecretFile, permissionTarget } from "./permission-rules.js";
 import { isUnsafeWorkspace } from "./workspace.js";
@@ -980,7 +986,31 @@ export class WenOXAgent {
       sink.error?.(t("agent.authError"));
       sink.info?.(t("agent.authHint"));
     } else if (error instanceof OpenAI.RateLimitError) {
-      sink.error?.(t("agent.rateLimit"));
+      // 429 iki farklı şey olabilir: gerçekten çok fazla istek ya da kullanım
+      // kotasının dolması. İkincisinde sunucu hangi dönemin dolduğunu, yüzdeyi
+      // ve yenilenme zamanını gönderiyor — "rate limit" demek insanları
+      // yanıltıyordu.
+      const quota = parseQuotaExceeded(error);
+      if (!quota) {
+        sink.error?.(t("agent.rateLimit"));
+      } else {
+        const used = formatPercent(quota.usedPercent);
+        sink.error?.(
+          t("agent.quotaExceeded", {
+            window: quotaWindowLabel(quota.window),
+            used: used ?? "?",
+          }),
+        );
+        const needed = formatPercent(quota.requiredPercent);
+        if (needed) sink.info?.(t("agent.quotaRequired", { needed }));
+        const reset = formatReset(quota.resetsAt);
+        if (reset) sink.info?.(t("agent.quotaHint", { reset }));
+        // Kullanıcı arayüzü de limitleri güncelleyebilsin (kenar çubuğu/alt bar).
+        sink.quota?.(quota);
+        debugLog(
+          `kota doldu: ${quota.window} used=${quota.usedPercent ?? "?"} required=${quota.requiredPercent ?? "?"} resets=${quota.resetsAt ?? "?"} request=${String(errorProp(error, "requestID") ?? "?")}`,
+        );
+      }
     } else if (error instanceof OpenAI.APIConnectionError) {
       sink.error?.(t("agent.connection", { url: API_BASE_URL }));
     } else if (error instanceof OpenAI.APIError) {

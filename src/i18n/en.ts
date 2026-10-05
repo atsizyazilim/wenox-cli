@@ -418,6 +418,12 @@ Shortcuts
     daysLeft: " ({days} days left)",
   },
 
+  quota: {
+    window5h: "5-hour",
+    windowWeekly: "weekly",
+    windowMonthly: "monthly",
+  },
+
   agent: {
     thinking: "{model} is thinking...",
     cancelled: "⚠️  Canceled with ESC — operation stopped.",
@@ -428,7 +434,10 @@ Shortcuts
     truncated: "⚠️  The reply hit the output limit — continuing where it left off, in smaller pieces.",
     authError: "❌ Invalid or unauthorized WenOX API Key.",
     authHint: "You can update the key with the '/key' command.",
-    rateLimit: "❌ Rate limit exceeded. Please wait a bit and try again.",
+    rateLimit: "❌ Too many requests (rate limit). Wait a bit and try again.",
+    quotaExceeded: "🚫 Your {window} usage quota is full — {used}% used.",
+    quotaHint: "⏳ It resets at {reset}. For extra usage you can use wallet credits.",
+    quotaRequired: "This request needed {needed}% more.",
     timeout: "❌ Request timed out — the server did not respond within {seconds}s. Please try again.",
     connection: "❌ Could not connect to the API server ({url}). Check your internet connection.",
     apiError: "❌ API Error (Code: {status}): {message}",

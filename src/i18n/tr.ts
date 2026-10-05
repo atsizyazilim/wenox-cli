@@ -418,6 +418,12 @@ Kısayollar
     daysLeft: " ({days} gün kaldı)",
   },
 
+  quota: {
+    window5h: "5 saatlik",
+    windowWeekly: "haftalık",
+    windowMonthly: "aylık",
+  },
+
   agent: {
     thinking: "{model} düşünüyor...",
     cancelled: "⚠️  ESC ile iptal edildi — işlem durduruldu.",
@@ -428,7 +434,10 @@ Kısayollar
     truncated: "⚠️  Yanıt çıktı sınırına takıldı — kaldığı yerden daha küçük parçalarla devam ediliyor.",
     authError: "❌ Geçersiz veya yetkisiz WenOX API Anahtarı.",
     authHint: "Anahtarı '/key' komutu ile güncelleyebilirsiniz.",
-    rateLimit: "❌ İstek limiti aşıldı (Rate Limit). Lütfen biraz bekleyip tekrar deneyin.",
+    rateLimit: "❌ Çok fazla istek gönderildi (rate limit). Biraz bekleyip tekrar deneyin.",
+    quotaExceeded: "🚫 {window} kullanım kotan doldu — %{used} dolu.",
+    quotaHint: "⏳ Yenilenme: {reset}. Ek kullanım için cüzdan kredisi kullanabilirsin.",
+    quotaRequired: "Bu istek için %{needed} daha gerekiyordu.",
     timeout: "❌ İstek zaman aşımına uğradı — sunucu {seconds} sn içinde yanıt vermedi. Tekrar deneyin.",
     connection: "❌ API sunucusuna bağlanılamadı ({url}). İnternet bağlantınızı kontrol edin.",
     apiError: "❌ API Hatası (Kod: {status}): {message}",

@@ -661,6 +661,17 @@ export function App({
         push({ role: "tool-result", name, result });
       },
       todo: (next: TodoItem[]) => setTodos(next),
+      // Kota dolduğunda sunucudan gelen gerçek yüzde/yenilenme zamanı: kenar
+      // çubuğu ve alt bar yanlış (eski) değeri göstermeye devam etmesin.
+      quota: (quota) =>
+        setUsage((current) => {
+          const patch: AccountInfo["usage_limits"] = { ...(current ?? {}) };
+          const window = { used_percent: quota.usedPercent, resets_at: quota.resetsAt };
+          if (quota.window === "five_hour") patch.five_hour = window;
+          else if (quota.window === "weekly") patch.weekly = window;
+          else patch.monthly = window;
+          return patch;
+        }),
       info: (text: string) => push({ role: "info", text }),
       error: (text: string) => {
         setLiveText("");

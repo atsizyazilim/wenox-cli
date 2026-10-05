@@ -1,5 +1,6 @@
 import type { ToolArgs, ToolResult } from "./tools.js";
 import type { TodoItem, TranscriptMeta } from "./session.js";
+import type { QuotaExceeded } from "./quota.js";
 
 // Ajanın arayüze konuştuğu sözleşme. Her olay opsiyonel: hem düz terminal
 // sink'i (ui.ts) hem TUI sink'i (tui/app.tsx) bunu uygular, ikisi de
@@ -38,6 +39,9 @@ export interface Sink {
   toolCall?(name: string, args: ToolArgs): void;
   toolResult?(name: string, result: ToolResult): void;
   todo?(todos: TodoItem[]): void;
+  // Kullanım kotası dolduğunda sunucudan gelen gerçek değerler: arayüz
+  // limitleri (kenar çubuğu/alt bar) bunlarla günceller.
+  quota?(quota: QuotaExceeded): void;
   info?(text: string): void;
   error?(text: string): void;
   askPermission?(request: AskPermissionRequest): Promise<PermissionDecision>;
