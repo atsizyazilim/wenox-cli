@@ -7,6 +7,7 @@ import { API_BASE_URL, loadConfig, saveConfig } from "./config.js";
 import type { Config } from "./config.js";
 import { connect, mcpServers } from "./mcp.js";
 import { sessionHeaders } from "./session.js";
+import { verifyApiKey, verifyFailureMessage } from "./account.js";
 import { deleteSession, listSessions } from "./session.js";
 import { t } from "./i18n/index.js";
 import { askSecret } from "./prompt.js";
@@ -316,6 +317,17 @@ async function resolveKey(apiKey: string, json: boolean): Promise<string | null>
   return answer;
 }
 
+// Anahtarı /v1/me ile doğrular. /v1/models anahtar istemiyor (uydurma anahtarla
+// bile 200 dönüyor), o yüzden oradan gelen başarı "anahtar geçerli" demek
+// değildir — doğrulama yapılmadan ne kaydederiz ne de "doğrulandı" deriz.
+async function verifyProviderKey(key: string): Promise<boolean> {
+  const result = await verifyApiKey(key);
+  if (result.ok) return true;
+  console.error(chalk.red(verifyFailureMessage(result.reason)));
+  process.exitCode = 1;
+  return false;
+}
+
 async function loadProviderModels(apiKey: string) {
   const result = await fetchProviderModels(apiKey);
   if (!result.ok) {
@@ -337,6 +349,8 @@ function currentProvider(config: unknown): unknown {
 async function cmdOpencodeSetup(apiKey: string, opts: { json: boolean }): Promise<void> {
   const key = await resolveKey(apiKey, opts.json);
   if (!key) return;
+
+  if (!(await verifyProviderKey(key))) return;
 
   const models = await loadProviderModels(key);
   if (!models) return;
@@ -382,6 +396,8 @@ async function cmdOpencodeSetup(apiKey: string, opts: { json: boolean }): Promis
 async function cmdOpencodeSync(apiKey: string, opts: { json: boolean }): Promise<void> {
   const key = await resolveKey(apiKey, opts.json);
   if (!key) return;
+
+  if (!(await verifyProviderKey(key))) return;
 
   const models = await loadProviderModels(key);
   if (!models) return;
@@ -463,6 +479,8 @@ async function cmdOpencodeKey(apiKey: string, opts: { json: boolean }): Promise<
     process.exitCode = 1;
     return;
   }
+
+  if (!(await verifyProviderKey(entered))) return;
 
   const models = await loadProviderModels(entered);
   if (!models) return;
