@@ -299,7 +299,7 @@ wenox opencode-remove     # removes the WenOX provider from OpenCode
 wenox opencode-api-key    # updates the key
 ```
 
-- Only the `provider.wenox` section is added to
+- Only the `provider.wenox-go` section is added to
   `~/.config/opencode/opencode.json`; your other providers, MCP servers and
   permissions are preserved. If the file is not valid JSON it is left untouched.
 - The model list comes from `/v1/models`: the name, context/output limits,

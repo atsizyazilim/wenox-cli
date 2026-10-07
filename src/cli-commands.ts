@@ -14,6 +14,7 @@ import { askSecret } from "./prompt.js";
 import {
   fetchModels as fetchProviderModels,
   keyFilePath,
+  OPENCODE_PROVIDER_ID,
   mergeModels,
   mergeProvider,
   opencodeConfigPath,
@@ -343,7 +344,7 @@ function currentProvider(config: unknown): unknown {
   const root = config && typeof config === "object" ? (config as Record<string, unknown>) : null;
   const providers = root?.provider;
   if (!providers || typeof providers !== "object") return undefined;
-  return (providers as Record<string, unknown>)["wenox"];
+  return (providers as Record<string, unknown>)[OPENCODE_PROVIDER_ID];
 }
 
 async function cmdOpencodeSetup(apiKey: string, opts: { json: boolean }): Promise<void> {

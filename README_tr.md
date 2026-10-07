@@ -301,7 +301,7 @@ wenox opencode-remove     # WenOX sağlayıcısını OpenCode'dan kaldırır
 wenox opencode-api-key    # anahtarı günceller
 ```
 
-- `~/.config/opencode/opencode.json` içine **yalnızca** `provider.wenox` bölümü
+- `~/.config/opencode/opencode.json` içine **yalnızca** `provider.wenox-go` bölümü
   eklenir; mevcut sağlayıcılarınız, MCP sunucularınız ve izinleriniz korunur.
   Dosya geçerli JSON değilse hiç dokunulmaz.
 - Model listesi `/v1/models`'ten gelir: ad, bağlam/çıktı limitleri, görsel

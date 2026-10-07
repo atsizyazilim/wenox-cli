@@ -16,7 +16,7 @@ import { sessionHeaders } from "./session.js";
 //    sağlayıcıları, MCP sunucuları, izinleri korunur).
 //  - Dosya geçerli JSON değilse hiçbir şey yazılmaz; kullanıcı uyarılır.
 
-export const OPENCODE_PROVIDER_ID = "wenox";
+export const OPENCODE_PROVIDER_ID = "wenox-go";
 export const OPENCODE_NPM = "@ai-sdk/openai-compatible";
 export const OPENCODE_SCHEMA = "https://opencode.ai/config.json";
 
