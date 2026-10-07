@@ -3,7 +3,7 @@ import wrapAnsi from "wrap-ansi";
 import stringWidth from "string-width";
 import { renderMarkdownBlocks } from "../markdown.js";
 import { theme } from "./theme.js";
-import { t } from "../i18n/index.js";
+import { t, localeTag } from "../i18n/index.js";
 import type { ItemId, TranscriptItem } from "../session.js";
 import type { ToolArgs, ToolResult } from "../tools.js";
 
@@ -30,6 +30,17 @@ function commandBar(text: string, colorName: string): string {
 }
 
 const MAX_COMMAND_LINES = 6;
+// Kart başına işlenecek en fazla satır. Sınır olmadan 400 bin satırlık bir
+// komut çıktısı hem belleği şişiriyor hem `push(...satırlar)` çağrısını
+// "Maximum call stack size exceeded" ile çökertiyordu (spread = argüman sayısı).
+const MAX_OUTPUT_LINES = 500;
+const MAX_TEXT_LINES = 4_000;
+
+// Spread yerine döngü: dizi elemanları argüman olarak geçmediği için
+// eleman sayısından bağımsız olarak güvenli.
+function pushLines(target: string[], lines: readonly string[]): void {
+  for (const line of lines) target.push(line);
+}
 
 // Düşünme süresi: saniyenin altında milisaniye, üstünde saniye olarak yazılır.
 function thoughtTime(ms: number): string {
@@ -48,35 +59,66 @@ function commandOutput(
   const color = code === 0 ? theme.ok : theme.err;
 
   const body: string[] = [];
-  if (out) body.push(...wrapLines(out, inner));
-  if (err) body.push(...wrapLines(err, inner).map((line) => chalk.red(line)));
+  let truncated = false;
+  if (out) {
+    const lines = wrapLines(out, inner, MAX_OUTPUT_LINES);
+    if (lines.length >= MAX_OUTPUT_LINES) truncated = true;
+    pushLines(body, lines);
+  }
+  if (err) {
+    const lines = wrapLines(err, inner, MAX_OUTPUT_LINES);
+    if (lines.length >= MAX_OUTPUT_LINES) truncated = true;
+    pushLines(
+      body,
+      lines.map((line) => chalk.red(line)),
+    );
+  }
   if (body.length === 0) body.push(chalk.dim(t("tool.noOutput")));
   if (code !== 0) body.push(paint(color, t("tool.exitCode", { code })));
+  if (truncated) {
+    const total = String(out || err).split("\n").length;
+    body.push(chalk.dim(t("tool.outputTruncated", { count: total.toLocaleString() })));
+  }
 
-  // Uzun çıktıyı varsayılan olarak kısalt; karta tıklayınca tamamı görülebilir
-  const hidden = Math.max(0, body.length - MAX_COMMAND_LINES);
+  // Uzun çıktıyı varsayılan olarak kısalt; karta tıklayınca tamamı görülebilir.
+  // Kırpıldıysa gizli satır sayısı gerçek toplamdan hesaplanır, yoksa "+495
+  // satır daha" gibi yanıltıcı bir sayı çıkıyordu.
+  const totalLines = truncated
+    ? String(out || err).split("\n").length
+    : body.length;
+  const hidden = Math.max(0, totalLines - MAX_COMMAND_LINES);
   const visible = hidden > 0 && !expanded ? body.slice(0, MAX_COMMAND_LINES) : body;
 
   const rows = visible.map((line) => commandBar(line, color));
   if (hidden > 0) {
-    const hint = expanded ? t("tool.collapseHint") : t("tool.expandHint", { count: hidden });
+    const hint = expanded
+      ? t("tool.collapseHint")
+      : t("tool.expandHint", { count: hidden.toLocaleString(localeTag()) });
     rows.push(commandBar(chalk.dim(hint), color));
   }
   rows.push(commandBar("", color));
   return rows;
 }
 
-function wrapLines(text: string, width: number): string[] {
-  return String(text)
-    .split("\n")
-    .flatMap((line) => {
-      if (line === "") return [""];
-      return wrapAnsi(line, Math.max(8, width), {
-        hard: true,
-        trim: false,
-        wordWrap: true,
-      }).split("\n");
-    });
+function wrapLines(text: string, width: number, limit = Number.POSITIVE_INFINITY): string[] {
+  const lines: string[] = [];
+  for (const line of String(text).split("\n")) {
+    if (lines.length >= limit) break;
+    if (line === "") {
+      lines.push("");
+      continue;
+    }
+    const wrapped = wrapAnsi(line, Math.max(8, width), {
+      hard: true,
+      trim: false,
+      wordWrap: true,
+    }).split("\n");
+    for (const piece of wrapped) {
+      if (lines.length >= limit) return lines;
+      lines.push(piece);
+    }
+  }
+  return lines;
 }
 
 function detailOf(name: string, args: ToolArgs | null | undefined): string | undefined {
@@ -133,7 +175,7 @@ function itemLines(
 ): string[] {
   switch (item.role) {
     case "user": {
-      const inner = wrapLines(item.text ?? "", Math.max(10, width - 4));
+      const inner = wrapLines(item.text ?? "", Math.max(10, width - 4), MAX_TEXT_LINES);
       const bar = chalk.hex(theme.userAccent)("│");
       const bg = chalk.bgHex(theme.userBlockBg);
       const blank = bg(" ".repeat(width));
@@ -141,6 +183,9 @@ function itemLines(
         const used = 2 + stringWidth(line);
         return bg(`${bar} ${line}${" ".repeat(Math.max(0, width - used))}`);
       });
+      if (inner.length >= MAX_TEXT_LINES) {
+        body.push(bg(`${bar} ${chalk.dim(t("view.textTruncated"))}`));
+      }
       if (item.queued) {
         const label = t("view.queued");
         const used = 2 + label.length;
@@ -163,7 +208,13 @@ function itemLines(
         lines.push(chalk.dim(t("view.thinking", { ms: meta.thinkingMs })), "");
       }
       for (const block of renderMarkdownBlocks(item.text)) {
-        lines.push(...wrapLines(block, width), "");
+        const wrapped = wrapLines(block, width, MAX_TEXT_LINES);
+        pushLines(lines, wrapped);
+        lines.push("");
+        if (wrapped.length >= MAX_TEXT_LINES) {
+          lines.push(chalk.dim(t("view.textTruncated")), "");
+          break;
+        }
       }
       if (item.live) return lines;
       const seconds = meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : "";
@@ -184,8 +235,11 @@ function itemLines(
 
       const lines = [title];
       if (item.expanded) {
-        const body = wrapLines(item.text ?? "", Math.max(10, width - 6));
-        lines.push(...body.map((line) => chalk.hex(theme.menuDesc)(`     ${line}`)));
+        const body = wrapLines(item.text ?? "", Math.max(10, width - 6), MAX_TEXT_LINES);
+        pushLines(
+          lines,
+          body.map((line) => chalk.hex(theme.menuDesc)(`     ${line}`)),
+        );
       }
       lines.push("");
       return lines;

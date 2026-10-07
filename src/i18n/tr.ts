@@ -275,6 +275,7 @@ Kısayollar
     noOutput: "(çıktı yok)",
     running: "çalışıyor…",
     expandHint: "… +{count} satır daha  ·  genişletmek için tıkla",
+    outputTruncated: "(çıktı çok uzun — toplam {count} satır, kısaltıldı)",
     collapseHint: "… daraltmak için tıkla",
     results: "{count} sonuç",
     done: "tamamlandı",
@@ -293,6 +294,7 @@ Kısayollar
   },
 
   view: {
+    textTruncated: "… (metin çok uzun, kısaltıldı)",
     thinking: "+ Düşünen: {ms}ms",
     thought: "Düşündü: {time}",
     thinkingLive: "Düşünüyor",

@@ -275,6 +275,7 @@ Shortcuts
     noOutput: "(no output)",
     running: "running…",
     expandHint: "… +{count} more lines  ·  click to expand",
+    outputTruncated: "(output too long — {count} lines total, shortened)",
     collapseHint: "… click to collapse",
     results: "{count} results",
     done: "done",
@@ -293,6 +294,7 @@ Shortcuts
   },
 
   view: {
+    textTruncated: "… (text too long, shortened)",
     thinking: "+ Thinking: {ms}ms",
     thought: "Thought: {time}",
     thinkingLive: "Thinking",
