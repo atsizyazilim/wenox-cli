@@ -289,6 +289,33 @@ ve yenilenme zamanıyla görünür.
 
 <img src="slimbanner.png" width="100%">
 
+## 🧩 OpenCode entegrasyonu
+
+WenOX'u OpenCode içinde de kullanabilirsiniz — OpenCode'un sağlayıcı ekranıyla
+uğraşmanıza gerek yok:
+
+```bash
+wenox opencode-setup      # anahtarı sorar, modelleri çeker, yapılandırmayı yazar
+wenox opencode-sync       # model listesini tazeler
+wenox opencode-remove     # WenOX sağlayıcısını OpenCode'dan kaldırır
+wenox opencode-api-key    # anahtarı günceller
+```
+
+- `~/.config/opencode/opencode.json` içine **yalnızca** `provider.wenox` bölümü
+  eklenir; mevcut sağlayıcılarınız, MCP sunucularınız ve izinleriniz korunur.
+  Dosya geçerli JSON değilse hiç dokunulmaz.
+- Model listesi `/v1/models`'ten gelir: ad, bağlam/çıktı limitleri, görsel
+  (`attachment`), düşünme (`reasoning`) ve araç çağırma (`tool_call`) desteği
+  modele göre yazılır.
+- **API anahtarı opencode.json'a yazılmaz**: `~/.config/wenox/api-key` dosyasına
+  yazılır ve yapılandırmada `{file:...}` başvurusu durur. Yapılandırmanızı
+  paylaşsanız bile anahtar sızmaz.
+- Aynı komutlar Windows, macOS ve Linux'ta çalışır.
+
+Sonrasında OpenCode'u yeniden başlatın.
+
+<img src="slimbanner.png" width="100%">
+
 ## 🛠️ Geliştirme
 
 TypeScript ile yazıldı ve `tsc` ile derleniyor. Yayınlanan paket derlenmiş

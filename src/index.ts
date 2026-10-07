@@ -236,7 +236,9 @@ async function main(): Promise<void> {
   const [subcommand, ...subRest] = positionals.map(String);
   if (subcommand) {
     const handled = await runSubcommand(subcommand, subRest, {
-      apiKey: loadConfig().apiKey,
+      // --key ile verilen anahtar alt komutlarda da geçerli (kayıtlı anahtar yoksa
+      // ya da geçici bir anahtarla denemek istendiğinde işe yarıyor).
+      apiKey: String(values.key ?? "").trim() || loadConfig().apiKey,
       currentModel: loadConfig().currentModel,
       json: values.format === "json",
     });

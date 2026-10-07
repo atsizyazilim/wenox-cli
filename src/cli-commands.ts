@@ -9,9 +9,23 @@ import { connect, mcpServers } from "./mcp.js";
 import { sessionHeaders } from "./session.js";
 import { deleteSession, listSessions } from "./session.js";
 import { t } from "./i18n/index.js";
+import { askSecret } from "./prompt.js";
+import {
+  fetchModels as fetchProviderModels,
+  keyFilePath,
+  mergeModels,
+  mergeProvider,
+  opencodeConfigPath,
+  opencodeInstalled,
+  providerConfig,
+  readConfig,
+  removeProvider,
+  writeConfig,
+  writeKeyFile,
+} from "./opencode.js";
 
-// `wenox models|sessions|stats` alt komutları. Hepsi sunucuya/otağa bakar ve
-// terminalde okunur bir özet basar; TUI'yi hiç açmazlar.
+// `wenox models|sessions|stats|mcp|opencode-*` alt komutları. Hepsi sunucuya ya
+// da otağa bakar ve terminalde okunur bir özet basar; TUI'yi hiç açmazlar.
 
 interface RemoteModel {
   id?: string;
@@ -273,6 +287,201 @@ async function cmdMcp(rest: string[], opts: { json: boolean }): Promise<void> {
 }
 
 // Bilinen bir alt komut çalıştırıldıysa true döner (main erken çıkar).
+// --- OpenCode entegrasyonu -------------------------------------------------
+// Kullanıcı OpenCode'un sağlayıcı ekranına hiç girmesin: anahtarı sorar, model
+// listesini sunucudan çeker ve ~/.config/opencode/opencode.json içine yalnızca
+// `provider.wenox` bölümünü ekler/günceller. Anahtarın kendisi opencode.json'a
+// yazılmaz; orada `{file:...}` başvurusu durur (paylaşılsa bile sızmaz).
+
+const OPENCODE_MESSAGE_KEYS = {
+  auth: "cli.opencodeAuthFailed",
+  network: "cli.opencodeNetwork",
+  empty: "cli.opencodeEmpty",
+} as const;
+
+async function resolveKey(apiKey: string, json: boolean): Promise<string | null> {
+  const saved = String(apiKey ?? "").trim();
+  if (saved) return saved;
+  if (json || !process.stdin.isTTY) {
+    console.error(chalk.red(t("cli.opencodeNoKey")));
+    process.exitCode = 1;
+    return null;
+  }
+  const answer = (await askSecret(t("cli.opencodePrompt"))).trim();
+  if (!answer) {
+    console.error(chalk.red(t("cli.opencodeNoKey")));
+    process.exitCode = 1;
+    return null;
+  }
+  return answer;
+}
+
+async function loadProviderModels(apiKey: string) {
+  const result = await fetchProviderModels(apiKey);
+  if (!result.ok) {
+    console.error(chalk.red(t(OPENCODE_MESSAGE_KEYS[result.reason])));
+    process.exitCode = 1;
+    return null;
+  }
+  return result.models;
+}
+
+// Mevcut yapılandırmadaki provider.wenox bölümü (varsa).
+function currentProvider(config: unknown): unknown {
+  const root = config && typeof config === "object" ? (config as Record<string, unknown>) : null;
+  const providers = root?.provider;
+  if (!providers || typeof providers !== "object") return undefined;
+  return (providers as Record<string, unknown>)["wenox"];
+}
+
+async function cmdOpencodeSetup(apiKey: string, opts: { json: boolean }): Promise<void> {
+  const key = await resolveKey(apiKey, opts.json);
+  if (!key) return;
+
+  const models = await loadProviderModels(key);
+  if (!models) return;
+
+  const file = opencodeConfigPath();
+  const existing = readConfig(file);
+  if (!existing.ok) {
+    console.error(chalk.red(t("cli.opencodeBadConfig", { path: file, message: existing.message })));
+    process.exitCode = 1;
+    return;
+  }
+
+  saveConfig({ apiKey: key });
+  writeKeyFile(key);
+  writeConfig(
+    mergeProvider(existing.config ?? { $schema: "https://opencode.ai/config.json" }, providerConfig(models)),
+    file,
+  );
+
+  if (opts.json) {
+    console.log(
+      JSON.stringify(
+        { ok: true, path: file, keyFile: keyFilePath(), models: models.map((model) => model.id) },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  console.log(chalk.green(t("cli.opencodeKeyOk")));
+  console.log(chalk.green(t("cli.opencodeModelsFound", { count: models.length })));
+  console.log(
+    existing.exists
+      ? chalk.green(t("cli.opencodeConfigFound", { path: file }))
+      : chalk.green(t("cli.opencodeConfigCreated", { path: file })),
+  );
+  console.log(chalk.green(t("cli.opencodeProviderAdded", { count: models.length })));
+  if (!opencodeInstalled()) console.log(chalk.yellow(t("cli.opencodeNotInstalled")));
+  console.log(chalk.dim(t("cli.opencodeRestart")));
+}
+
+async function cmdOpencodeSync(apiKey: string, opts: { json: boolean }): Promise<void> {
+  const key = await resolveKey(apiKey, opts.json);
+  if (!key) return;
+
+  const models = await loadProviderModels(key);
+  if (!models) return;
+
+  const file = opencodeConfigPath();
+  const existing = readConfig(file);
+  if (!existing.ok) {
+    console.error(chalk.red(t("cli.opencodeBadConfig", { path: file, message: existing.message })));
+    process.exitCode = 1;
+    return;
+  }
+
+  writeKeyFile(key);
+  writeConfig(
+    mergeProvider(
+      existing.config ?? { $schema: "https://opencode.ai/config.json" },
+      mergeModels(currentProvider(existing.config), models),
+    ),
+    file,
+  );
+
+  if (opts.json) {
+    console.log(JSON.stringify({ ok: true, path: file, models: models.map((model) => model.id) }, null, 2));
+    return;
+  }
+  console.log(chalk.green(t("cli.opencodeModelsUpdated", { count: models.length, path: file })));
+  console.log(chalk.dim(t("cli.opencodeRestart")));
+}
+
+function cmdOpencodeRemove(opts: { json: boolean }): void {
+  const file = opencodeConfigPath();
+  const existing = readConfig(file);
+  if (!existing.ok) {
+    console.error(chalk.red(t("cli.opencodeBadConfig", { path: file, message: existing.message })));
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!existing.exists) {
+    if (opts.json) console.log(JSON.stringify({ ok: true, removed: false, path: file }, null, 2));
+    else console.log(chalk.dim(t("cli.opencodeProviderMissing")));
+    return;
+  }
+
+  const { config, removed } = removeProvider(existing.config);
+  if (removed) writeConfig(config, file);
+
+  if (opts.json) {
+    console.log(JSON.stringify({ ok: true, removed, path: file }, null, 2));
+    return;
+  }
+  console.log(
+    removed
+      ? chalk.green(t("cli.opencodeProviderRemoved", { path: file }))
+      : chalk.dim(t("cli.opencodeProviderMissing")),
+  );
+  if (removed) console.log(chalk.dim(t("cli.opencodeKeyFileKept", { path: keyFilePath() })));
+}
+
+async function cmdOpencodeKey(apiKey: string, opts: { json: boolean }): Promise<void> {
+  if (opts.json || !process.stdin.isTTY) {
+    console.error(chalk.red(t("cli.opencodeNoKey")));
+    process.exitCode = 1;
+    return;
+  }
+
+  const file = opencodeConfigPath();
+  const existing = readConfig(file);
+  if (!existing.ok) {
+    console.error(chalk.red(t("cli.opencodeBadConfig", { path: file, message: existing.message })));
+    process.exitCode = 1;
+    return;
+  }
+
+  const prompt = String(apiKey ?? "").trim() ? t("cli.opencodeKeyPromptNew") : t("cli.opencodePrompt");
+  const entered = (await askSecret(prompt)).trim();
+  if (!entered) {
+    console.error(chalk.red(t("cli.opencodeNoKey")));
+    process.exitCode = 1;
+    return;
+  }
+
+  const models = await loadProviderModels(entered);
+  if (!models) return;
+
+  saveConfig({ apiKey: entered });
+  writeKeyFile(entered);
+  const current = currentProvider(existing.config);
+  writeConfig(
+    mergeProvider(
+      existing.config ?? { $schema: "https://opencode.ai/config.json" },
+      current ? mergeModels(current, models) : providerConfig(models),
+    ),
+    file,
+  );
+
+  console.log(chalk.green(t("cli.opencodeKeyUpdated", { path: keyFilePath() })));
+  console.log(chalk.green(t("cli.opencodeModelsUpdated", { count: models.length, path: file })));
+}
+
 export async function runSubcommand(
   command: string,
   rest: string[],
@@ -291,6 +500,20 @@ export async function runSubcommand(
       return true;
     case "mcp":
       await cmdMcp(rest, { json: options.json });
+      return true;
+    case "opencode-setup":
+      await cmdOpencodeSetup(options.apiKey, { json: options.json });
+      return true;
+    case "opencode-sync":
+    case "opencode-update":
+      await cmdOpencodeSync(options.apiKey, { json: options.json });
+      return true;
+    case "opencode-remove":
+      cmdOpencodeRemove({ json: options.json });
+      return true;
+    case "opencode-api-key":
+    case "opencode-key":
+      await cmdOpencodeKey(options.apiKey, { json: options.json });
       return true;
     default:
       return false;

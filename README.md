@@ -287,6 +287,33 @@ panel with their percentage and reset time.
 
 <img src="slimbanner.png" width="100%">
 
+## 🧩 OpenCode integration
+
+You can use WenOX inside OpenCode too — no need to touch OpenCode's provider
+screen:
+
+```bash
+wenox opencode-setup      # asks for the key, fetches models, writes the config
+wenox opencode-sync       # refreshes the model list
+wenox opencode-remove     # removes the WenOX provider from OpenCode
+wenox opencode-api-key    # updates the key
+```
+
+- Only the `provider.wenox` section is added to
+  `~/.config/opencode/opencode.json`; your other providers, MCP servers and
+  permissions are preserved. If the file is not valid JSON it is left untouched.
+- The model list comes from `/v1/models`: the name, context/output limits,
+  image (`attachment`), reasoning and tool-calling (`tool_call`) support are
+  written per model.
+- **The API key is never written into opencode.json**: it goes to
+  `~/.config/wenox/api-key` and the config only holds a `{file:...}` reference,
+  so sharing your config does not leak the key.
+- The same commands work on Windows, macOS and Linux.
+
+Restart OpenCode afterwards.
+
+<img src="slimbanner.png" width="100%">
+
 ## 🛠️ Development
 
 Written in TypeScript and compiled with `tsc`. The published package ships
