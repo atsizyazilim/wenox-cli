@@ -264,7 +264,7 @@ silebilirsiniz.
 Her şey oturumun içinden yönetilir — modeli, dili ya da anahtarı değiştirin,
 hesabı görün, bağlamı düzenleyin. Ayarlar ortam değişkenleriyle de verilebilir:
 `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`, `WENOX_LANG`, `WENOX_API_BASE_URL`,
-`WENOX_REQUEST_TIMEOUT_MS`, `WENOX_DEBUG`.
+`WENOX_REQUEST_TIMEOUT_MS`, `WENOX_REQUEST_DEADLINE_MS`, `WENOX_DEBUG`.
 
 | Komut | Açıklama |
 | --- | --- |

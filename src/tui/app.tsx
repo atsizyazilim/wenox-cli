@@ -399,6 +399,8 @@ export function App({
   const queuedRef = useRef<{ id: number; text: string; attachments: Attachment[] }[]>([]);
   const drivingRef = useRef(false);
   const busyRef = useRef(false);
+  // Tur başlangıcı: çalışma göstergesi geçen süreyi buradan hesaplıyor.
+  const busySinceRef = useRef<number | null>(null);
   const tokensRef = useRef(session?.tokens ?? 0);
   const usedTokensRef = useRef(session?.usedTokens ?? 0);
   const contextWindowRef = useRef(CONTEXT_WINDOW);
@@ -1024,6 +1026,7 @@ export function App({
   const drive = useCallback(async (): Promise<void> => {
     if (drivingRef.current) return;
     drivingRef.current = true;
+    busySinceRef.current = Date.now();
     setBusy(true);
     busyRef.current = true;
 
@@ -1067,6 +1070,7 @@ export function App({
     } finally {
       drivingRef.current = false;
       busyRef.current = false;
+      busySinceRef.current = null;
       setBusy(false);
       setLiveText("");
       syncSession();
@@ -2069,7 +2073,7 @@ export function App({
       </Box>
       <Box flexShrink={0}>
         {busy ? (
-          <WorkingIndicator />
+          <WorkingIndicator startedAt={busySinceRef.current} />
         ) : (
           <BottomBar
             cwd={process.cwd()}

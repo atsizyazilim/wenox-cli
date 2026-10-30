@@ -464,6 +464,7 @@ Shortcuts
     quotaHint: "⏳ It resets at {reset}. For extra usage you can use wallet credits.",
     quotaRequired: "This request needed {needed}% more.",
     timeout: "❌ Request timed out — the server did not respond within {seconds}s. Please try again.",
+    deadline: "❌ The response did not finish within {minutes} minutes — the model may be stuck. Try again.",
     connection: "❌ Could not connect to the API server ({url}). Check your internet connection.",
     apiError: "❌ API Error (Code: {status}): {message}",
     unknownError: "❌ An unexpected error occurred: {message}",

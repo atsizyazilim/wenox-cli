@@ -56,6 +56,10 @@ const FALLBACK_RESPONSE = (): string => t("agent.fallback");
 
 // Sunucudan bu süre boyunca hiç veri gelmezse istek iptal edilir (WENOX_REQUEST_TIMEOUT_MS ile ayarlanır).
 const REQUEST_TIMEOUT_MS = Number(process.env.WENOX_REQUEST_TIMEOUT_MS) || 120_000;
+// Tek bir isteğin TOPLAM süresi (WENOX_REQUEST_DEADLINE_MS ile ayarlanır). Arada
+// tek tük veri gelen takılmış akışlar boşluk zaman aşımına takılmıyordu; ekran
+// "iş sürüyor"da kalıyordu.
+const REQUEST_DEADLINE_MS = 10 * 60_000;
 
 // Sohbet mesajları SDK'nın dar birleşimine değil, kendi yapımıza göre tutuluyor:
 // oturum dosyasından doğrulanmadan okunuyorlar ve alanları elle kuruluyor.
@@ -66,6 +70,13 @@ export class RequestTimeoutError extends Error {
   constructor() {
     super("Request timed out");
     this.name = "RequestTimeoutError";
+  }
+}
+
+export class RequestDeadlineError extends Error {
+  constructor() {
+    super("Request deadline exceeded");
+    this.name = "RequestDeadlineError";
   }
 }
 
@@ -506,6 +517,20 @@ export class WenOXAgent {
     debugLog("istek gönderiliyor");
     const startedAt = Date.now();
     let timedOut = false;
+    let deadlineExceeded = false;
+    // Tek bir isteğin toplam süresi de sınırlı. Yalnızca "boşluk" zaman aşımı
+    // vardı: arada tek tük veri gönderen (ör. düşünme tokenı akan) takılmış bir
+    // akış sonsuza kadar sürebiliyor ve ekran "iş sürüyor"da kalıyordu.
+    const deadlineMs = Number(process.env.WENOX_REQUEST_DEADLINE_MS) || REQUEST_DEADLINE_MS;
+    const deadline = setTimeout(() => {
+      deadlineExceeded = true;
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    }, deadlineMs);
+    deadline.unref?.();
     let idleTimer: NodeJS.Timeout | null = null;
     const armIdle = (): void => {
       if (idleTimer) clearTimeout(idleTimer);
@@ -581,6 +606,11 @@ export class WenOXAgent {
           break;
         }
 
+        // Sağlayıcı abort'u yok saysa bile (akış akmaya devam etse) süre
+        // sınırlarında döngüyü kendimiz kırıyoruz; yoksa ekran "iş sürüyor"da
+        // sonsuza kadar kalıyordu.
+        if (timedOut || deadlineExceeded) break;
+
         const delta = chunk.choices?.[0]?.delta;
         if (!delta) continue;
 
@@ -623,6 +653,7 @@ export class WenOXAgent {
       }
       debugLog("akış bitti");
       if (timedOut) throw new RequestTimeoutError();
+      if (deadlineExceeded) throw new RequestDeadlineError();
 
       // Bağlam boyutu: API usage verdiyse o, yoksa gerçek tokenizer ile tahmin.
       const promptTokens = messagesTokenCount(this.messages);
@@ -647,9 +678,11 @@ export class WenOXAgent {
       return { content, toolCalls, meta, finishReason: finishReason || undefined };
     } catch (error) {
       if (timedOut) throw new RequestTimeoutError();
+      if (deadlineExceeded) throw new RequestDeadlineError();
       throw error;
     } finally {
       if (idleTimer) clearTimeout(idleTimer);
+      clearTimeout(deadline);
       clearAbortHandler();
     }
   }
@@ -1021,6 +1054,9 @@ export class WenOXAgent {
       sink.error?.(
         t("agent.apiError", { status: code ?? "?", message: error.message }),
       );
+    } else if (error instanceof RequestDeadlineError) {
+      const deadlineMs = Number(process.env.WENOX_REQUEST_DEADLINE_MS) || REQUEST_DEADLINE_MS;
+      sink.error?.(t("agent.deadline", { minutes: Math.max(1, Math.round(deadlineMs / 60_000)) }));
     } else if (error instanceof RequestTimeoutError) {
       sink.error?.(t("agent.timeout", { seconds: Math.round(REQUEST_TIMEOUT_MS / 1000) }));
     } else {

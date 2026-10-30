@@ -262,7 +262,7 @@ one with `wenox session delete <id>`.
 Everything is driven from inside the session — change the model, the language or
 the key, inspect the account, manage the context. Settings can also be supplied
 through environment variables: `WENOX_API_KEY`, `WENOX_DEFAULT_MODEL`,
-`WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`, `WENOX_DEBUG`.
+`WENOX_LANG`, `WENOX_API_BASE_URL`, `WENOX_REQUEST_TIMEOUT_MS`, `WENOX_REQUEST_DEADLINE_MS`, `WENOX_DEBUG`.
 
 | Command | Description |
 | --- | --- |

@@ -464,6 +464,7 @@ Kısayollar
     quotaHint: "⏳ Yenilenme: {reset}. Ek kullanım için cüzdan kredisi kullanabilirsin.",
     quotaRequired: "Bu istek için %{needed} daha gerekiyordu.",
     timeout: "❌ İstek zaman aşımına uğradı — sunucu {seconds} sn içinde yanıt vermedi. Tekrar deneyin.",
+    deadline: "❌ Yanıt {minutes} dakika içinde tamamlanmadı — model takılmış olabilir. Tekrar deneyin.",
     connection: "❌ API sunucusuna bağlanılamadı ({url}). İnternet bağlantınızı kontrol edin.",
     apiError: "❌ API Hatası (Kod: {status}): {message}",
     unknownError: "❌ Beklenmeyen bir hata oluştu: {message}",
